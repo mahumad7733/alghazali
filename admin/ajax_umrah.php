@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_request()) {
                 'visa',
                 'umrah',
                 $default_status_id,
-                $settings['umrah_workflow_enabled'] ? get_workflow_id_by_transaction_type($pdo, 'umrah') : null,
+                isset($settings['umrah_workflow_enabled']) && $settings['umrah_workflow_enabled'] ? get_workflow_id_by_transaction_type($pdo, 'umrah') : null,
                 $_SESSION['admin_id'],
                 $_SESSION['admin_id'],
                 $_SESSION['branch_id'] ?? null,

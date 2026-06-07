@@ -1,0 +1,260 @@
+/* أنماط CSS لصفحة الدردشة الداخلية */
+
+/* إخفاء شريط التمرير الرئيسي */
+body {
+    overflow: hidden;
+}
+
+/* تخطيط الشاشة الكاملة للدردشة */
+.main-content-inner {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* قائمة جهات الاتصال */
+#contactsView {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+#contactsView .card {
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin: 0;
+}
+
+#contactsView .card-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#usersList {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+#usersList li {
+    border-bottom: 1px solid #eee;
+}
+
+#usersList li:last-child {
+    border-bottom: none;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.contact-item:hover {
+    background-color: #f8f9fa;
+}
+
+.contact-item.active {
+    background-color: #e9ecef;
+    border-right: 3px solid #007bff;
+}
+
+.contact-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-left: 15px;
+    flex-shrink: 0;
+    background-color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.contact-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.contact-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.contact-name {
+    font-weight: bold;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-status {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.online-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    margin-left: 5px;
+}
+
+.offline-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #6c757d;
+    border-radius: 50%;
+    margin-left: 5px;
+}
+
+/* عرض الدردشة */
+#chatView {
+    display: none; /* يتم التحكم بها بواسطة JS */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    z-index: 1000;
+    flex-direction: column;
+}
+
+#chatView .card {
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+}
+
+#messagesContainer {
+    flex: 1;
+    overflow-y: auto;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 20px;
+    padding-bottom: 120px; /* لتجنب تداخل حقل الإدخال */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* لجعل الرسائل تظهر من الأسفل */
+}
+
+.message-item {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.message-item.mine {
+    justify-content: flex-end;
+}
+
+.message-item.other {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 20px;
+    line-height: 1.4;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.message-item.mine .message-bubble {
+    background-color: #007bff;
+    color: #fff;
+    border-bottom-right-radius: 5px;
+}
+
+.message-item.other .message-bubble {
+    background-color: #e9ecef;
+    color: #333;
+    border-bottom-left-radius: 5px;
+}
+
+.message-time {
+    font-size: 0.75em;
+    color: #999;
+    margin-top: 5px;
+    display: block;
+    text-align: right;
+}
+
+.message-item.other .message-time {
+    text-align: left;
+}
+
+.message-input-footer {
+    border-top: 1px solid #ddd;
+    flex-shrink: 0;
+    padding: 12px 15px;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    background: #fff;
+    z-index: 10;
+    width: 100%;
+}
+
+.message-input-footer .input-group {
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.message-input-footer .form-control {
+    border-radius: 25px 0 0 25px;
+    border: none;
+    font-size: 16px;
+    padding: 12px 20px;
+}
+
+.message-input-footer .btn-primary {
+    border-radius: 0 25px 25px 0;
+    border: none;
+    padding: 12px 25px;
+    background: linear-gradient(90deg, #007bff, #0056b3);
+}
+
+/* تحسينات الاستجابة */
+@media (min-width: 768px) {
+    #contactsView {
+        flex: 0 0 300px; /* عرض ثابت لقائمة جهات الاتصال على الشاشات الكبيرة */
+        border-left: 1px solid #eee;
+    }
+
+    #chatView {
+        position: static;
+        display: flex !important; /* عرض الدردشة بجانب قائمة جهات الاتصال */
+        flex: 1;
+    }
+
+    .main-content-inner {
+        flex-direction: row; /* عرض جهات الاتصال والدردشة جنباً إلى جنب */
+    }
+
+    .message-input-footer {
+        position: static;
+        width: auto;
+    }
+}

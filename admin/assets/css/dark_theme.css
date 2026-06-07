@@ -1,0 +1,151 @@
+:root {
+    --dark-bg: #1a1a1a;
+    --card-bg: rgba(42, 42, 42, 0.8);
+    --text-color: #e0e0e0;
+    --text-muted: #888;
+    --text-bold: #ffffff;
+    --primary-accent: #3b82f6;
+    --border-color: #444;
+}
+
+body.dark-mode, body.theme-dark {
+    background-color: var(--dark-bg) !important;
+    color: var(--text-color) !important;
+}
+
+.dark-mode .card, .theme-dark .card {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+.dark-mode .text-muted, .theme-dark .text-muted {
+    color: var(--text-muted) !important;
+}
+
+.dark-mode .fw-bold, .theme-dark .fw-bold {
+    color: var(--text-bold) !important;
+}
+
+.dark-mode .text-primary, .theme-dark .text-primary {
+    color: var(--primary-accent) !important;
+}
+
+.dark-mode .modal-content, .theme-dark .modal-content {
+    background-color: #1a1a1a !important;
+    color: var(--text-color) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.dark-mode .modal-header, .theme-dark .modal-header {
+    border-bottom-color: var(--border-color) !important;
+}
+
+.dark-mode .modal-footer, .theme-dark .modal-footer {
+    border-top-color: var(--border-color) !important;
+}
+
+.dark-mode .table, .theme-dark .table {
+    color: var(--text-color) !important;
+}
+
+.dark-mode .table thead th, .theme-dark .table thead th {
+    background-color: #222 !important;
+    color: #fff !important;
+    border-bottom: 2px solid var(--border-color) !important;
+}
+
+.dark-mode .list-group-item, .theme-dark .list-group-item {
+    background-color: transparent !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+.dark-mode .form-control, .theme-dark .form-control {
+    background-color: #2a2a2a !important;
+    border-color: #444 !important;
+    color: #fff !important;
+}
+
+.dark-mode .form-control:focus, .theme-dark .form-control:focus {
+    background-color: #333 !important;
+    border-color: var(--primary-accent) !important;
+    color: #fff !important;
+}
+
+.dark-mode .form-label, .theme-dark .form-label {
+    color: var(--text-bold) !important;
+}
+
+.dark-mode .dropdown-menu, .theme-dark .dropdown-menu {
+    background-color: #1a1a1a !important;
+    border-color: #444 !important;
+}
+
+.dark-mode .dropdown-item, .theme-dark .dropdown-item {
+    color: var(--text-color) !important;
+}
+
+.dark-mode .dropdown-item:hover, .theme-dark .dropdown-item:hover {
+    background-color: #2a2a2a !important;
+}
+
+/* Kanban Board Styles */
+.horizontal-scroll-container {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+}
+
+.kanban-column {
+    flex: 0 0 300px;
+    margin-left: 1rem;
+    background-color: var(--card-bg);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.kanban-column-title {
+    font-weight: bold;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid;
+}
+
+.kanban-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.kanban-card {
+    background-color: var(--dark-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.kanban-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.kanban-card-header {
+    margin-bottom: 0.5rem;
+}
+
+.kanban-card-body p {
+    margin-bottom: 0.25rem;
+}
+
+.kanban-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+

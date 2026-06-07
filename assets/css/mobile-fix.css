@@ -1,0 +1,77 @@
+/* تحسينات عامة للهاتف */
+@media (max-width: 768px) {
+    /* تحسين الحاويات والمسافات */
+    .container, .container-fluid {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+    
+    /* تحسين الجداول لتصبح بطاقات */
+    .table-responsive {
+        border: none !important;
+    }
+    
+    .table-responsive table thead {
+        display: none !important;
+    }
+    
+    .table-responsive table tbody tr {
+        display: block !important;
+        margin-bottom: 15px !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 12px !important;
+        padding: 10px !important;
+        background: #fff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+    }
+    
+    .table-responsive table tbody td {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        border: none !important;
+        padding: 8px 0 !important;
+        border-bottom: 1px dashed #eee !important;
+        text-align: left !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .table-responsive table tbody td:last-child {
+        border-bottom: none !important;
+        justify-content: center !important;
+        padding-top: 12px !important;
+    }
+    
+    .table-responsive table tbody td::before {
+        content: attr(data-label);
+        font-weight: bold !important;
+        color: #495057 !important;
+        margin-right: 10px !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* تحسين الأزرار في الجداول */
+    .btn-group, .d-flex {
+        flex-wrap: wrap !important;
+        gap: 5px !important;
+    }
+
+    /* تحسين القائمة الجانبية والهيدر */
+    .navbar-brand {
+        font-size: 1rem !important;
+    }
+    
+    .card-header .row > div {
+        margin-bottom: 10px !important;
+    }
+    
+    /* تحسين النوافذ المنبثقة (Modals) */
+    .modal-dialog {
+        margin: 10px !important;
+    }
+    
+    /* تحسين الإحصائيات (Stats Cards) */
+    .row.g-4 > div {
+        margin-bottom: 10px !important;
+    }
+}

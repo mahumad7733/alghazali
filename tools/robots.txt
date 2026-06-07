@@ -1,0 +1,28 @@
+# robots.txt - وكالة الغزالي للسفريات والسياحة
+
+User-agent: *
+Allow: /
+
+# السماح بالوصول إلى ملفات XML (بما في ذلك sitemap.xml)
+Allow: /*.xml$
+
+# منع المجلدات الحساسة
+Disallow: /admin/
+Disallow: /includes/
+Disallow: /api/
+
+# السماح بالوصول إلى الصور والملفات العامة
+Allow: /assets/
+
+# السماح بأرشفة الصور في مجلد uploads
+Allow: /assets/uploads/
+
+# منع الملفات الحساسة
+Disallow: /*.sql$
+Disallow: /*.log$
+Disallow: /*.backup$
+Disallow: /*.zip$
+
+# خريطة الموقع
+Sitemap: https://alghazaliye.rf.gd/sitemap.xml
+Sitemap: https://alghazaliye.rf.gd/sitemap.php

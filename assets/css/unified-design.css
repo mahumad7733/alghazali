@@ -1,0 +1,587 @@
+/*
+ * Unified product design layer.
+ * Keeps the public site and admin panel visually consistent without a glossy OS-like look.
+ */
+
+:root {
+    --ui-bg: #f6f8fb;
+    --ui-surface: #ffffff;
+    --ui-surface-2: #f1f5f9;
+    --ui-text: #172033;
+    --ui-muted: #64748b;
+    --ui-border: #dbe3ef;
+    --ui-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+    --ui-shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.06);
+    --ui-radius: 8px;
+    --ui-radius-sm: 6px;
+    --ui-control-h: 40px;
+}
+
+body.theme-dark,
+body.dark-mode {
+    --ui-bg: #0b1120;
+    --ui-surface: #111827;
+    --ui-surface-2: #0f1e35;
+    --ui-text: #e5edf7;
+    --ui-muted: #94a3b8;
+    --ui-border: #25344d;
+    --ui-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
+    --ui-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.26);
+}
+
+html {
+    background: var(--ui-bg);
+}
+
+body {
+    background: var(--ui-bg) !important;
+    color: var(--ui-text) !important;
+}
+
+.main-wrapper,
+.content-wrapper,
+.content-body,
+main,
+section {
+    color: var(--ui-text);
+}
+
+.top-navbar,
+.navbar {
+    background: var(--ui-surface) !important;
+    border-bottom: 1px solid var(--ui-border) !important;
+    box-shadow: var(--ui-shadow-sm) !important;
+}
+
+.sidebar {
+    border-color: var(--ui-border) !important;
+    box-shadow: var(--ui-shadow-sm) !important;
+}
+
+.card,
+.login-card,
+.modal-content,
+.dropdown-menu,
+.list-group-item,
+.app-item,
+.stat-card,
+.service-card,
+.feature-card,
+.vision-card,
+.glass-search-card {
+    background: var(--ui-surface) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: var(--ui-radius) !important;
+    color: var(--ui-text) !important;
+    box-shadow: var(--ui-shadow-sm) !important;
+}
+
+.card-header,
+.card-footer,
+.modal-header,
+.modal-footer {
+    background: var(--ui-surface-2) !important;
+    border-color: var(--ui-border) !important;
+    color: var(--ui-text) !important;
+}
+
+.card-body,
+.modal-body {
+    color: var(--ui-text) !important;
+}
+
+.btn,
+.icon-btn,
+.visit-site-btn,
+.btn-login,
+.theme-toggle-btn,
+.navbar-toggler,
+.page-link,
+.dropdown-item {
+    border-radius: var(--ui-radius-sm) !important;
+    letter-spacing: 0 !important;
+}
+
+.btn,
+.btn-login,
+.theme-toggle-btn,
+.visit-site-btn {
+    min-height: var(--ui-control-h);
+    font-weight: 700;
+    box-shadow: none !important;
+}
+
+.icon-btn {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border: 1px solid var(--ui-border) !important;
+    background: var(--ui-surface) !important;
+    color: var(--ui-muted) !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover,
+.theme-toggle-btn:hover,
+.visit-site-btn:hover {
+    background: rgba(var(--primary-rgb, 29, 61, 188), 0.1) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    transform: none !important;
+}
+
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-warning,
+.btn-info,
+.btn-secondary {
+    border-width: 1px !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text,
+input,
+select,
+textarea,
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple {
+    min-height: var(--ui-control-h);
+    border-radius: var(--ui-radius-sm) !important;
+    background: var(--ui-surface) !important;
+    border-color: var(--ui-border) !important;
+    color: var(--ui-text) !important;
+    box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    background: var(--ui-surface) !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 29, 61, 188), 0.16) !important;
+    color: var(--ui-text) !important;
+}
+
+label,
+.form-label,
+.form-check-label,
+.card-title,
+.modal-title,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--ui-text) !important;
+}
+
+.text-muted,
+small,
+.small {
+    color: var(--ui-muted) !important;
+}
+
+.table {
+    --bs-table-bg: var(--ui-surface);
+    --bs-table-color: var(--ui-text);
+    --bs-table-border-color: var(--ui-border);
+    --bs-table-striped-bg: var(--ui-surface-2);
+    --bs-table-striped-color: var(--ui-text);
+    --bs-table-hover-bg: rgba(var(--primary-rgb, 29, 61, 188), 0.08);
+    --bs-table-hover-color: var(--ui-text);
+    border-color: var(--ui-border) !important;
+    color: var(--ui-text) !important;
+}
+
+.table > :not(caption) > * > * {
+    background-color: var(--bs-table-bg) !important;
+    border-color: var(--bs-table-border-color) !important;
+    color: var(--bs-table-color) !important;
+}
+
+.table thead th,
+.table thead tr > * {
+    background: var(--ui-surface-2) !important;
+    color: var(--ui-muted) !important;
+    font-weight: 800;
+}
+
+.dropdown-item {
+    color: var(--ui-text) !important;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background: var(--ui-surface-2) !important;
+    color: var(--primary-color) !important;
+}
+
+.bg-white,
+.bg-light,
+.bg-body {
+    background-color: var(--ui-surface) !important;
+    color: var(--ui-text) !important;
+}
+
+.border,
+.border-top,
+.border-bottom,
+.border-start,
+.border-end {
+    border-color: var(--ui-border) !important;
+}
+
+.shadow,
+.shadow-sm,
+.shadow-lg {
+    box-shadow: var(--ui-shadow-sm) !important;
+}
+
+.rounded,
+.rounded-2,
+.rounded-3,
+.rounded-4,
+.rounded-5 {
+    border-radius: var(--ui-radius) !important;
+}
+
+.modal-dialog {
+    width: min(92vw, 920px);
+    margin-inline: auto;
+}
+
+.modal-xl {
+    max-width: min(94vw, 1080px);
+}
+
+/* ---------------------------------------------------------
+   Elegant Status Toggles & Modern Badges
+   --------------------------------------------------------- */
+
+/* Modern Status Badges */
+.badge {
+    padding: 6px 14px !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    border-radius: 50px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border: 1px solid transparent !important;
+}
+
+.bg-success-subtle, .badge-success, .status-active {
+    background: rgba(52, 199, 89, 0.12) !important;
+    color: #34C759 !important;
+    border: 1px solid rgba(52, 199, 89, 0.2) !important;
+}
+
+.bg-danger-subtle, .badge-danger, .status-inactive {
+    background: rgba(255, 59, 48, 0.12) !important;
+    color: #FF3B30 !important;
+    border: 1px solid rgba(255, 59, 48, 0.2) !important;
+}
+
+.bg-warning-subtle, .badge-warning {
+    background: rgba(255, 149, 0, 0.12) !important;
+    color: #FF9500 !important;
+    border: 1px solid rgba(255, 149, 0, 0.2) !important;
+}
+
+.bg-info-subtle, .badge-info {
+    background: rgba(0, 122, 255, 0.12) !important;
+    color: #007AFF !important;
+    border: 1px solid rgba(0, 122, 255, 0.2) !important;
+}
+
+/* Elegant Interactive Status Toggle (Button Style) */
+.btn-status-toggle {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    transition: transform 0.2s !important;
+    display: inline-flex !important;
+}
+
+.btn-status-toggle:hover {
+    transform: scale(1.05) !important;
+}
+
+.btn-status-toggle:active {
+    transform: scale(0.95) !important;
+}
+
+/* Apple-style Toggle Switch */
+.status-switch {
+    width: 48px;
+    height: 24px;
+    background: #e2e8f0;
+    border-radius: 20px;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-block;
+    cursor: pointer;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+    vertical-align: middle;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.status-switch.active {
+    background: #34C759;
+    border-color: #2fb350;
+}
+
+.status-switch::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    top: 1px;
+    left: 1px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.status-switch.active::after {
+    left: 25px;
+}
+
+/* Elegant Action Buttons */
+.btn-action-elegant {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border: 1px solid var(--ui-border) !important;
+    background: var(--ui-surface) !important;
+    color: var(--ui-muted) !important;
+    padding: 0 !important;
+}
+
+.btn-action-elegant:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+.btn-action-elegant.btn-activate:hover {
+    background: rgba(52, 199, 89, 0.1) !important;
+    border-color: #34C759 !important;
+    color: #34C759 !important;
+}
+
+.btn-action-elegant.btn-deactivate:hover {
+    background: rgba(255, 59, 48, 0.1) !important;
+    border-color: #FF3B30 !important;
+    color: #FF3B30 !important;
+}
+
+/* ---------------------------------------------------------
+   Modern Blue & White Toggle Switches (As Requested)
+   --------------------------------------------------------- */
+.form-switch {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 44px !important;
+    width: 100% !important;
+}
+
+.form-switch .form-check-input {
+    width: 88px !important;
+    height: 40px !important;
+    margin: 0 !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 40px !important;
+    position: relative !important;
+    cursor: pointer !important;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    flex-shrink: 0 !important;
+    outline: none !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+/* Knob */
+.form-switch .form-check-input::before {
+    content: '' !important;
+    position: absolute !important;
+    width: 32px !important;
+    height: 32px !important;
+    background-color: #007AFF !important; /* Blue knob when OFF */
+    border-radius: 50% !important;
+    top: 4px !important;
+    left: 4px !important;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.3) !important;
+    z-index: 5 !important;
+}
+
+/* Checked State - Blue Background */
+.form-switch .form-check-input:checked {
+    background-color: #007AFF !important;
+    box-shadow: 0 6px 15px rgba(0, 122, 255, 0.35) !important;
+}
+
+.form-switch .form-check-input:checked::before {
+    left: 52px !important;
+    background-color: #ffffff !important; /* White knob when ON */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+}
+
+/* Indicators */
+.form-switch .form-check-input::after {
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    z-index: 2 !important;
+    letter-spacing: 0.5px !important;
+    transition: all 0.3s ease !important;
+}
+
+/* OFF Text */
+.form-switch .form-check-input:not(:checked)::after {
+    content: 'OFF' !important;
+    right: 15px !important;
+    color: #007AFF !important;
+}
+
+/* ON Text */
+.form-switch .form-check-input:checked::after {
+    content: 'ON' !important;
+    left: 18px !important;
+    right: auto !important;
+    color: #ffffff !important;
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.25) !important;
+}
+
+/* Label Styling */
+.form-switch .form-check-label {
+    cursor: pointer !important;
+    user-select: none !important;
+    margin: 0 !important;
+    padding-right: 15px !important;
+    flex: 1 !important;
+    color: #2d3748 !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+}
+
+/* Container Enhancement for modern look */
+.perm-card, .form-switch-container {
+    padding: 16px !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+    border: 1px solid #edf2f7 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important;
+    transition: all 0.3s ease !important;
+    margin-bottom: 12px !important;
+}
+
+.perm-card:hover, .form-switch-container:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+    transform: translateY(-2px);
+    border-color: #cbd5e0 !important;
+}
+
+.perm-card.is-active, .form-switch-container:has(.form-check-input:checked) {
+    background: rgba(0, 122, 255, 0.04) !important;
+    border-color: rgba(0, 122, 255, 0.2) !important;
+}
+
+.modal-content {
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+}
+
+.modal-body {
+    overflow-y: auto;
+}
+
+.alert {
+    border-radius: var(--ui-radius) !important;
+    border-color: var(--ui-border) !important;
+}
+
+body.theme-dark .btn-close,
+body.dark-mode .btn-close {
+    filter: invert(1) grayscale(100%);
+}
+
+body.theme-dark ::placeholder,
+body.dark-mode ::placeholder {
+    color: #71809a !important;
+}
+
+@media (max-width: 767.98px) {
+    :root {
+        --ui-control-h: 42px;
+    }
+
+    .content-body {
+        padding: 14px !important;
+    }
+
+    .modal-dialog,
+    .modal-xl {
+        width: calc(100vw - 20px);
+        max-width: calc(100vw - 20px);
+        margin: 10px auto;
+    }
+
+    .modal-content {
+        max-height: calc(100vh - 20px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-footer {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        padding: 12px !important;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button {
+        flex: 1 1 auto;
+        min-width: 120px;
+        margin: 0 !important;
+    }
+
+    .card,
+    .login-card,
+    .modal-content {
+        border-radius: 8px !important;
+    }
+
+    .btn,
+    .form-control,
+    .form-select {
+        font-size: 0.95rem;
+    }
+}

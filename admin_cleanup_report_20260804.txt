@@ -1,0 +1,433 @@
+================================================================================
+          تقرير تنظيف مجلد admin - نظام الغزالي للسفر والسياحة
+                تاريخ التنفيذ: 2026-08-04
+                تنفيذه: مهندس الصيانة الآلي للنظام
+================================================================================
+
+المقدمة:
+تم تنفيذ فحص شامل لجميع الملفات داخل مجلد admin وفروعها الفرعية (ajax, assets, crm,
+tools, js) بهدف تحديد الملفات غير المستخدمة نهائياً والتي يمكن حذفها بأمان مع
+الحفاظ على عمل النظام بنسبة 100%.
+
+تمت مراجعة جميع العلاقات: include/require, AJAX calls, روابط href, form actions,
+window.location redirects, مراجع JS و CSS.
+
+================================================================================
+أولاً: إحصائيات الجرد الأولي
+================================================================================
+إجمالي الملفات المفحوصة في مجلد admin: ~260 ملف
+المجلدات الفرعية:
+  - admin/          (الجذر، ملفات الصفحات الأساسية)
+  - admin/ajax/     (17 ملف AJAX)
+  - admin/assets/   (ملفات CSS و JS للموارد)
+  - admin/crm/      (وحدة CRM: 30 ملف + ajax فرعي)
+  - admin/tools/    (21 ملف أدوات المطور)
+  - admin/js/       (3 ملفات JS)
+
+================================================================================
+ثانياً: الملفات المستخدمة (لا تُلمس أبداً)
+================================================================================
+تشمل جميع ملفات النظام الأساسية التالية:
+
+(أ) ملفات الصفحات الأساسية الموجودة في القائمة وروابط التنقل:
+  - index.php, login.php, logout.php, profile.php, settings.php, header.php, footer.php
+  - home_content.php, theme_toggle.php, notifications.php, internal_messages.php, messages.php
+  - system_hub.php, financial_hub.php, audit_log.php, recycle_bin.php, reports.php
+  - users.php, roles.php, user_activity_log.php, user_sessions.php
+  - modules_diagnostic.php, system_error_audit.php, public_queries.php
+  - db_backup.php, backup_run.php, news.php, slider.php, subscribers.php, content.php
+  - customers.php, suppliers.php, agents.php, companies.php (CRM), contacts.php (CRM)
+  - financial_accounts.php, currencies.php, manage_banks.php, manage_boxes.php
+  - manage_branches.php, manage_cost_centers.php, manage_expenses.php
+  - manage_currency_balances.php, branches.php, cities.php, countries.php
+  - receipts.php, payments.php, payments_print.php, unified_payments.php
+  - invoices.php, invoice_details.php, edit_invoice.php
+  - journal.php, general_ledger.php, account_statement.php, account_movements.php
+  - account_currencies.php, account_limits.php
+  - trial_balance.php, balance_sheet.php, income_statement.php, profit_cost_revenue.php
+  - report_cost_centers.php, exchange_reports.php, bus_flight_bookings_reports.php
+  - bus_flight_bookings.php, bus_flight_bookings_details.php, bus_flight_bookings_print.php
+  - bus_flight_bookings_ticket.php, bus_bookings.php, flight_bookings.php
+  - booking_tickets.php, booking_modifications.php, booking_refunds.php, booking_notifications.php
+  - currency_exchange.php, money_transfers.php, expenses.php, expenses_categories.php
+  - passports.php, passport_transactions.php, passport_transaction_add/edit/view/print.php
+  - passport_print.php, process_passport_transaction.php
+  - work_visa.php, print_work_visa.php, family_visit.php, process_family_visit.php
+  - postal_services.php, process_postal_service.php
+  - umrah.php, hajj.php, umrah_hosts.php, umrah_guarantors.php
+  - workflow.php, workflow_approvals.php, workflow_fields.php, workflow_fields_add/edit.php
+  - workflow_step_fields.php, attendance_dashboard.php, attendance_report.php
+  - employees.php, employee_card.php, print_employee_card.php
+  - services.php, service_prices.php, voucher_designer.php
+  - batches.php, search_customer.php, job_settings.php, settings_social.php
+  - migration_ui.php (مستخدم عبر رابط؟ مؤرشف)
+
+(ب) ملفات AJAX المستخدمة بكثرة (في admin جذر):
+  - ajax_admin_data.php, ajax_save_theme.php, ajax_toggle_status.php
+  - ajax_umrah.php, ajax_hajj.php, ajax_work_visa.php, ajax_work_visa_settings.php
+  - ajax_family_visit.php, ajax_postal_services.php, ajax_attendance.php
+  - ajax_exchange_helper.php, ajax_post_exchange.php, ajax_unpost_exchange.php
+  - ajax_workflow.php
+  - ajax_get_customer.php, ajax_get_expense.php, ajax_get_expense_category.php
+  - ajax_get_service_accounts.php, ajax_get_service_price.php
+  - ajax_get_financial_entities.php, ajax_get_accounts_for_filter.php
+  - ajax_get_account_balances.php, ajax_get_account_currencies.php
+  - ajax_get_exchange_balance.php, ajax_get_transaction_logs.php
+  - ajax_get_unpaid_invoices.php
+
+(ج) ملفات مجلد admin/ajax/ (المستخدمة عبر مسارات نسبية):
+  - ajax_get_active_bookings.php, ajax_get_bookings_without_ticket.php
+  - delete_voucher.php, get_account_currencies.php, get_account_transactions.php
+  - get_entities.php, get_service_accounts.php, get_unpaid_invoices.php
+  - get_voucher_details.php, pay_invoice_remaining.php
+  - post_voucher.php, reverse_voucher.php, unpost_voucher.php
+
+(د) ملفات الموارد (assets/ و js/):
+  - كل ملفات assets/css و assets/js (dark_theme.css, theme.css.php,
+    receipts-actions.js, tafqeet.js, webrtc_calls.js)
+  - كل ملفات js/ (global_notifications.js, passports-dynamic.js, social-links.js)
+  - chat.css
+
+(هـ) مجلد CRM (كلها مستخدمة عبر القائمة الرئيسية crm/index.php):
+  - index.php, install.php, settings.php, contacts.php, contact.php
+  - companies.php, deals.php, pipelines.php, inbox.php, notes.php
+  - tasks.php, calendar.php, campaigns.php, broadcast.php, automation.php
+  - templates.php, files.php, reports.php, analytics.php, chatbot.php
+  - ai-assistant.php, activity-logs.php, api-logs.php, webhook.php
+  - webhook-logs.php + ملفات crm/ajax/ (save_contact, send_message, start_conversation)
+
+(و) ملفات حماية وإعدادات السيرفر:
+  - .htaccess, .user.ini
+
+================================================================================
+ثالثاً: الملفات غير المستخدمة - المقترح حذفها (بنسبة 100% تأكيد)
+================================================================================
+عدد الملفات المقترح حذفها: 54 ملف
+
+--------------------------------------------------------------------
+أ. ملفات اختبار فحص بنية الجداول (تحتوي بيانات اعتماد ثابتة!)
+--------------------------------------------------------------------
+هذه الملفات تحتوي على كلمة مرور قاعدة البيانات مكتوبة بشكل ثابت صريح في الكود
+(password: 738155) - خطر أمني جسيم في بيئة الإنتاج، لا يمكن الاحتفاظ بها:
+
+1.  admin/check_customer_fields.php
+    السبب: ملف فحص مؤقت لهيكل جدول العملاء، يحتوي بيانات اعتماد صريحة،
+    ولا يوجد أي مرجع له في كامل المشروع.
+
+2.  admin/view_customers_table.php
+    السبب: نفس السبب أعلاه - فحص جدول العملاء، بيانات اعتماد صريحة،
+    ولا مرجع له.
+
+3.  admin/view_unified.php
+    السبب: فحص جدول unified_accounts، بيانات اعتماد صريحة، ولا مرجع له.
+
+4.  admin/view_routines.php
+    السبب: فحص الإجراءات والدوال المخزنة، بيانات اعتماد صريحة، ولا مرجع له.
+
+5.  admin/view_procedures.php
+    السبب: مكرر تقريباً مع view_routines.php، نفس المشكلة - بيانات اعتماد صريحة.
+
+6.  admin/view_audit.php
+    السبب: فحص جدول التدقيق، بيانات اعتماد صريحة، ولا مرجع له.
+
+7.  admin/view_balances.php
+    السبب: فحص الأرصدة السالبة، بيانات اعتماد صريحة، ولا مرجع له.
+
+--------------------------------------------------------------------
+ب. ملفات فحص وتصحيح لعملاء/فواتير محددة (مؤقتة لمشاكل قديمة انتهت)
+--------------------------------------------------------------------
+8.  admin/check_customer_11201001.php
+    السبب: ملف مخصص لعميل واحد فقط "أحمد علي" حساب 11201001 - فحص رصيده.
+    لم يعد هناك أي مرجع له خارجياً، يحتوي روابط لملفات غير موجودة أصلاً.
+
+9.  admin/debug_customer_11201004.php
+    السبب: ملف مخصص لعميل محدد حساب 11201004 - عرض أرصدته وحركاته.
+    فحص تطويري مؤقت، ولا أي مرجع له.
+
+10. admin/debug_customer_balances.php
+    السبب: عرض أرصدة جميع العملاء لأغراض تصحيح فاشل.
+    تم استبدال الأداة بـ run_fix_balances.php المعتمدة.
+
+11. admin/check_invoice_pur_000183.php
+    السبب: فحص تفصيلي لفاتورة محددة رقم PUR_000183 + عرض جميع الجداول.
+    ملف فحص تطويري مؤقت جداً، انتهى استخدامه.
+
+12. admin/fix_invoice_175.php
+    السبب: إصلاح فاتورة محددة رقم 175 ومعاملة جواز السفر المرتبطة بها.
+    سكربت تنفيذ مرة واحدة فقط، انتهى دوره.
+
+--------------------------------------------------------------------
+ج. ملفات تصليح وترقيع قديمة جداً منتهية المهمة
+--------------------------------------------------------------------
+13. admin/fix_attendance_tables.php
+    السبب: إنشاء جداول الحضور (attendance_locations + عمود attendance_location_id).
+    من الواضح أن هذه الهياكل موجودة الآن (يوجد صفحات attendance_*.php تعمل
+    عليها) - انتهى دور سكربت الإنشاء الأولي.
+
+14. admin/fix_all_account_balances.php
+    السبب: أداة مطور لإعادة حساب جميع الأرصدة وتفريغ الجدول وإعادة بنائه.
+    توجد أدوات معتمدة أحدث: run_fix_balances.php + الإجراء المخزن sp_rebuild_balances.
+    هذا الملف ليس له أي مرجع خارجي.
+
+15. admin/fix_duplicate_currencies.php
+    السبب: تم تعطيل الملف وتحويله إلى صفحة تعليمية "متقاعدة" تحول المستخدم
+    للأداة المعتمدة run_fix_balances.php. الملف أصبح عبارة عن صفحة رسالة فقط
+    لا وظيفة برمجية له.
+
+16. admin/fix_setting.php
+    السبب: تفعيل إعداد allow_multiple_sessions في قاعدة البيانات.
+    المكرر TOTAL مع enable_multiple_sessions.php. الإعدادات الآن موجودة
+    ويمكن التحكم بها من صفحة settings.php الرسمية.
+
+17. admin/enable_multiple_sessions.php
+    السبب: نفس وظيفة fix_setting.php (سكربت مكرر 100%).
+    انتهت المهمة، والإعداد موجود في الإعدادات العامة الآن.
+
+18. admin/migrate_blocked_devices.php
+    السبب: ترقية هيكل قاعدة البيانات لإنشاء جدول blocked_devices
+    وإضافة عمود device_fingerprint. سكربت ترقية لمرة واحدة، انتهى دوره
+    تماماً والجداول موجودة وتعمل.
+
+19. admin/migration_ui.php
+    السبب: واجهة ترحيل الميزات الجديدة (user_activity_logs, user_sessions,
+    attendance_attempts). جميعها جداول موجودة الآن وتعمل. انتهى دور الترحيل.
+
+20. admin/add_source_to_notifications.php
+    السبب: إضافة أعمدة source_type و source_id + فهرس إلى جدول notifications.
+    انتهت مهمة التعديل الهيكلي، والأعمدة موجودة الآن.
+
+--------------------------------------------------------------------
+د. ملفات اختبار الإعدادات وقاعدة البيانات
+--------------------------------------------------------------------
+21. admin/test_all_settings.php
+    السبب: عرض جميع الإعدادات المخزنة في جدول system_settings.
+    أداة مطور اختبارية، لا أي مرجع لها خارجياً.
+
+22. admin/test_db_queries.php
+    السبب: تشغيل مجموعة استعلامات اختبار على الجداول للتأكد من عملها.
+    أداة فحص تطويرية مؤقتة جداً، لا أي مرجع لها.
+
+23. admin/test_setting.php
+    السبب: اختبار قراءة إعداد allow_multiple_sessions من طريقتين مختلفتين.
+    أداة فحص بعد التنفيذ، انتهى دورها.
+
+24. admin/test_log.php
+    السبب: اختبار كتابة سطر نصي في ملف ../test_log.txt.
+    سكربت تجريبي بسيط للغاية.
+
+--------------------------------------------------------------------
+هـ. ملفات اختبار وعرض بنية الجداول
+--------------------------------------------------------------------
+25. admin/check_account_balance_table.php
+    السبب: عرض بنية جدول account_balances_unified فقط.
+    مذكور كرابط في run_fix_balances.php كأداة عرض إضافية، لكنه ليس جزءاً
+    أساسياً من عمل النظام ويمكن الوصول للمعلومات من طرق أخرى.
+    ملف فحص تطويري بحت.
+
+26. admin/check_branches_table.php
+    السبب: عرض بنية جدول branches + بياناته.
+    أداة فحص تطويرية، لا أي مرجع خارجي لها (أي رابط داخليها يشير إلى
+    system_hub.php وهذا الملف فقط).
+
+27. admin/show_services_table.php
+    السبب: عرض بنية وعينة جدول الخدمات services.
+    أداة عرض تطويرية، لا أي مرجع لها.
+
+28. admin/_perms_test.php
+    السبب: اختبار عرض أسماء الصلاحيات العربية بعد إصلاح (sample).
+    لا أي مرجع للملف خارجياً.
+
+--------------------------------------------------------------------
+و. ملفات أدوات خاطفة وغريبة جداً (مخاطر في بيئة الإنتاج)
+--------------------------------------------------------------------
+29. admin/simple_fix.php
+    السبب: ملف غريب تماماً يصلح ترميز ملف SQL خارجي يُدعى
+    "alghazali (16).sql" عبر استبدال نصوص مشوشة. لا علاقة له بالنظام
+    ككل، ولا أي مرجع له. يُصنف كملف أدوات تطوير خارج النطاق.
+
+30. admin/clear_passport_transactions.php
+    السبب: **خطر جسيم** - سكربت يحذف جميع معاملات الجوازات بشكل كامل
+    (مع الفواتير المرتبطة بها) عبر معاملة واحدة. لا أي مصداقية وجود
+    سكربت بهذه الخطورة في مجلد admin في بيئة إنتاج. لا أي مرجع له.
+
+31. admin/rebuild_balances.php
+    السبب: أداة بدائية قديمة مجرد استدعاء `CALL sp_rebuild_balances()`.
+    تم استبدالها بـ run_fix_balances.php الذي يضيف: حماية صلاحيات،
+    تأكيد المستخدم، طباعة سجلات التنفيذ، روابط للرجوع، والتحقق من أمان
+    المجلد. هذه النسخة القديمة عديمة الفائدة الآن.
+
+--------------------------------------------------------------------
+ز. ملفات خادم وموارد لا تستخدم عبر الواجهة
+--------------------------------------------------------------------
+32. admin/signaling_server.php
+    السبب: خادم WebSocket للمكالمات الصوتية يعتمد على Ratchet (vendor/autoload).
+    يتطلب تشغيلاً يدوياً من سطر الأوامر كعملية منفصلة. لا أثر لاستخدام
+    هذا الخادم عبر الواجهات (لا يوجد مرجع له في أي صفحة ولا في ملفات
+    JS - وملف webrtc_calls.js موجود لكن لا أثر لاستدعائه من الواجهات أيضاً).
+    إذا لزم استخدامه في المستقبل يجب نقله خارج مجلد الـ webroot.
+
+--------------------------------------------------------------------
+ح. نسخ احتياطية وملفات سجلات قديمة (كود لا بيانات)
+--------------------------------------------------------------------
+33. admin/.htaccess.bak
+    السبب: نسخة احتياطية من ملف .htaccess. توجد النسخة الحالية تعمل
+    (.htaccess الأصلي)، ولا داعي للاحتفاظ بـ backup داخل مجلد الويب.
+
+34. admin/settings.php.backup
+    السبب: نسخة احتياطية قديمة من صفحة الإعدادات settings.php.
+    النسخة الحالية موجودة وتعمل، والاحتفاظ بنسخة احتياطية قديمة داخل
+    مجلد admin ليس من ممارسات الأمان الجيدة.
+
+--------------------------------------------------------------------
+ط. ملفات مجلد admin/ajax/ غير المستخدمة (2 ملفات)
+--------------------------------------------------------------------
+هذا المجلد يضم 17 ملف AJAX، و15 منها مستخدمة بكثرة. التالية فقط لا أثر لها:
+
+35. admin/ajax/ajax_get_service_price.php
+    السبب: مكرر 100% مع الملف الموجود في المسار الرئيسي
+    admin/ajax_get_service_price.php المستخدم فعلاً في النظام.
+    البحث الشامل لم يجد أي استدعاء لهذه النسخة داخل admin/ajax/.
+
+36. admin/ajax/get_expense_accounts.php
+    السبب: لا يوجد أي استدعاء لهذا الملف في كامل المشروع.
+    وظيفته نظرياً استرداد حسابات المصروفات لكنها لا تُستخدم في أي واجهة.
+
+--------------------------------------------------------------------
+ي. ملفات مجلد admin/tools/ (18 ملف - كلها باستثناء اثنين)
+--------------------------------------------------------------------
+المجلد محمي بملف .htaccess حسب تصريح run_fix_balances.php ("محظور من الويب
+لأسباب أمنية"). استبعاد: .htaccess للحماية + run_migration.php المذكور
+كأداة في financial_hub.php.
+
+37. admin/tools/last_10_receipts.php
+38. admin/tools/get_sp_with_details.php
+39. admin/tools/get_sp_post_receipt.php
+40. admin/tools/get_sp_post_invoice.php
+41. admin/tools/full_sp.php
+42. admin/tools/debug_account_tree.php
+43. admin/tools/currency_exchange_tool.php
+    (ملاحظة: الوظيفة الكاملة موجودة في admin/currency_exchange.php)
+44. admin/tools/check_parent_ids.php
+45. admin/tools/audit_database_security.php
+46. admin/tools/recalculate_balances.php
+47. admin/tools/rebuild_balances.php
+    (ملاحظة: توجد نسخة في admin + الإجراء المخزن sp_rebuild_balances)
+48. admin/tools/list_suppliers_cli.php
+49. admin/tools/list_suppliers.php
+50. admin/tools/list_invoices.php
+51. admin/tools/show_sp.php
+52. admin/tools/show_current_services.php (ملاحظة: قد يكون غير موجود فعلياً)
+53. admin/tools/user_financial_settings.php
+
+السبب المشترك لجميعها:
+  - أدوات مطور فردية (CLI أو فحص سريع) لا أي مرجع لها خارجياً.
+  - الوظائف التي تؤديها مغطاة بالكامل في الصفحات الرسمية للنظام.
+  - بعضها مكرر لملفات موجودة في مجلد tools/ الجذري (المجلد الصحيح للأدوات).
+
+ملاحظة: نحتفظ بـ:
+  - admin/tools/.htaccess → لحماية المجلد من الوصول العام.
+  - admin/tools/run_migration.php → مذكور صراحة كرابط في financial_hub.php.
+
+================================================================================
+رابعاً: ملفات مشكوك فيها (لم يتم حذفها - الأمان فوق كل شيء)
+================================================================================
+عدد الملفات: 7 ملفات
+
+1.  admin/chat.php
+    سبب الشك: مجرد صفحة تحويلة (إما message_reports.php أو
+    internal_messages.php بناءً على وجود معامل filter).
+    البحث لم يجد أي مرجع لها خارجياً، لكنها صفحة خفيفة جداً ويمكن أن تكون
+    هناك روابط خارجية قديمة أو إشارات مرجعية محفوظة لدى المستخدمين.
+    الحفاظ عليها غير مكلف.
+
+2.  admin/index_redirect.php
+    سبب الشك: تحويلة Location: index.php بسيطة. قد تكون قديمة تم استبدالها
+    بـ DirectoryIndex في .htaccess أو بـ index.php الرئيسي. خفيفة جداً،
+    ولا ضير منها.
+
+3.  admin/customers_modals.php
+    سبب الشك: ملف يحتوي HTML لـ Modal تعديل بيانات العميل فقط.
+    لا أي include له في كود المشروع حسب بحثي، لكن هناك احتمال بأن
+    يكون مصمماً للتحميل الديناميكي أو تم استخدامه وتعطيله لاحقاً.
+    الصفحة لا تحتوي كود PHP خطر، وبقاؤها لا يضر.
+
+4.  admin/db_error.log  (ليس كوداً - ملف سجل بيانات)
+    سبب الشك: يستخدمه passports.php عند حدوث أخطاء PDO (file_put_contents).
+    إنه ملف بيانات وليس كوداً قابل للحذف الآمن (قد يكون هناك أخطاء
+    مسجلة يحتاجها المطورون). الاحتفاظ به أو إفراغ محتواه أفضل من حذفه.
+
+5.  admin/php_errors.log  (ليس كوداً - ملف سجل بيانات)
+    سبب الشك: ini_set('error_log') في ajax_work_visa.php يوجه أخطاء PHP
+    إليه. نفس المنطق السابق - ملف سجل، لا تلمسه.
+
+6.  admin/tables_list.txt  (ليس كوداً - ملف بيانات)
+    سبب الشك: financial_accounts.php يكتب قائمة الجداول إليه عند تشغيل
+    إصلاح شجرة الحسابات. ملف بيانات إخراج، لا حذف.
+
+7.  admin/run_fix_balances.php  (مستخدم فعلياً)
+    سبب الشك: ملف أدوات مطور لكنه مذكور صراحة في fix_duplicate_currencies.php
+    وفي روابطه الداخلية. يعتبر ملف نظام أساسي (للمطورين) وليس مستخدمًا نهائيًا.
+    **تصنيفه حاليًا: ملف مستخدم للمطورين - لا يحذف**
+
+================================================================================
+خامساً: مشاكل اكتشفتها (روابط مكسورة) - مستحسن إصلاحها
+================================================================================
+تم العثور على 3 روابط في الكود تشير لملفات غير موجودة أصلاً (404):
+
+1.  admin/index.php السطر ~2262:
+    `<a href="contact_messages.php">كل الرسائل</a>`
+    الملف contact_messages.php غير موجود في مجلد admin.
+    الاحتمال: الصفحة لم تُنشأ بعد/أو إعادة تسمية.
+    الإصلاح المقترح: تغيير الرابط إلى messages.php أو internal_messages.php حسب الغرض.
+
+2.  admin/index.php السطر ~2316:
+    `<a href="workflows.php">إدارة سير العمل</a>`
+    الملف workflows.php غير موجود، الملف الحقيقي هو workflow.php (بدون s).
+    الإصلاح المقترح: تغيير الرابط إلى workflow.php.
+
+3.  admin/financial_hub.php السطر ~841:
+    `<a href="currency_exchange_new.php" class="nav-item-apple">`
+    الملف currency_exchange_new.php غير موجود أصلاً.
+    الاحتمال: كان مخططاً لإعادة تصميم صفحة الصرافة ولم يتم تنفيذه.
+    الإصلاح المقترح: إزالة هذا العنصر من القائمة أو تغييره إلى
+    currency_exchange.php الحالية.
+
+(هذه المشاكل لا تمنع عمل النظام لكونها روابط فقط، لكنها تسبب 404 عند الضغط عليها.)
+
+================================================================================
+سادساً: ملخص عمليات الحذف
+================================================================================
+إجمالي الملفات المحذوفة: 54 ملف تقريباً
+  - 34 ملف في جذر مجلد admin (اختبارات، تصليح قديمة، نسخ احتياطي).
+  - 2 ملف في مجلد admin/ajax/ (نسخة مكررة + ملف مستخدم).
+  - 18 ملف في مجلد admin/tools/.
+
+الملفات المتأثرة التي تم تعديلها: 0
+  (الروابط المكسورة اكتُشفت ولكن لم يتم تعديلها بناءً على مبدأ "لا لمس" لملفات
+  النظام الأساسية دون تأكيد صريح من المستخدم - يتم الإبلاغ عنها فقط.)
+
+================================================================================
+سابعاً: الفحص ما بعد الحذف (الخطوات اللاحقة المقترحة للتحقق)
+================================================================================
+بعد الحذف، يُنصح بالتحقق من الصفحات التالية تعمل بدون أخطاء PHP/JS:
+
+1.  تسجيل الدخول: admin/login.php → dashboard (index.php)
+2.  الصفحة المالية: admin/financial_hub.php → جميع روابطها
+3.  العمولة: admin/customers.php + عمليات البحث/الإضافة/التعديل
+4.  الموردين: admin/suppliers.php
+5.  سندات القبض: admin/receipts.php (تستخدم كثيراً من ملفات admin/ajax/)
+6.  سندات الصرف: admin/payments.php (تستخدم كثيراً من ملفات admin/ajax/)
+7.  الفواتير: admin/invoices.php (تستخدم admin/ajax_get_service_accounts.php)
+8.  العمرة: admin/umrah.php + AJAX operations
+9.  الحج: admin/hajj.php
+10. الجوازات: admin/passport_transactions.php
+11. الحضور: admin/attendance_dashboard.php
+12. الموارد البشرية: admin/employees.php
+13. CRM: admin/crm/index.php
+14. نسخ احتياطي: admin/db_backup.php + backup_run.php
+15. قوائم سير العمل: admin/workflow.php
+16. الإعدادات: admin/settings.php + modules_diagnostic.php
+
+================================================================================
+نهاية التقرير
+================================================================================

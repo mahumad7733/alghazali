@@ -1,0 +1,23 @@
+﻿
+=== ▐╟╞ع╔ ╟ط╠╧╟µط ╟طع╤╩╚╪╔ ╚╟طع╟طو╔ ===
+Tables_in_alghazali (%payment%)
+payment_allocations
+Tables_in_alghazali (%voucher%)
+expense_vouchers
+voucher_template_elements
+voucher_templates
+Tables_in_alghazali (%cash%)
+user_cash_bank_accounts
+Tables_in_alghazali (%allocat%)
+budget_allocations
+payment_allocations
+Tables_in_alghazali (%journal%)
+journal_lines
+Tables_in_alghazali (%audit%)
+audit_logs
+module_audit_log
+system_error_audit
+Tables_in_alghazali (%balance%)
+account_balances_unified
+Tables_in_alghazali (%fiscal%)
+fiscal_periods

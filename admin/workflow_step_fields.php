@@ -1,15 +1,13 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once '../includes/db.php';
+require_once 'header.php';
 
-if (!isset($_SESSION['admin_id'])) {
-    header('Location: login.php');
+// التحقق من الصلاحية
+if (!$is_admin && !has_permission('edit_workflow')) {
+    echo "<script>alert('ليس لديك صلاحية للوصول لهذه الصفحة'); location.href='index.php';</script>";
     exit();
 }
+
+$page_title = "ربط الحقول بخطوات سير العمل";
 
 try {
     // معالجة تحديثات AJAX لتغيير حالة الحقول
@@ -45,17 +43,13 @@ try {
         exit();
     }
 
-    $page_title = "ربط الحقول بخطوات سير العمل";
-    require_once 'header.php';
-
     // جلب جميع خطوات سير العمل مجمعة حسب المسار
     $steps = $pdo->query("
-        SELECT w.name as workflow_name, ws.*, w.transaction_type 
-        FROM workflow_steps ws 
-        JOIN workflows w ON ws.workflow_id = w.id 
+        SELECT w.name as workflow_name, ws.*, w.transaction_type
+        FROM workflow_steps ws
+        JOIN workflows w ON ws.workflow_id = w.id
         ORDER BY w.name, ws.sort_order
-    ")->fetchAll(PDO::FETCH_GROUP|PDO::FETCH_ASSOC);
-
+    ")->fetchAll(PDO::FETCH_GROUP | PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     die("<div class='alert alert-danger'>خطأ: " . htmlspecialchars($e->getMessage()) . "</div>");
 }
@@ -108,17 +102,17 @@ try {
                                             $mapped_types[] = 'hajj';
                                         }
                                         if ($transaction_type === 'work_visa' || $transaction_type == '6') $mapped_types[] = 'work_visa';
-                                        
+
                                         // إضافة 'general' لكل الأنواع لظهور الحقول المشتركة
                                         $mapped_types[] = 'general';
                                         $mapped_types = array_unique($mapped_types);
-                                        
+
                                         $placeholders = implode(',', array_fill(0, count($mapped_types), '?'));
 
                                         $available_fields = $pdo->prepare("
                                             SELECT f.id, f.field_key, f.field_label, f.field_type, f.sort_order,
-                                                   MAX(sf.is_visible) as linked_visible, 
-                                                   MAX(sf.is_editable) as linked_editable, 
+                                                   MAX(sf.is_visible) as linked_visible,
+                                                   MAX(sf.is_editable) as linked_editable,
                                                    MAX(sf.is_required) as linked_required
                                             FROM workflow_fields f
                                             JOIN workflow_field_group_mappings gm ON gm.field_id = f.id
@@ -134,32 +128,32 @@ try {
 
                                         foreach ($fields as $field):
                                         ?>
-                                        <div class="col-md-6 col-lg-4">
-                                            <div class="field-card p-3 bg-white border rounded-4 shadow-xs h-100">
-                                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                                    <div>
-                                                        <div class="fw-bold small"><?= htmlspecialchars($field['field_label']) ?></div>
-                                                        <code class="extra-small"><?= $field['field_key'] ?></code>
+                                            <div class="col-md-6 col-lg-4">
+                                                <div class="field-card p-3 bg-white border rounded-4 shadow-xs h-100">
+                                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                                        <div>
+                                                            <div class="fw-bold small"><?= htmlspecialchars($field['field_label']) ?></div>
+                                                            <code class="extra-small"><?= $field['field_key'] ?></code>
+                                                        </div>
+                                                        <span class="badge bg-light text-muted extra-small"><?= $field['field_type'] ?></span>
                                                     </div>
-                                                    <span class="badge bg-light text-muted extra-small"><?= $field['field_type'] ?></span>
-                                                </div>
-                                                
-                                                <div class="d-flex gap-1 mt-3">
-                                                    <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_visible'] ? 'btn-success' : 'btn-outline-secondary' ?>" 
+
+                                                    <div class="d-flex gap-1 mt-3">
+                                                        <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_visible'] ? 'btn-success' : 'btn-outline-secondary' ?>"
                                                             onclick="toggleField(<?= $step['id'] ?>, <?= $field['id'] ?>, 'toggle_visible', this)" title="مرئي">
-                                                        <i class="fas fa-eye me-1"></i> عرض
-                                                    </button>
-                                                    <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_editable'] ? 'btn-warning' : 'btn-outline-secondary' ?>" 
+                                                            <i class="fas fa-eye me-1"></i> عرض
+                                                        </button>
+                                                        <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_editable'] ? 'btn-warning' : 'btn-outline-secondary' ?>"
                                                             onclick="toggleField(<?= $step['id'] ?>, <?= $field['id'] ?>, 'toggle_editable', this)" title="قابل للتعديل">
-                                                        <i class="fas fa-edit me-1"></i> تعديل
-                                                    </button>
-                                                    <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_required'] ? 'btn-danger' : 'btn-outline-secondary' ?>" 
+                                                            <i class="fas fa-edit me-1"></i> تعديل
+                                                        </button>
+                                                        <button class="btn btn-sm flex-fill btn-toggle <?= $field['linked_required'] ? 'btn-danger' : 'btn-outline-secondary' ?>"
                                                             onclick="toggleField(<?= $step['id'] ?>, <?= $field['id'] ?>, 'toggle_required', this)" title="إلزامي">
-                                                        <i class="fas fa-asterisk me-1"></i> إلزامي
-                                                    </button>
+                                                            <i class="fas fa-asterisk me-1"></i> إلزامي
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
                                         <?php endforeach; ?>
                                     </div>
                                 </div>
@@ -173,52 +167,72 @@ try {
 </div>
 
 <style>
-.bg-light-50 { background-color: rgba(248, 249, 250, 0.5); }
-.field-card { transition: transform 0.2s, box-shadow 0.2s; }
-.field-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-.btn-toggle { font-size: 0.7rem; padding: 0.4rem 0.2rem; border-radius: 8px; }
-.extra-small { font-size: 0.7rem; }
-.shadow-xs { box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .bg-light-50 {
+        background-color: rgba(248, 249, 250, 0.5);
+    }
+
+    .field-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .field-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-toggle {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.2rem;
+        border-radius: 8px;
+    }
+
+    .extra-small {
+        font-size: 0.7rem;
+    }
+
+    .shadow-xs {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
 </style>
 
 <script>
-function toggleField(stepId, fieldId, action, btn) {
-    const formData = new FormData();
-    formData.append('ajax_action', action);
-    formData.append('step_id', stepId);
-    formData.append('field_id', fieldId);
+    function toggleField(stepId, fieldId, action, btn) {
+        const formData = new FormData();
+        formData.append('ajax_action', action);
+        formData.append('step_id', stepId);
+        formData.append('field_id', fieldId);
 
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-    fetch('workflow_step_fields.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // تحديث شكل الزر بناءً على النتيجة
-            if (action === 'toggle_visible') {
-                btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-success' : 'btn-outline-secondary');
-                btn.innerHTML = '<i class="fas fa-eye me-1"></i> عرض';
-            } else if (action === 'toggle_editable') {
-                btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-warning' : 'btn-outline-secondary');
-                btn.innerHTML = '<i class="fas fa-edit me-1"></i> تعديل';
-            } else if (action === 'toggle_required') {
-                btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-danger' : 'btn-outline-secondary');
-                btn.innerHTML = '<i class="fas fa-asterisk me-1"></i> إلزامي';
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('حدث خطأ أثناء التحديث');
-    })
-    .finally(() => {
-        btn.disabled = false;
-    });
-}
+        fetch('workflow_step_fields.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // تحديث شكل الزر بناءً على النتيجة
+                    if (action === 'toggle_visible') {
+                        btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-success' : 'btn-outline-secondary');
+                        btn.innerHTML = '<i class="fas fa-eye me-1"></i> عرض';
+                    } else if (action === 'toggle_editable') {
+                        btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-warning' : 'btn-outline-secondary');
+                        btn.innerHTML = '<i class="fas fa-edit me-1"></i> تعديل';
+                    } else if (action === 'toggle_required') {
+                        btn.className = 'btn btn-sm flex-fill btn-toggle ' + (data.new_val ? 'btn-danger' : 'btn-outline-secondary');
+                        btn.innerHTML = '<i class="fas fa-asterisk me-1"></i> إلزامي';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('حدث خطأ أثناء التحديث');
+            })
+            .finally(() => {
+                btn.disabled = false;
+            });
+    }
 </script>
 
 <?php require_once 'footer.php'; ?>

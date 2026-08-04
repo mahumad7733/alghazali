@@ -1,0 +1,17 @@
+# Git ignore for sensitive and local files
+.env
+.vscode/settings.json
+/tools/*.bat
+/tools/*_*.php
+/tools/*.log
+/.env.local
+/.env.*.local
+
+# Node / vendor
+/node_modules/
+/vendor/
+
+# Editor
+.idea/
+*.swp
+.DS_Store

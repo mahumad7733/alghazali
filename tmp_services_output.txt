@@ -1,0 +1,44 @@
+[
+    {
+        "id": 1,
+        "service_name": "النقل البري",
+        "service_type": "other",
+        "status": "active"
+    },
+    {
+        "id": 2,
+        "service_name": "جوازت السفر",
+        "service_type": null,
+        "status": "active"
+    },
+    {
+        "id": 3,
+        "service_name": "تذاكر طيران",
+        "service_type": "other",
+        "status": "active"
+    },
+    {
+        "id": 4,
+        "service_name": "خدمات العمرة",
+        "service_type": "umrah",
+        "status": "active"
+    },
+    {
+        "id": 5,
+        "service_name": "الزيارة العائلية",
+        "service_type": "family_visit",
+        "status": "active"
+    },
+    {
+        "id": 6,
+        "service_name": "فيز العمل",
+        "service_type": "work_visa",
+        "status": "active"
+    },
+    {
+        "id": 7,
+        "service_name": "خدمات الحج",
+        "service_type": "umrah",
+        "status": "active"
+    }
+]

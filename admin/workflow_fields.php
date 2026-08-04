@@ -1,19 +1,13 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once '../includes/db.php';
+require_once 'header.php';
 
-// Auth check (يمكنك تعديل الصلاحيات لاحقاً)
-if (!isset($_SESSION['admin_id'])) {
-    header('Location: login.php');
+// التحقق من الصلاحية (نفس منطق workflow.php)
+if (!$is_admin && !has_permission('view_workflow') && !has_permission('edit_workflow')) {
+    echo "<script>alert('ليس لديك صلاحية للوصول لهذه الصفحة'); location.href='index.php';</script>";
     exit();
 }
 
 $page_title = "إدارة حقول سير العمل";
-require_once 'header.php';
 
 // معالجة الحذف
 if (isset($_GET['delete_field'])) {

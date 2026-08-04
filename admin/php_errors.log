@@ -1,0 +1,201 @@
+[15-Jun-2026 01:39:27 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.users' doesn't exist in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:34
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(34): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 34
+[15-Jun-2026 01:39:29 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.users' doesn't exist in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:34
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(34): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 34
+[15-Jun-2026 01:39:31 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.users' doesn't exist in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:34
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(34): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 34
+[15-Jun-2026 01:39:33 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.users' doesn't exist in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:34
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(34): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 34
+[15-Jun-2026 01:39:37 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.users' doesn't exist in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:34
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(34): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 34
+[17-Jun-2026 02:22:43 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 02:23:53 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 02:23:58 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 02:36:28 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 02:36:41 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 02:36:52 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'total_amount' in 'field list'
+[17-Jun-2026 03:07:05 Europe/Berlin] Error in php_post_invoice: There is already an active transaction
+[17-Jun-2026 03:07:43 Europe/Berlin] Error in php_post_invoice: There is already an active transaction
+[17-Jun-2026 03:17:05 Europe/Berlin] Error in php_post_invoice: There is already an active transaction
+[17-Jun-2026 11:05:36 Europe/Berlin] change_transaction_status: Updated ID 183, Affected Rows: 1
+[17-Jun-2026 11:06:37 Europe/Berlin] change_transaction_status: Updated ID 183, Affected Rows: 1
+[17-Jun-2026 11:23:28 Europe/Berlin] change_transaction_status: Updated ID 185, Affected Rows: 1
+[17-Jun-2026 17:42:04 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000]: General error: 2006 MySQL server has gone away in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:35
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(35): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 35
+[19-Jun-2026 06:30:10 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000]: General error: 2006 MySQL server has gone away in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php:35
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(35): PDO->prepare('SELECT * FROM u...')
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php on line 35
+[20-Jun-2026 02:28:11 Europe/Berlin] PHP Parse error:  syntax error, unexpected identifier "خامل،" in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1707
+[20-Jun-2026 02:28:17 Europe/Berlin] PHP Parse error:  syntax error, unexpected identifier "خامل،" in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1707
+[20-Jun-2026 02:28:22 Europe/Berlin] PHP Parse error:  syntax error, unexpected identifier "خامل،" in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1707
+[20-Jun-2026 02:38:37 Europe/Berlin] PHP Fatal error:  Cannot redeclare php_delete_financial_transaction_and_reverse() (previously declared in C:\xampp\htdocs\ghazali\includes\accounting_functions.php:1359) in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1609
+[20-Jun-2026 02:38:37 Europe/Berlin] PHP Fatal error:  Cannot redeclare php_delete_financial_transaction_and_reverse() (previously declared in C:\xampp\htdocs\ghazali\includes\accounting_functions.php:1359) in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1609
+[20-Jun-2026 02:38:37 Europe/Berlin] PHP Fatal error:  Cannot redeclare php_delete_financial_transaction_and_reverse() (previously declared in C:\xampp\htdocs\ghazali\includes\accounting_functions.php:1359) in C:\xampp\htdocs\ghazali\includes\accounting_functions.php on line 1609
+[28-Jun-2026 01:42:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:43:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:16 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:21 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:26 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:31 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:36 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:41 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:51 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:44:56 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:45:01 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:45:06 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:45:11 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:45:16 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:45:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:46:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:47:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:48:47 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:49:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:50:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:51:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:52:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:53:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:54:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:55:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:56:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:57:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:58:49 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 01:59:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:00:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:01:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:02:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:03:50 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:04:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:05:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:06:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:06:58 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[28-Jun-2026 02:07:00 Europe/Berlin] PHP Fatal error:  Cannot redeclare parseUserAgent() (previously declared in C:\xampp\htdocs\ghazali\includes\functions.php:1785) in C:\xampp\htdocs\ghazali\includes\functions.php on line 3138
+[29-Jun-2026 03:02:02 Europe/Berlin] PHP Warning:  require_once(C:\xampp\htdocs\ghazali\includes/new_functions.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:02:02 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\ghazali\includes/new_functions.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\ghazali\includes\functions.php:3
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(9): require_once()
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:03:02 Europe/Berlin] PHP Warning:  require_once(C:\xampp\htdocs\ghazali\includes/new_functions.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:03:02 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\ghazali\includes/new_functions.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\ghazali\includes\functions.php:3
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(9): require_once()
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:04:02 Europe/Berlin] PHP Warning:  require_once(C:\xampp\htdocs\ghazali\includes/new_functions.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:04:02 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\ghazali\includes/new_functions.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\ghazali\includes\functions.php:3
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(9): require_once()
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:05:13 Europe/Berlin] PHP Warning:  require_once(C:\xampp\htdocs\ghazali\includes/new_functions.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[29-Jun-2026 03:05:13 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\ghazali\includes/new_functions.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\ghazali\includes\functions.php:3
+Stack trace:
+#0 C:\xampp\htdocs\ghazali\admin\ajax_work_visa.php(9): require_once()
+#1 {main}
+  thrown in C:\xampp\htdocs\ghazali\includes\functions.php on line 3
+[30-Jun-2026 19:45:52 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:45:57 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:02 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:14 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:15 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:15 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:17 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:22 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:26 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:31 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:38 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:41 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:50 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:51 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:51 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:46:56 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:47:06 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:47:09 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[30-Jun-2026 19:47:11 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "<" in C:\xampp\htdocs\ghazali\includes\functions.php on line 911
+[01-Jul-2026 02:11:10 Europe/Berlin] ajax_work_visa.php: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ghazali.documents' doesn't exist
+[03-Jul-2026 03:13:41 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:13:46 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:13:51 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:13:56 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:01 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:06 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:11 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:16 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:21 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:26 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:31 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:36 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:41 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:46 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:51 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:14:56 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:01 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:06 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:11 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:16 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:21 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:23 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:25 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:25 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:26 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:30 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:31 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:35 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:35 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:35 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:36 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:40 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:41 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:45 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:46 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:50 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:51 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:55 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:15:56 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:00 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:01 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:04 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:06 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:11 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:13 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:16 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:21 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:26 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:31 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:36 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:41 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:46 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1575
+[03-Jul-2026 03:16:51 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1644
+[03-Jul-2026 03:16:56 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1644
+[03-Jul-2026 03:17:01 Europe/Berlin] PHP Parse error:  Unclosed '[' does not match ')' in C:\xampp\htdocs\ghazali\includes\functions.php on line 1644

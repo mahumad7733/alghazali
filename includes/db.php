@@ -1,15 +1,20 @@
 <?php
+
 /**
  * إعدادات الاتصال بقاعدة البيانات - وكالة الغزالي للسفريات والسياحة
  * محدث لاستخدام متغيرات البيئة
  */
+
+// Include session configuration first to ensure consistent session handling
+require_once __DIR__ . '/session_config.php';
 
 // دالة بسيطة لتحميل متغيرات البيئة من ملف .env
 /**
  * @param string $path
  * @return void
  */
-function load_env(string $path): void {
+function load_env(string $path): void
+{
     if (!file_exists($path)) return;
     $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
@@ -42,29 +47,23 @@ $is_local = (php_sapi_name() === 'cli') ||
 
 // الحصول على إعدادات الاتصال من متغيرات البيئة
 $has_env = !empty(getenv('DB_HOST'));
-$host = getenv('DB_HOST') ?: '127.0.0.1';
-$user = getenv('DB_USER') ?: 'root';
-$db   = getenv('DB_NAME') ?: 'ghazali';
-
-// إذا لم يكن هناك ملف .env، استخدم الإعدادات الافتراضية القديمة (للتوافق)
-if (!$has_env) {
-    if ($is_local) {
-        // إعدادات البيئة المحلية الأصلية
-        $pass = '738155';
-    } else {
-        // إعدادات استضافة InfinityFree الأصلية
-        $host = 'sql107.infinityfree.com';
-        $db = 'epiz_31987070_ghazali';
-        $user = 'epiz_31987070';
-        $pass = 'tosHNWgtBl';
-    }
-} else {
+if ($has_env) {
+    $host = getenv('DB_HOST') ?: '127.0.0.1';
+    $port = getenv('DB_PORT') ?: '3306';
+    $user = getenv('DB_USER') ?: 'root';
+    $db   = getenv('DB_NAME') ?: 'alghazali';
     $pass = getenv('DB_PASS') ?: '';
+} else {
+    $host = '127.0.0.1';
+    $port = '3306';
+    $user = 'root';
+    $db   = 'ghazali';
+    $pass = '';
 }
 
 $charset = 'utf8mb4';
-$collation = 'utf8mb4_general_ci';
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$collation = 'utf8mb4_unicode_ci';
+$dsn = "mysql:host=$host;port=$port;dbname=$db;charset=$charset";
 
 $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -74,8 +73,14 @@ $options = [
 ];
 
 try {
+    ini_set('default_charset', 'UTF-8');
+    if (function_exists('mb_internal_encoding')) {
+        mb_internal_encoding('UTF-8');
+    }
+
     $pdo = new PDO($dsn, $user, $pass, $options);
     $pdo->exec("SET NAMES utf8mb4 COLLATE $collation");
+    $pdo->exec("SET CHARACTER SET utf8mb4");
     $pdo->exec("SET collation_connection = $collation");
     $pdo->exec("SET collation_database = $collation");
     $pdo->exec("SET collation_server = $collation");

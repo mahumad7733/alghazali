@@ -380,7 +380,7 @@ cd C:\xampp\htdocs   # على Windows
 # أو
 cd /opt/lampp/htdocs # على Linux/Mac
 
-git clone https://github.com/ww770105ww-sud/alghazali.git
+git clone https://github.com/mahumad7733/alghazali.git
 ```
 
 **الخطوة 3 — إعداد قاعدة البيانات:**
@@ -431,12 +431,12 @@ php -S localhost:8000 router.php
 <VirtualHost *:80>
     ServerName alghazali.example.com
     DocumentRoot /var/www/alghazali
-    
+
     <Directory /var/www/alghazali>
         AllowOverride All
         Require all granted
     </Directory>
-    
+
     # تفعيل mod_rewrite للروابط النظيفة
     RewriteEngine On
 </VirtualHost>
@@ -450,23 +450,23 @@ server {
     server_name alghazali.example.com;
     root /var/www/alghazali;
     index index.php index.html;
-    
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
-    
+
     location ~ \.php$ {
         fastcgi_pass unix:/run/php/php8.2-fpm.sock;
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }
-    
+
     # منع الوصول للملفات الحساسة
     location ~ /\.(env|git|htaccess) {
         deny all;
     }
-    
+
     location ~ ^/(fix|debug|check).*\.php$ {
         deny all;
     }
@@ -691,7 +691,7 @@ TIMEZONE=Asia/Riyadh
 
 ```bash
 # 1. استنساخ المستودع
-git clone https://github.com/ww770105ww-sud/alghazali.git
+git clone https://github.com/mahumad7733/alghazali.git
 cd alghazali
 
 # 2. إعداد ملف البيئة
@@ -752,7 +752,7 @@ php -S localhost:8000 router.php
 
 ### Repository
 
-- **GitHub:** https://github.com/ww770105ww-sud/alghazali.git
+- **GitHub:** https://github.com/mahumad7733/alghazali.git
 - **Branch:** `main`
 - **License:** Proprietary
 

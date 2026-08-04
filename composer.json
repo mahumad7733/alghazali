@@ -1,0 +1,13 @@
+{
+  "name": "mahumad7733/alghazali",
+  "description": "AlGhazali project",
+  "type": "project",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "AlGhazali\\": "src/"
+    }
+  }
+}

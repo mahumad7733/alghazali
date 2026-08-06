@@ -2,17 +2,19 @@
 
 namespace Core\Finance;
 
+use Core\Finance\Contracts\FinanceGatewayInterface;
+
 class JournalService
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function processServiceOperation(array $data): array
     {
-        return $this->legacy->processServiceOperation($data);
+        return $this->gateway->processServiceOperation($data);
     }
 }

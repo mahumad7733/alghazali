@@ -2,17 +2,19 @@
 
 namespace Core\Finance;
 
+use Core\Finance\Contracts\FinanceGatewayInterface;
+
 class BalanceService
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function getOrCreateDefaultCashCustomer(?int $branchId = null): int
     {
-        return $this->legacy->getOrCreateDefaultCashCustomer($branchId);
+        return $this->gateway->getOrCreateDefaultCashCustomer($branchId);
     }
 }

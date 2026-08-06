@@ -3,33 +3,34 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\ReceiptInterface;
+use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class ReceiptService implements ReceiptInterface
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function createReceiptVoucherDraft(array $data): int
     {
-        return $this->legacy->createReceiptVoucherDraft($data);
+        return $this->gateway->createReceiptVoucherDraft($data);
     }
 
     public function allocatePayment(int $voucherId, int $invoiceId, float $allocatedAmount): void
     {
-        $this->legacy->allocatePayment($voucherId, $invoiceId, $allocatedAmount);
+        $this->gateway->allocatePayment($voucherId, $invoiceId, $allocatedAmount);
     }
 
     public function postReceiptVoucher(int $voucherId): void
     {
-        $this->legacy->postReceiptVoucher($voucherId);
+        $this->gateway->postReceiptVoucher($voucherId);
     }
 
     public function receiveInvoicePayment(array $data): int
     {
-        return $this->legacy->receiveInvoicePayment($data);
+        return $this->gateway->receiveInvoicePayment($data);
     }
 }

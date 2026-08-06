@@ -3,28 +3,29 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\InvoiceInterface;
+use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class InvoiceService implements InvoiceInterface
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function createInvoiceDraft(array $data, string $category): int
     {
-        return $this->legacy->createInvoiceDraft($data, $category);
+        return $this->gateway->createInvoiceDraft($data, $category);
     }
 
     public function postInvoice(int $invoiceId): void
     {
-        $this->legacy->postInvoice($invoiceId);
+        $this->gateway->postInvoice($invoiceId);
     }
 
     public function recalculateInvoicePaymentStatus(int $invoiceId): void
     {
-        $this->legacy->recalculateInvoicePaymentStatus($invoiceId);
+        $this->gateway->recalculateInvoicePaymentStatus($invoiceId);
     }
 }

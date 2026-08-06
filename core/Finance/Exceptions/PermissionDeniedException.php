@@ -1,6 +1,6 @@
 <?php
 
-namespace AlGhazali\Finance\Exceptions;
+namespace Core\Finance\Exceptions;
 
 /**
  * يُرمى عند عدم تمتع المستخدم بالصلاحية المطلوبة للعملية.

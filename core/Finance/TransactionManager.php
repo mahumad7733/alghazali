@@ -15,15 +15,13 @@ use Throwable;
 class TransactionManager implements TransactionManagerInterface
 {
     private PDO $pdo;
-    private ?\LegacyFinanceService $legacy;
 
     /** @var array<int,string> */
     private array $savepointStack = [];
 
-    public function __construct(PDO $pdo, ?\LegacyFinanceService $legacy = null)
+    public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
-        $this->legacy = $legacy;
     }
 
     /**
@@ -31,10 +29,6 @@ class TransactionManager implements TransactionManagerInterface
      */
     public function executeAtomically(callable $callback)
     {
-        if ($this->legacy !== null) {
-            return $this->legacy->executeAtomically($callback);
-        }
-
         $name = $this->safeBegin();
 
         try {

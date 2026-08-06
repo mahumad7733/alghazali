@@ -3,23 +3,24 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\PaymentInterface;
+use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class PaymentService implements PaymentInterface
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function createPaymentVoucherDraft(array $data): int
     {
-        return $this->legacy->createPaymentVoucherDraft($data);
+        return $this->gateway->createPaymentVoucherDraft($data);
     }
 
     public function postPaymentVoucher(int $voucherId): void
     {
-        $this->legacy->postPaymentVoucher($voucherId);
+        $this->gateway->postPaymentVoucher($voucherId);
     }
 }

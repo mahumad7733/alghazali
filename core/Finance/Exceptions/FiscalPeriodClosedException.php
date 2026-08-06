@@ -1,6 +1,6 @@
 <?php
 
-namespace AlGhazali\Finance\Exceptions;
+namespace Core\Finance\Exceptions;
 
 /**
  * يُرمى عند محاولة تسجيل عملية مالية في فترة مالية مغلقة.

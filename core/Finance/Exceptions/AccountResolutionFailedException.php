@@ -1,6 +1,6 @@
 <?php
 
-namespace AlGhazali\Finance\Exceptions;
+namespace Core\Finance\Exceptions;
 
 /**
  * ⚠️  يُرمى هذا الاستثناء وفقًا لقرار (Q3 الجديد):

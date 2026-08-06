@@ -2,27 +2,29 @@
 
 namespace Core\Finance;
 
+use Core\Finance\Contracts\FinanceGatewayInterface;
+
 class ExpenseService
 {
-    private \LegacyFinanceService $legacy;
+    private FinanceGatewayInterface $gateway;
 
-    public function __construct(\LegacyFinanceService $legacy)
+    public function __construct(FinanceGatewayInterface $gateway)
     {
-        $this->legacy = $legacy;
+        $this->gateway = $gateway;
     }
 
     public function createExpenseVoucherDraft(array $data): int
     {
-        return $this->legacy->createExpenseVoucherDraft($data);
+        return $this->gateway->createExpenseVoucherDraft($data);
     }
 
     public function postExpenseVoucher(int $voucherId): void
     {
-        $this->legacy->postExpenseVoucher($voucherId);
+        $this->gateway->postExpenseVoucher($voucherId);
     }
 
     public function processExpenseApproval(int $voucherId, int $level, bool $approved, ?string $comment = null): void
     {
-        $this->legacy->processExpenseApproval($voucherId, $level, $approved, $comment);
+        $this->gateway->processExpenseApproval($voucherId, $level, $approved, $comment);
     }
 }

@@ -1292,10 +1292,18 @@ class LegacyFinanceService
 // Backward-compatible facade. The legacy implementation remains available
 // behind the service layer while operations are migrated incrementally.
 require_once __DIR__ . '/Finance/Contracts/TransactionManagerInterface.php';
+require_once __DIR__ . '/Finance/Contracts/FinanceGatewayInterface.php';
+require_once __DIR__ . '/Finance/Contracts/AuditLoggerInterface.php';
 require_once __DIR__ . '/Finance/Contracts/InvoiceInterface.php';
 require_once __DIR__ . '/Finance/Contracts/ReceiptInterface.php';
 require_once __DIR__ . '/Finance/Contracts/PaymentInterface.php';
 require_once __DIR__ . '/Finance/TransactionManager.php';
+require_once __DIR__ . '/Finance/LegacyFinanceGateway.php';
+require_once __DIR__ . '/Finance/AuditLogger.php';
+require_once __DIR__ . '/Finance/Exceptions/FinanceException.php';
+require_once __DIR__ . '/Finance/Exceptions/AccountResolutionFailedException.php';
+require_once __DIR__ . '/Finance/Exceptions/FiscalPeriodClosedException.php';
+require_once __DIR__ . '/Finance/Exceptions/PermissionDeniedException.php';
 require_once __DIR__ . '/Finance/InvoiceService.php';
 require_once __DIR__ . '/Finance/ReceiptService.php';
 require_once __DIR__ . '/Finance/PaymentService.php';
@@ -1317,13 +1325,14 @@ class FinanceService
     public function __construct(PDO $pdo, ?int $userId = null)
     {
         $this->legacy = new LegacyFinanceService($pdo, $userId);
-        $this->transactionManager = new \Core\Finance\TransactionManager($pdo, $this->legacy);
-        $this->invoiceService = new \Core\Finance\InvoiceService($this->legacy);
-        $this->receiptService = new \Core\Finance\ReceiptService($this->legacy);
-        $this->paymentService = new \Core\Finance\PaymentService($this->legacy);
-        $this->expenseService = new \Core\Finance\ExpenseService($this->legacy);
-        $this->journalService = new \Core\Finance\JournalService($this->legacy);
-        $this->balanceService = new \Core\Finance\BalanceService($this->legacy);
+        $gateway = new \Core\Finance\LegacyFinanceGateway($this->legacy);
+        $this->transactionManager = new \Core\Finance\TransactionManager($pdo);
+        $this->invoiceService = new \Core\Finance\InvoiceService($gateway);
+        $this->receiptService = new \Core\Finance\ReceiptService($gateway);
+        $this->paymentService = new \Core\Finance\PaymentService($gateway);
+        $this->expenseService = new \Core\Finance\ExpenseService($gateway);
+        $this->journalService = new \Core\Finance\JournalService($gateway);
+        $this->balanceService = new \Core\Finance\BalanceService($gateway);
     }
 
     public function normalizeFinancialPayload(array $data): array { return $this->legacy->normalizeFinancialPayload($data); }

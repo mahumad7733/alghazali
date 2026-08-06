@@ -27,7 +27,7 @@ require_once __DIR__ . '/../includes/accounting_functions.php';
  *  ✅ 15. تحسين الأداء (cache لـ resolvePartyAccountId + تجنب استعلامات مكررة)
  * ###################################################################
  */
-class FinanceService
+class LegacyFinanceService
 {
     /** @var PDO */
     private $pdo;
@@ -1287,4 +1287,59 @@ class FinanceService
             // أي خطأ آخر (مثل عمود مفقود في إصدار قديم) → تجاهل بسلامة
         }
     }
+}
+
+// Backward-compatible facade. The legacy implementation remains available
+// behind the service layer while operations are migrated incrementally.
+require_once __DIR__ . '/Finance/Contracts/TransactionManagerInterface.php';
+require_once __DIR__ . '/Finance/Contracts/InvoiceInterface.php';
+require_once __DIR__ . '/Finance/Contracts/ReceiptInterface.php';
+require_once __DIR__ . '/Finance/Contracts/PaymentInterface.php';
+require_once __DIR__ . '/Finance/TransactionManager.php';
+require_once __DIR__ . '/Finance/InvoiceService.php';
+require_once __DIR__ . '/Finance/ReceiptService.php';
+require_once __DIR__ . '/Finance/PaymentService.php';
+require_once __DIR__ . '/Finance/ExpenseService.php';
+require_once __DIR__ . '/Finance/JournalService.php';
+require_once __DIR__ . '/Finance/BalanceService.php';
+
+class FinanceService
+{
+    private LegacyFinanceService $legacy;
+    private \Core\Finance\InvoiceService $invoiceService;
+    private \Core\Finance\ReceiptService $receiptService;
+    private \Core\Finance\PaymentService $paymentService;
+    private \Core\Finance\ExpenseService $expenseService;
+    private \Core\Finance\JournalService $journalService;
+    private \Core\Finance\BalanceService $balanceService;
+    private \Core\Finance\TransactionManager $transactionManager;
+
+    public function __construct(PDO $pdo, ?int $userId = null)
+    {
+        $this->legacy = new LegacyFinanceService($pdo, $userId);
+        $this->transactionManager = new \Core\Finance\TransactionManager($pdo, $this->legacy);
+        $this->invoiceService = new \Core\Finance\InvoiceService($this->legacy);
+        $this->receiptService = new \Core\Finance\ReceiptService($this->legacy);
+        $this->paymentService = new \Core\Finance\PaymentService($this->legacy);
+        $this->expenseService = new \Core\Finance\ExpenseService($this->legacy);
+        $this->journalService = new \Core\Finance\JournalService($this->legacy);
+        $this->balanceService = new \Core\Finance\BalanceService($this->legacy);
+    }
+
+    public function normalizeFinancialPayload(array $data): array { return $this->legacy->normalizeFinancialPayload($data); }
+    public function executeAtomically(callable $callback) { return $this->transactionManager->executeAtomically($callback); }
+    public function createInvoiceDraft(array $data, string $category): int { return $this->invoiceService->createInvoiceDraft($data, $category); }
+    public function postInvoice(int $invoiceId): void { $this->invoiceService->postInvoice($invoiceId); }
+    public function createReceiptVoucherDraft(array $data): int { return $this->receiptService->createReceiptVoucherDraft($data); }
+    public function createPaymentVoucherDraft(array $data): int { return $this->paymentService->createPaymentVoucherDraft($data); }
+    public function allocatePayment(int $voucherId, int $invoiceId, float $allocatedAmount): void { $this->receiptService->allocatePayment($voucherId, $invoiceId, $allocatedAmount); }
+    public function postReceiptVoucher(int $voucherId): void { $this->receiptService->postReceiptVoucher($voucherId); }
+    public function postPaymentVoucher(int $voucherId): void { $this->paymentService->postPaymentVoucher($voucherId); }
+    public function recalculateInvoicePaymentStatus(int $invoiceId): void { $this->invoiceService->recalculateInvoicePaymentStatus($invoiceId); }
+    public function processServiceOperation(array $data): array { return $this->journalService->processServiceOperation($data); }
+    public function receiveInvoicePayment(array $data): int { return $this->receiptService->receiveInvoicePayment($data); }
+    public function getOrCreateDefaultCashCustomer(?int $branchId = null): int { return $this->balanceService->getOrCreateDefaultCashCustomer($branchId); }
+    public function createExpenseVoucherDraft(array $data): int { return $this->expenseService->createExpenseVoucherDraft($data); }
+    public function postExpenseVoucher(int $voucherId): void { $this->expenseService->postExpenseVoucher($voucherId); }
+    public function processExpenseApproval(int $voucherId, int $level, bool $approved, ?string $comment = null): void { $this->expenseService->processExpenseApproval($voucherId, $level, $approved, $comment); }
 }

@@ -4,18 +4,20 @@
  * الهدف: التأكد من عدم ظهور خطأ 1318 Incorrect number of arguments
  */
 
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '738155';
-$db   = 'ghazali';
+$env = is_file(__DIR__ . '/../.env') ? parse_ini_file(__DIR__ . '/../.env') : [];
+$host = $env['DB_HOST'] ?? '127.0.0.1';
+$port = $env['DB_PORT'] ?? '3306';
+$user = $env['DB_USER'] ?? 'root';
+$pass = $env['DB_PASS'] ?? '';
+$db   = $env['DB_NAME'] ?? 'alghazali';
 $charset = 'utf8mb4';
 
-$pdo = new PDO("mysql:host=$host;dbname=$db;charset=$charset", $user, $pass, [
+$pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=$charset", $user, $pass, [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
 // استخدام نفس إعدادات الاتصال في التطبيق الحقيقي (db.php:86)
-$pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+$pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 
 echo "===================================\n";
 echo "اختبار توافق استدعاءات الإجراءات\n";

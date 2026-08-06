@@ -1,15 +1,34 @@
 # Finance Support Guide
 
-## عند ظهور خطأ مالي
+## First response to a finance error
 
-1. إيقاف النقل أو النشر.
-2. حفظ رسالة الخطأ ووقت العملية ومرجعها.
-3. مراجعة `REFACTORING_ISSUES.md` وLogs.
-4. مقارنة حالة الفاتورة والسند والقيد والرصيد.
-5. استخدام Commit السابق أو Rollback الموثق عند وجود أثر مالي.
+1. Stop the affected deployment or repeated operation; do not retry a posting blindly.
+2. Record the exact message, timestamp, user, branch, voucher/invoice number, and operation.
+3. Check whether the document is draft, posted, cancelled, or pending approval.
+4. Compare the document, financial transaction, journal lines, account balances, and audit records.
+5. Review `REFACTORING_ISSUES.md` and application logs before proposing a data correction.
 
-## تحقق سريع
+## Safe verification
 
-- تشغيل `C:\xampp\php\php.exe tools\finance_architecture_smoke.php`.
-- تشغيل اختبارات التكامل على قاعدة اختبار فقط بعد التأكد من تشغيل MySQL.
-- عدم تنفيذ SQL إصلاحي مباشر على قاعدة الإنتاج.
+Run diagnostics against an isolated database first:
+
+```powershell
+& C:\xampp\php\php.exe tools\finance_architecture_smoke.php
+& C:\xampp\php\php.exe tools\finance_facade_compatibility_test.php
+& C:\xampp\php\php.exe tools\finance_voucher_services_integration_test.php
+```
+
+The broad isolated acceptance suite currently covers invoice, receipt, allocation, payment status, currency behavior, audit records, and posting safety.
+
+## Common checks
+
+- A closed fiscal period must reject new or posted operations.
+- An inactive, deleted, or incompatible account must be rejected.
+- A posted voucher must have balanced journal lines.
+- A payment must reference the correct supplier account and currency.
+- An expense posting creates a financial transaction linked by `reference_type = 'expense_voucher'` and `reference_id`.
+- Posting IP fields may be populated by the service layer when a stored procedure leaves them blank.
+
+## Database changes and rollback
+
+Do not run ad-hoc corrective SQL on production. Use the reviewed migration, take a verified backup, obtain deployment approval, and execute during a maintenance window. If a release causes a financial invariant failure, stop the release and use the documented Git rollback path; preserve logs and evidence before cleanup.

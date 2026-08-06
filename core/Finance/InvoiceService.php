@@ -88,6 +88,8 @@ class InvoiceService implements InvoiceInterface
                 throw new \RuntimeException('php_post_invoice is not loaded');
             }
             php_post_invoice($pdo, $invoiceId, $this->context->userId(), true);
+            $pdo->prepare('UPDATE invoices SET updated_at = COALESCE(updated_at, NOW()) WHERE id = ?')
+                ->execute([$invoiceId]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {

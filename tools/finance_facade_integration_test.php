@@ -71,6 +71,12 @@ try {
     $allocationCheck->execute([$invoiceId]);
     $allocation = $allocationCheck->fetchAll();
     $service->postReceiptVoucher($voucherId);
+    $voucherCheck = $pdo->prepare('SELECT status, posted_ip, updated_ip FROM financial_transactions WHERE id = ?');
+    $voucherCheck->execute([$voucherId]);
+    $voucher = $voucherCheck->fetch();
+    if ($voucher['status'] !== 'posted' || empty($voucher['posted_ip']) || empty($voucher['updated_ip'])) {
+        throw new RuntimeException('Facade receipt audit metadata mismatch: ' . json_encode($voucher));
+    }
     $service->recalculateInvoicePaymentStatus($invoiceId);
 
     $check = $pdo->prepare('SELECT invoice_status, payment_status, amount_received FROM invoices WHERE id = ?');

@@ -90,6 +90,9 @@ class ReceiptService implements ReceiptInterface
             throw new \RuntimeException('php_post_receipt_voucher is not loaded');
         }
         php_post_receipt_voucher($this->context->pdo(), $voucherId, $this->context->userId());
+        $this->context->pdo()->prepare(
+            'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
+        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
         $this->context->audit('post_receipt_voucher', 'receipt_voucher', $voucherId);
     }
 

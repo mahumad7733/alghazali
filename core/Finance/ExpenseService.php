@@ -48,6 +48,9 @@ class ExpenseService
         $stmt = $this->context->pdo()->prepare('CALL sp_post_expense_voucher(?, ?)');
         $stmt->execute([$voucherId, $this->context->userId()]);
         $stmt->closeCursor();
+        $this->context->pdo()->prepare(
+            'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
+        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
         $this->context->audit('post_expense_voucher', 'expense_voucher', $voucherId);
     }
 

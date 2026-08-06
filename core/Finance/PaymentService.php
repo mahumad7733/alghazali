@@ -50,6 +50,9 @@ class PaymentService implements PaymentInterface
             throw new \RuntimeException('php_post_payment_voucher is not loaded');
         }
         php_post_payment_voucher($this->context->pdo(), $voucherId, $this->context->userId());
+        $this->context->pdo()->prepare(
+            'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
+        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
         $this->context->audit('post_payment_voucher', 'payment_voucher', $voucherId);
     }
 }

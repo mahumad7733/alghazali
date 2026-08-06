@@ -27,6 +27,11 @@ final class FinanceContext
         return $this->userId;
     }
 
+    public function requestIp(): string
+    {
+        return trim((string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1')) ?: '127.0.0.1';
+    }
+
     public function normalize(array $data): array
     {
         $discount = (float)($data['discount_amount'] ?? $data['discount'] ?? 0);

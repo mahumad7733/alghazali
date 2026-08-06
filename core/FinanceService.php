@@ -1300,6 +1300,7 @@ require_once __DIR__ . '/Finance/Contracts/PaymentInterface.php';
 require_once __DIR__ . '/Finance/TransactionManager.php';
 require_once __DIR__ . '/Finance/LegacyFinanceGateway.php';
 require_once __DIR__ . '/Finance/AuditLogger.php';
+require_once __DIR__ . '/Finance/FinanceContext.php';
 require_once __DIR__ . '/Finance/Exceptions/FinanceException.php';
 require_once __DIR__ . '/Finance/Exceptions/AccountResolutionFailedException.php';
 require_once __DIR__ . '/Finance/Exceptions/FiscalPeriodClosedException.php';
@@ -1321,21 +1322,29 @@ class FinanceService
     private \Core\Finance\JournalService $journalService;
     private \Core\Finance\BalanceService $balanceService;
     private \Core\Finance\TransactionManager $transactionManager;
+    private \Core\Finance\FinanceContext $context;
 
     public function __construct(PDO $pdo, ?int $userId = null)
     {
         $this->legacy = new LegacyFinanceService($pdo, $userId);
         $gateway = new \Core\Finance\LegacyFinanceGateway($this->legacy);
         $this->transactionManager = new \Core\Finance\TransactionManager($pdo);
-        $this->invoiceService = new \Core\Finance\InvoiceService($gateway);
-        $this->receiptService = new \Core\Finance\ReceiptService($gateway);
-        $this->paymentService = new \Core\Finance\PaymentService($gateway);
-        $this->expenseService = new \Core\Finance\ExpenseService($gateway);
+        $audit = new \Core\Finance\AuditLogger($pdo, (int)($userId ?: ($_SESSION['admin_id'] ?? 1)));
+        $this->context = new \Core\Finance\FinanceContext(
+            $pdo,
+            (int)($userId ?: ($_SESSION['admin_id'] ?? 1)),
+            $this->transactionManager,
+            $audit
+        );
+        $this->invoiceService = new \Core\Finance\InvoiceService($this->context, $gateway);
+        $this->receiptService = new \Core\Finance\ReceiptService($this->context, $this->invoiceService, $gateway);
+        $this->paymentService = new \Core\Finance\PaymentService($this->context, $gateway);
+        $this->expenseService = new \Core\Finance\ExpenseService($this->context, $gateway);
         $this->journalService = new \Core\Finance\JournalService($gateway);
         $this->balanceService = new \Core\Finance\BalanceService($gateway);
     }
 
-    public function normalizeFinancialPayload(array $data): array { return $this->legacy->normalizeFinancialPayload($data); }
+    public function normalizeFinancialPayload(array $data): array { return $this->context->normalize($data); }
     public function executeAtomically(callable $callback) { return $this->transactionManager->executeAtomically($callback); }
     public function createInvoiceDraft(array $data, string $category): int { return $this->invoiceService->createInvoiceDraft($data, $category); }
     public function postInvoice(int $invoiceId): void { $this->invoiceService->postInvoice($invoiceId); }

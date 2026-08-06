@@ -49,16 +49,23 @@ $(document).ready(function () {
         });
     };
 
-    // دالة حذف السند (للسندات غير المرحلة فقط)
-    window.deleteVoucher = function (id) {
+    // دالة حذف السند (للسندات غير المرحلة فقط أو زوج السندات المعكوسة مع الصلاحية)
+    window.deleteVoucher = function (id, isReversedPair) {
+        var isPair = isReversedPair === true;
+        var swalTitle = isPair ? 'حذف السند والسند العكسي معاً؟' : 'حذف السند نهائياً؟';
+        var swalText = isPair
+            ? 'سيتم حذف السند الحالي والسند العكسي المرتبط به معاً. لا يمكن التراجع عن هذه العملية!'
+            : 'لا يمكن التراجع عن هذه العملية!';
+        var swalIcon = isPair ? 'warning' : 'error';
+
         Swal.fire({
-            title: 'حذف السند نهائياً؟',
-            text: "لا يمكن التراجع عن هذه العملية!",
-            icon: 'error',
+            title: swalTitle,
+            text: swalText,
+            icon: swalIcon,
             showCancelButton: true,
             confirmButtonColor: '#d33',
             cancelButtonColor: '#3085d6',
-            confirmButtonText: 'نعم، احذف',
+            confirmButtonText: isPair ? 'نعم، احذف الاثنين' : 'نعم، احذف',
             cancelButtonText: 'تراجع'
         }).then((result) => {
             if (result.isConfirmed) {

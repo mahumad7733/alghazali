@@ -146,24 +146,104 @@ class InvoiceManager {
      * ترحيل الفاتورة (تغيير الحالة إلى posted)
      */
     public function postInvoice($invoice_id, $user_id) {
+        // ===== مركز إدارة النظام: لقطة قبل الترحيل =====
+        $before = null; $amountBefore = null; $statusBefore = null; $currencyBefore = null;
+        try {
+            $qBefore = $this->pdo->prepare("SELECT * FROM invoices WHERE id = ?");
+            $qBefore->execute([(int)$invoice_id]);
+            $before = $qBefore->fetch(PDO::FETCH_ASSOC);
+            if ($before) {
+                $amountBefore = $before['total_amount'] ?? null;
+                $statusBefore = $before['invoice_status'] ?? null;
+                $currencyBefore = $before['currency_id'] ?? null;
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+
         $stmt = $this->pdo->prepare("
             UPDATE invoices 
             SET invoice_status = 'posted', posted_at = NOW(), posted_by = ?
             WHERE id = ? AND invoice_status = 'draft'
         ");
-        return $stmt->execute([$user_id, $invoice_id]);
+        $res = $stmt->execute([$user_id, $invoice_id]);
+
+        // ===== مركز إدارة النظام: لقطة بعد الترحيل + تسجيل الأثر =====
+        if ($res) try {
+            $after = null; $amountAfter = null; $statusAfter = null; $currencyAfter = null; $rate = null;
+            $qAfter = $this->pdo->prepare("SELECT * FROM invoices WHERE id = ?");
+            $qAfter->execute([(int)$invoice_id]);
+            $after = $qAfter->fetch(PDO::FETCH_ASSOC);
+            if ($after) {
+                $amountAfter = $after['total_amount'] ?? null;
+                $statusAfter = $after['invoice_status'] ?? null;
+                $currencyAfter = $after['currency_id'] ?? null;
+                $rate = $after['exchange_rate'] ?? null;
+            }
+            if (function_exists('record_financial_transaction_snapshot')) {
+                record_financial_transaction_snapshot('invoice_posted', (array)($before ?? []), (array)($after ?? []), [
+                    'target_table' => 'invoices', 'target_record_id' => (int)$invoice_id,
+                    'invoice_id' => (int)$invoice_id,
+                    'amount_before' => $amountBefore, 'amount_after' => $amountAfter,
+                    'currency_id_before' => $currencyBefore, 'currency_id_after' => $currencyAfter,
+                    'exchange_rate_applied' => $rate,
+                    'status_before' => $statusBefore, 'status_after' => $statusAfter,
+                    'change_reason' => 'ترحيل فاتورة بواسطة المستخدم ID:' . (int)$user_id,
+                ]);
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+
+        return $res;
     }
     
     /**
      * إلغاء الفاتورة
      */
     public function cancelInvoice($invoice_id, $user_id, $reason = null) {
+        // ===== مركز إدارة النظام: لقطة قبل الإلغاء =====
+        $before = null; $amountBefore = null; $statusBefore = null; $currencyBefore = null;
+        try {
+            $qBefore = $this->pdo->prepare("SELECT * FROM invoices WHERE id = ?");
+            $qBefore->execute([(int)$invoice_id]);
+            $before = $qBefore->fetch(PDO::FETCH_ASSOC);
+            if ($before) {
+                $amountBefore = $before['total_amount'] ?? null;
+                $statusBefore = $before['invoice_status'] ?? null;
+                $currencyBefore = $before['currency_id'] ?? null;
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+
         $stmt = $this->pdo->prepare("
             UPDATE invoices 
             SET invoice_status = 'cancelled', updated_by = ?, 
                 description = CONCAT(COALESCE(description, ''), ' | ملغي: ', ?)
             WHERE id = ? AND invoice_status IN ('draft', 'posted')
         ");
-        return $stmt->execute([$user_id, $reason, $invoice_id]);
+        $res = $stmt->execute([$user_id, $reason, $invoice_id]);
+
+        // ===== مركز إدارة النظام: لقطة بعد الإلغاء + تسجيل الأثر =====
+        if ($res) try {
+            $after = null; $amountAfter = null; $statusAfter = null; $currencyAfter = null; $rate = null;
+            $qAfter = $this->pdo->prepare("SELECT * FROM invoices WHERE id = ?");
+            $qAfter->execute([(int)$invoice_id]);
+            $after = $qAfter->fetch(PDO::FETCH_ASSOC);
+            if ($after) {
+                $amountAfter = $after['total_amount'] ?? null;
+                $statusAfter = $after['invoice_status'] ?? null;
+                $currencyAfter = $after['currency_id'] ?? null;
+                $rate = $after['exchange_rate'] ?? null;
+            }
+            if (function_exists('record_financial_transaction_snapshot')) {
+                record_financial_transaction_snapshot('invoice_cancel', (array)($before ?? []), (array)($after ?? []), [
+                    'target_table' => 'invoices', 'target_record_id' => (int)$invoice_id,
+                    'invoice_id' => (int)$invoice_id,
+                    'amount_before' => $amountBefore, 'amount_after' => $amountAfter,
+                    'currency_id_before' => $currencyBefore, 'currency_id_after' => $currencyAfter,
+                    'exchange_rate_applied' => $rate,
+                    'status_before' => $statusBefore, 'status_after' => $statusAfter,
+                    'change_reason' => mb_substr('إلغاء فاتورة: ' . ($reason ?? 'بدون سبب') . ' - المستخدم ID:' . (int)$user_id, 0, 400),
+                ]);
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+
+        return $res;
     }
 }

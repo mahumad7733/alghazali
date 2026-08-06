@@ -10,8 +10,13 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/accounting_functions.php';
 require_once __DIR__ . '/../includes/system_error_audit.php';
 require_once __DIR__ . '/../includes/crm_functions.php';
+$requestScript = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$adminMarker = strpos($requestScript, '/admin/');
+$adminLoginUrl = $adminMarker !== false
+    ? substr($requestScript, 0, $adminMarker + 7) . 'login.php'
+    : 'login.php';
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: login.php');
+    header('Location: ' . $adminLoginUrl);
     exit();
 }
 
@@ -19,14 +24,19 @@ if (!isset($_SESSION['admin_id'])) {
 $current_session_id = session_id();
 $current_user_id = $_SESSION['admin_id'];
 try {
+    // The session table may not exist on a fresh installation. Ensure the
+    // current database schema before validating the active session.
+    if (function_exists('ensureUserSessionTables')) {
+        ensureUserSessionTables();
+    }
     // Check if user_sessions table has device_fingerprint column
     $checkCol = $pdo->query("SHOW COLUMNS FROM user_sessions LIKE 'device_fingerprint'");
     $hasDeviceFingerprint = $checkCol->fetch() !== false;
-    
+
     $stmt = $pdo->prepare("SELECT status, id FROM user_sessions WHERE session_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 1");
     $stmt->execute([$current_session_id, $current_user_id]);
     $session = $stmt->fetch();
-    
+
     if (!$session) {
         // Session not found in database, create a new one!
         createUserSession($current_user_id);
@@ -34,7 +44,7 @@ try {
         // Session is terminated, log out!
         session_unset();
         session_destroy();
-        header('Location: login.php');
+        header('Location: ' . $adminLoginUrl);
         exit;
     }
 } catch (Exception $e) {
@@ -50,6 +60,22 @@ try {
     register_system_error_audit($pdo);
 } catch (Throwable $e) {
     // Silent fail.
+}
+
+// ===== مركز إدارة النظام: تفعيل مراقب الأداء + تدقيق الأمان =====
+try {
+    require_once __DIR__ . '/../includes/system_admin/PerformanceMonitor.php';
+    AlGhazali_PerformanceMonitor::boot();
+} catch (Throwable $e) { /* ignore */
+}
+
+try {
+    require_once __DIR__ . '/../includes/system_admin/SecurityAudit.php';
+    if (!empty($_GET) || !empty($_POST) || !empty($_COOKIE)) {
+        // تشغيل فحص سلبي فقط عند وجود بيانات مدخلة لتقليل الحمل
+        AlGhazali_SecurityAudit::runPassiveAudit();
+    }
+} catch (Throwable $e) { /* ignore */
 }
 
 $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'];
@@ -111,7 +137,8 @@ $unread_internal->execute([$admin_id]);
 $unread_internal_count = $unread_internal->fetchColumn();
 
 // دالة للتحقق من تواريخ السفر القادمة وتوليد إشعارات
-function checkUpcomingTravelNotifications($pdo, $currentUser) {
+function checkUpcomingTravelNotifications($pdo, $currentUser)
+{
     // إضافة الأعمدة إذا لم تكن موجودة (جاهز لأي حالة)
     try {
         $check1 = $pdo->query("SHOW COLUMNS FROM notifications LIKE 'source_type'");
@@ -129,46 +156,46 @@ function checkUpcomingTravelNotifications($pdo, $currentUser) {
     } catch (Exception $e) {
         // تجاهل الأخطاء هنا، الأعمدة موجودة بالفعل أو لا نحتاجها الآن
     }
-    
+
     $todayDate = date('Y-m-d');
     $tomorrowDate = date('Y-m-d', strtotime('+1 day'));
-    
+
     // 1. تحقق من حجوزات الطيران والباصات
     $bookingsStmt = $pdo->prepare("
-        SELECT 
-            b.id, 
-            b.traveler_name, 
-            b.departure_date, 
+        SELECT
+            b.id,
+            b.traveler_name,
+            b.departure_date,
             b.service_type,
             b.branch_id,
             b.agent_id
         FROM bus_flight_bookings b
-        WHERE 
-            b.deleted_at IS NULL 
+        WHERE
+            b.deleted_at IS NULL
             AND b.departure_date IS NOT NULL
             AND b.departure_date BETWEEN ? AND ?
     ");
     $bookingsStmt->execute([$todayDate, $tomorrowDate]);
     $bookings = $bookingsStmt->fetchAll();
-    
+
     foreach ($bookings as $booking) {
         // تحقق من وجود إشعار بالفعل
         $existing = $pdo->prepare("
-            SELECT id FROM notifications 
+            SELECT id FROM notifications
             WHERE source_type = ? AND source_id = ?
         ");
         $sourceType = $booking['service_type'] == 'flight' ? 'flight_booking' : 'bus_booking';
         $existing->execute([$sourceType, $booking['id']]);
-        
+
         if (!$existing->fetch()) {
             // إنشاء إشعار
             $title = $booking['service_type'] == 'flight' ? 'تنبيه: موعد طيران قريب' : 'تنبيه: موعد رحلـة باص قريب';
             $message = "المسافر: " . $booking['traveler_name'] . "\nتاريخ المغادرة: " . $booking['departure_date'];
             $link = 'bus_flight_bookings.php';
-            
+
             $stmt = $pdo->prepare("
                 INSERT INTO notifications (
-                    branch_id, agent_id, title, message, link, type, 
+                    branch_id, agent_id, title, message, link, type,
                     source_type, source_id, created_by
                 ) VALUES (?, ?, ?, ?, ?, 'warning', ?, ?, ?)
             ");
@@ -184,40 +211,40 @@ function checkUpcomingTravelNotifications($pdo, $currentUser) {
             ]);
         }
     }
-    
+
     // 2. تحقق من معاملات الجوازات (تاريخ السفر)
     $passportStmt = $pdo->prepare("
-        SELECT 
-            pt.id, 
-            pt.full_name, 
+        SELECT
+            pt.id,
+            pt.full_name,
             pt.travel_date,
             pt.branch_id,
             pt.agent_id
         FROM passport_transactions pt
-        WHERE 
+        WHERE
             pt.travel_date IS NOT NULL
             AND pt.travel_date BETWEEN ? AND ?
     ");
     $passportStmt->execute([$todayDate, $tomorrowDate]);
     $passportTrxs = $passportStmt->fetchAll();
-    
+
     foreach ($passportTrxs as $trx) {
         // تحقق من وجود إشعار بالفعل
         $existing = $pdo->prepare("
-            SELECT id FROM notifications 
+            SELECT id FROM notifications
             WHERE source_type = ? AND source_id = ?
         ");
         $existing->execute(['passport_travel', $trx['id']]);
-        
+
         if (!$existing->fetch()) {
             // إنشاء إشعار
             $title = 'تنبيه: موعد سفر قريب (معاملة جوازات)';
             $message = "الاسم: " . $trx['full_name'] . "\nتاريخ السفر: " . $trx['travel_date'];
             $link = 'passport_transactions.php';
-            
+
             $stmt = $pdo->prepare("
                 INSERT INTO notifications (
-                    branch_id, agent_id, title, message, link, type, 
+                    branch_id, agent_id, title, message, link, type,
                     source_type, source_id, created_by
                 ) VALUES (?, ?, ?, ?, ?, 'warning', ?, ?, ?)
             ");
@@ -388,33 +415,40 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
             border-color: #1e2d45 !important;
             color: #e2e8f0 !important;
         }
+
         body.theme-dark .select2-container--default .select2-selection--single .select2-selection__rendered,
         body.dark-mode .select2-container--default .select2-selection--single .select2-selection__rendered {
             color: #e2e8f0 !important;
         }
+
         body.theme-dark .select2-dropdown,
         body.dark-mode .select2-dropdown {
             background-color: #111827 !important;
             border-color: #1e2d45 !important;
         }
+
         body.theme-dark .select2-results__option,
         body.dark-mode .select2-results__option {
             color: #e2e8f0 !important;
         }
+
         body.theme-dark .select2-results__option--highlighted,
         body.dark-mode .select2-results__option--highlighted {
             background-color: #1e2d45 !important;
         }
+
         body.theme-dark .select2-search--dropdown .select2-search__field,
         body.dark-mode .select2-search--dropdown .select2-search__field {
             background-color: #0f1e35 !important;
             color: #e2e8f0 !important;
             border-color: #1e2d45 !important;
         }
+
         body.theme-dark .select2-container--default .select2-selection--single .select2-selection__arrow,
         body.dark-mode .select2-container--default .select2-selection--single .select2-selection__arrow {
             border-left-color: #1e2d45 !important;
         }
+
         /* Input group text dark mode styles */
         body.theme-dark .input-group-text,
         body.dark-mode .input-group-text {
@@ -2275,7 +2309,7 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
         body.theme-dark div.form-switch:not(.perm-card) .form-check-label {
             color: #e2e8f0 !important;
         }
-        
+
         body.theme-dark .text-muted,
         body.theme-dark small.text-muted {
             color: #94a3b8 !important;
@@ -2341,10 +2375,10 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
 
             <!-- وحدة CRM -->
             <?php if (is_crm_enabled()): ?>
-            <a href="crm/index.php" class="<?php echo (strpos($_SERVER['PHP_SELF'], 'crm/') !== false) ? 'active' : ''; ?>">
-                <span class="menu-icon"><i class="fas fa-comments"></i></span>
-                وحدة CRM
-            </a>
+                <a href="crm/index.php" class="<?php echo (strpos($_SERVER['PHP_SELF'], 'crm/') !== false) ? 'active' : ''; ?>">
+                    <span class="menu-icon"><i class="fas fa-comments"></i></span>
+                    وحدة CRM
+                </a>
             <?php endif; ?>
 
             <!-- نظام السفر الجديد (مقسم) -->
@@ -2379,7 +2413,7 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
                     معاملات الجوازات
                 </a>
             <?php endif; ?>
-            
+
             <?php if (has_permission('view_all_passports')): ?>
                 <a href="public_queries.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'public_queries.php' ? 'active' : ''; ?>">
                     <span class="menu-icon"><i class="fas fa-search"></i></span>
@@ -2486,6 +2520,25 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
             </a>
 
             <?php if ($is_admin): ?>
+                <a href="system_admin/index.php" class="<?php echo strpos($_SERVER['PHP_SELF'], '/system_admin/') !== false ? 'active' : ''; ?>">
+                    <span class="menu-icon"><i class="fas fa-server text-primary"></i></span>
+                    إدارة النظام
+                    <?php
+                    // عدادات تنبيهات سريعة (الأخطاء الحرجة + الثغرات عالية الخطورة)
+                    try {
+                        $saBadge = 0;
+                        $today1 = date('Y-m-d 00:00:00');
+                        $q1 = $pdo->prepare("SELECT COUNT(*) FROM system_error_audit WHERE created_at >= ? AND (level IN ('CRITICAL','EMERGENCY') OR priority = 'critical')");
+                        $q1->execute([$today1]);
+                        $saBadge += (int)$q1->fetchColumn();
+                        $q2 = $pdo->prepare("SELECT COUNT(*) FROM security_vulnerabilities WHERE severity IN ('critical','high') AND status <> 'resolved' AND status <> 'false_positive'");
+                        $q2->execute();
+                        $saBadge += (int)$q2->fetchColumn();
+                        if ($saBadge > 0) echo '<span class="badge bg-danger badge-notify">' . ($saBadge > 99 ? '99+' : $saBadge) . '</span>';
+                    } catch (\Throwable $e) {
+                    }
+                    ?>
+                </a>
                 <a href="system_hub.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'system_hub.php' ? 'active' : ''; ?>">
                     <span class="menu-icon"><i class="fas fa-cogs text-secondary"></i></span>
                     تهيئة النظام

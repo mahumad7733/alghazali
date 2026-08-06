@@ -2,7 +2,114 @@
 require_once 'header.php';
 require_once '../includes/accounting_functions.php';
 
-// التحقق من الصلاحيات هنا إذا لزم الأمر
+function normalize_expense_status($raw_status)
+{
+    if ($raw_status === null) return 'draft';
+    $s = (string)$raw_status;
+    $s_lc = mb_strtolower(trim($s), 'UTF-8');
+    if (in_array($s_lc, ['0', 'draft', 'مسودة', 'pending', 'new', 'unposted', ''], true)) return 'draft';
+    if (in_array($s_lc, ['1', 'posted', 'active', 'مرحل', 'approved', 'paid'], true)) return 'posted';
+    if (in_array($s_lc, ['2', 'cancelled', 'ملغي', 'canceled', 'reversed', 'معكوس'], true)) return 'cancelled';
+    return ctype_digit($s) ? ((int)$s === 1 ? 'posted' : ((int)$s === 2 ? 'cancelled' : 'draft')) : $s_lc;
+}
+
+function is_expense_draft($expense)
+{
+    $norm = normalize_expense_status($expense['status'] ?? null);
+    return $norm === 'draft' || $norm === 'cancelled';
+}
+
+function is_expense_posted($expense)
+{
+    return normalize_expense_status($expense['status'] ?? null) === 'posted';
+}
+
+function has_permission_v3_exp($permission_code, $branch_id = null)
+{
+    global $pdo, $user_role, $user_branch_id, $user_role_id;
+    $role_lc = mb_strtolower((string)$user_role, 'UTF-8');
+    $role_id  = (int)($user_role_id ?? 0);
+
+    $super_roles = ['admin', 'developer', 'super_admin', 'مدير', 'مبرمج', 'مطور'];
+    if (in_array($role_lc, $super_roles, true)) return true;
+    if (has_permission('manage_expenses')) return true;
+    if (!$role_id) return false;
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM role_permissions_unified rp JOIN unified_permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND p.permission_code = ?");
+    $stmt->execute([$role_id, $permission_code]);
+    return (int)$stmt->fetchColumn() > 0;
+}
+
+function can_edit_expense($expense)
+{
+    global $user_role, $user_id, $user_branch_id, $user_role_id;
+    $role_lc = mb_strtolower((string)$user_role, 'UTF-8');
+    $role_id = (int)($user_role_id ?? 0);
+    $super_roles = ['admin', 'developer', 'super_admin', 'مدير', 'مبرمج', 'مطور'];
+    if (in_array($role_lc, $super_roles, true)) return is_expense_draft($expense);
+    if (!is_expense_draft($expense)) return false;
+
+    if (has_permission_v3_exp('expense_edit')) return true;
+    if (has_permission('manage_expenses')) return true;
+
+    if (($role_lc === 'branch_manager' || $role_lc === 'مدير فرع') && $expense['branch_id'] == $user_branch_id) return true;
+    if ($role_lc === 'accountant' || $role_lc === 'محاسب') return true;
+    return $expense['created_by'] == $user_id;
+}
+
+function can_post_expense($expense)
+{
+    global $user_role, $user_branch_id, $user_role_id;
+    $role_lc = mb_strtolower((string)$user_role, 'UTF-8');
+    $role_id = (int)($user_role_id ?? 0);
+    $super_roles = ['admin', 'developer', 'super_admin', 'مدير', 'مبرمج', 'مطور'];
+    if (in_array($role_lc, $super_roles, true)) return is_expense_draft($expense);
+    if (!is_expense_draft($expense)) return false;
+
+    if (has_permission_v3_exp('expense_post')) return true;
+    if (has_permission('manage_expenses')) return true;
+
+    if ($role_lc === 'accountant' || $role_lc === 'محاسب') return true;
+    if (($role_lc === 'branch_manager' || $role_lc === 'مدير فرع') && $expense['branch_id'] == $user_branch_id) return true;
+    return false;
+}
+
+function can_unpost_expense($expense)
+{
+    global $user_role, $user_role_id;
+    $role_lc = mb_strtolower((string)$user_role, 'UTF-8');
+    $role_id = (int)($user_role_id ?? 0);
+    $super_roles = ['admin', 'developer', 'super_admin', 'مدير', 'مبرمج', 'مطور'];
+    if (in_array($role_lc, $super_roles, true)) return is_expense_posted($expense);
+    if (!is_expense_posted($expense)) return false;
+
+    if (has_permission_v3_exp('expenses_unpost')) return true;
+    if (has_permission_v3_exp('expense_unpost')) return true;
+    if (has_permission('manage_expenses')) return true;
+    return false;
+}
+
+function can_delete_expense($expense)
+{
+    global $user_role, $user_id, $user_branch_id, $user_role_id;
+    $role_lc = mb_strtolower((string)$user_role, 'UTF-8');
+    $role_id = (int)($user_role_id ?? 0);
+    $super_roles = ['admin', 'developer', 'super_admin', 'مدير', 'مبرمج', 'مطور'];
+    if (in_array($role_lc, $super_roles, true)) return !is_expense_posted($expense);
+
+    if (is_expense_posted($expense)) return false;
+
+    if (has_permission_v3_exp('expense_delete')) return true;
+    if (has_permission('manage_expenses')) return true;
+
+    if (($role_lc === 'branch_manager' || $role_lc === 'مدير فرع') && $expense['branch_id'] == $user_branch_id) return true;
+    if ($role_lc === 'accountant' || $role_lc === 'محاسب') return true;
+    return $expense['created_by'] == $user_id;
+}
+
+if (!has_permission_v3_exp('expenses_view') && !has_permission('manage_expenses')) {
+    echo "<script>alert('ليس لديك صلاحية لاستعراض المصاريف.'); location.href='index.php';</script>";
+    exit();
+}
 
 // جلب فئات المصاريف (الحالة عبارة عن tinyint: 1 = نشط)
 $expense_categories = $pdo->query("SELECT id, category_name_ar, account_id FROM expenses_categories WHERE status = 1 AND deleted_at IS NULL ORDER BY category_name_ar")->fetchAll();
@@ -162,123 +269,228 @@ if (isset($_POST['add_expense'])) {
     }
 }
 
+// إلغاء ترحيل مصروف
+if (isset($_POST['unpost_expense'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "خطأ في التحقق من الطلب (CSRF).";
+    } else {
+        $id = (int)($_POST['id'] ?? 0);
+
+        try {
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL");
+            $stmt->execute([$id]);
+            $expense = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$expense) {
+                throw new Exception("المصروف غير موجود.");
+            }
+
+            if (!is_expense_posted($expense)) {
+                throw new Exception("هذا المصروف لم يتم ترحيله بعد، لا يمكن سحب ترحيله.");
+            }
+
+            if (!can_unpost_expense($expense)) {
+                throw new Exception("ليس لديك صلاحية لسحب ترحيل هذا المصروف.");
+            }
+
+            if (is_period_closed($pdo, $expense['expense_date'])) {
+                throw new Exception("تنبيه: لا يمكن سحب ترحيل مصروف. التاريخ (" . $expense['expense_date'] . ") يقع ضمن فترة مالية مغلقة.");
+            }
+
+            $transaction_warning = '';
+            if (!empty($expense['transaction_id'])) {
+                $tid_int = (int)$expense['transaction_id'];
+                try {
+                    $tr_check = $pdo->prepare("SELECT id, status FROM financial_transactions WHERE id = ?");
+                    $tr_check->execute([$tid_int]);
+                    $tr_exists = $tr_check->fetch(PDO::FETCH_ASSOC);
+
+                    if ($tr_exists) {
+                        $tr_status_lc = mb_strtolower(trim((string)($tr_exists['status'] ?? '')), 'UTF-8');
+                        if (!in_array($tr_status_lc, ['posted', '1', 'active', 'مرحل', 'approved', 'paid'], true)) {
+                            try {
+                                $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$tid_int]);
+                                $pdo->prepare("DELETE FROM payment_allocations WHERE financial_transaction_id = ?")->execute([$tid_int]);
+                                $pdo->prepare("DELETE FROM financial_transactions WHERE id = ?")->execute([$tid_int]);
+                                $transaction_warning = ' (ملاحظة: تم حذف القيد المحاسبي المسودة المرتبط)';
+                            } catch (Exception $sub_ex) {
+                                $transaction_warning = ' (ملاحظة: القيد المحاسبي المرتبط غير مرحّل - تم إلغاء ربطه)';
+                            }
+                        } else {
+                            $before = (int)$pdo->query("SELECT COUNT(*) FROM financial_transactions WHERE id = $tid_int")->fetchColumn();
+                            php_delete_financial_transaction_and_reverse($pdo, $tid_int);
+                            $after = (int)$pdo->query("SELECT COUNT(*) FROM financial_transactions WHERE id = $tid_int AND status NOT IN ('cancelled','2','ملغي','canceled','reversed','معكوس')")->fetchColumn();
+                            if ($before > 0 && $after === 0) {
+                                $transaction_warning = ' (تم عكس القيد المحاسبي المرتبط بنجاح)';
+                            } else {
+                                $cancelled_check = $pdo->prepare("SELECT status FROM financial_transactions WHERE id = ?");
+                                $cancelled_check->execute([$tid_int]);
+                                $cur_st = mb_strtolower(trim((string)($cancelled_check->fetchColumn() ?? '')), 'UTF-8');
+                                if (in_array($cur_st, ['cancelled', '2', 'ملغي', 'canceled', 'reversed', 'معكوس'], true)) {
+                                    $transaction_warning = ' (تم إلغاء القيد المحاسبي المرتبط وإنشاء قيد عكسي)';
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception $tr_ex) {
+                    try {
+                        $user_id = $_SESSION['admin_id'] ?? 1;
+                        $user_ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+                        $reason = 'إلغاء مصروف رقم ' . $expense['id'] . ' - ' . ($_POST['reason'] ?? 'سحب ترحيل') . ' | سبب تقني: ' . mb_substr($tr_ex->getMessage(), 0, 180);
+                        $pdo->prepare("
+                            UPDATE financial_transactions
+                            SET status = 'cancelled',
+                                cancelled_at = NOW(),
+                                cancelled_by = ?,
+                                cancelled_ip = ?,
+                                cancellation_reason = ?
+                            WHERE id = ?
+                        ")->execute([$user_id, $user_ip, $reason, $tid_int]);
+                        $transaction_warning = ' (ملاحظة: تم إلغاء القيد المرتبط بدون إنشاء قيد عكسي - يُنصح بمراجعة دليل الحسابات للتأكد من الأرصدة)';
+                    } catch (Exception $force_ex) {
+                        $transaction_warning = ' (تنبيه: فشل في عكس/إلغاء القيد المرتفع تقنياً، تم إلغاء المصروف فقط - يُنصح بمراجعة دليل الحسابات يدويًا وتصحيح القيد المرتبط رقم ' . $tid_int . ')';
+                    }
+                }
+            }
+
+            $current_status_raw = (string)($expense['status'] ?? '');
+            $new_status = (ctype_digit($current_status_raw) || is_numeric($current_status_raw)) ? 0 : 'draft';
+            $update_stmt = $pdo->prepare("UPDATE expenses SET status = ?, transaction_id = NULL WHERE id = ?");
+            $update_stmt->execute([$new_status, $id]);
+
+            $pdo->commit();
+            $_SESSION['flash_message'] = ['type' => 'success', 'body' => 'تم سحب ترحيل المصروف بنجاح.' . $transaction_warning];
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['flash_message'] = ['type' => 'danger', 'body' => 'خطأ أثناء سحب الترحيل: ' . $e->getMessage()];
+        }
+
+        echo "<script>location.href='expenses.php';</script>";
+        exit();
+    }
+}
+
 // تحديث مصروف
 if (isset($_POST['update_expense'])) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "خطأ في التحقق من الطلب (CSRF).";
     } else {
         $id = $_POST['id'];
-        $expense_date = $_POST['expense_date'];
-        $category_id = $_POST['category_id'];
-        $amount = $_POST['amount'];
-        $currency_id = $_POST['currency_id'];
-        $description = $_POST['description'];
-        $notes = $_POST['notes'];
-        $payment_method = $_POST['payment_method'];
-        $paid_from_account_id = !empty($_POST['paid_from_account_id']) ? $_POST['paid_from_account_id'] : null;
-        $expense_account_id = !empty($_POST['expense_account_id']) ? $_POST['expense_account_id'] : null;
 
-        $errors = [];
+        $old_expense_stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ?");
+        $old_expense_stmt->execute([$id]);
+        $old_expense = $old_expense_stmt->fetch(PDO::FETCH_ASSOC);
 
-        // تحديد حساب المصروف المستلم للمبلغ: الأولوية للحقل المُدخل صراحةً
-        if ($expense_account_id) {
-            $stmt_acc = $pdo->prepare("SELECT id FROM unified_accounts WHERE id = ? AND account_type = 'expense' AND account_status = 'active' AND deleted_at IS NULL");
-            $stmt_acc->execute([$expense_account_id]);
-            if (!$stmt_acc->fetchColumn()) {
-                $errors[] = "حساب المصروف المحدد غير صالح.";
-            }
-            $expense_chart_account_id = (int)$expense_account_id;
+        if (!can_edit_expense($old_expense)) {
+            $error = "ليس لديك صلاحية لتعديل هذا المصروف.";
         } else {
-            // احتياطي: حساب الفئة
-            $stmt_cat = $pdo->prepare("SELECT id, category_name_ar, account_id FROM expenses_categories WHERE id = ?");
-            $stmt_cat->execute([$category_id]);
-            $cat_row = $stmt_cat->fetch(PDO::FETCH_ASSOC);
-            $expense_chart_account_id = $cat_row['account_id'] ?? null;
+            $expense_date = $_POST['expense_date'];
+            $category_id = $_POST['category_id'];
+            $amount = $_POST['amount'];
+            $currency_id = $_POST['currency_id'];
+            $description = $_POST['description'];
+            $notes = $_POST['notes'];
+            $payment_method = $_POST['payment_method'];
+            $paid_from_account_id = !empty($_POST['paid_from_account_id']) ? $_POST['paid_from_account_id'] : null;
+            $expense_account_id = !empty($_POST['expense_account_id']) ? $_POST['expense_account_id'] : null;
 
-            if (!$expense_chart_account_id && $cat_row) {
-                $parent_code = get_parent_account_code_by_entity('expense_category');
-                $new_chart_account_id = create_sub_account($parent_code, "فئة مصروف: " . $cat_row['category_name_ar'], $cat_row['id'], 'expense_category');
-                if ($new_chart_account_id) {
-                    $stmt_link = $pdo->prepare("UPDATE expenses_categories SET account_id = ? WHERE id = ?");
-                    $stmt_link->execute([$new_chart_account_id, $cat_row['id']]);
-                    $expense_chart_account_id = $new_chart_account_id;
+            $errors = [];
+
+            if ($expense_account_id) {
+                $stmt_acc = $pdo->prepare("SELECT id FROM unified_accounts WHERE id = ? AND account_type = 'expense' AND account_status = 'active' AND deleted_at IS NULL");
+                $stmt_acc->execute([$expense_account_id]);
+                if (!$stmt_acc->fetchColumn()) {
+                    $errors[] = "حساب المصروف المحدد غير صالح.";
+                }
+                $expense_chart_account_id = (int)$expense_account_id;
+            } else {
+                $stmt_cat = $pdo->prepare("SELECT id, category_name_ar, account_id FROM expenses_categories WHERE id = ?");
+                $stmt_cat->execute([$category_id]);
+                $cat_row = $stmt_cat->fetch(PDO::FETCH_ASSOC);
+                $expense_chart_account_id = $cat_row['account_id'] ?? null;
+
+                if (!$expense_chart_account_id && $cat_row) {
+                    $parent_code = get_parent_account_code_by_entity('expense_category');
+                    $new_chart_account_id = create_sub_account($parent_code, "فئة مصروف: " . $cat_row['category_name_ar'], $cat_row['id'], 'expense_category');
+                    if ($new_chart_account_id) {
+                        $stmt_link = $pdo->prepare("UPDATE expenses_categories SET account_id = ? WHERE id = ?");
+                        $stmt_link->execute([$new_chart_account_id, $cat_row['id']]);
+                        $expense_chart_account_id = $new_chart_account_id;
+                    }
+                }
+                if (!$expense_chart_account_id) {
+                    $errors[] = "يجب تحديد حساب المصروف المستلم للمبلغ.";
                 }
             }
-            if (!$expense_chart_account_id) {
-                $errors[] = "يجب تحديد حساب المصروف المستلم للمبلغ.";
+
+            if ($payment_method != 'check' && !$paid_from_account_id) {
+                $errors[] = "يجب تحديد الحساب المدفوع منه (صندوق/بنك).";
             }
-        }
 
-        if ($payment_method != 'check' && !$paid_from_account_id) {
-            $errors[] = "يجب تحديد الحساب المدفوع منه (صندوق/بنك).";
-        }
+            if (empty($errors)) {
+                try {
+                    $pdo->beginTransaction();
 
-        if (empty($errors)) {
-            try {
-                $pdo->beginTransaction();
+                    if (is_period_closed($pdo, $expense_date)) {
+                        throw new Exception("تنبيه: لا يمكن تعديل مصروف. التاريخ المحدد ($expense_date) يقع ضمن فترة مالية مغلقة.");
+                    }
 
-                // --- التحقق من إغلاق الفترة المالية ---
-                if (is_period_closed($pdo, $expense_date)) {
-                    throw new Exception("تنبيه: لا يمكن تعديل مصروف. التاريخ المحدد ($expense_date) يقع ضمن فترة مالية مغلقة.");
-                }
+                    $branch_id = resolve_expense_branch_id($pdo, $paid_from_account_id, $old_expense['branch_id'] ?? null);
+                    if (!$branch_id) {
+                        throw new Exception("تعذر تحديد الفرع لهذا المصروف.");
+                    }
 
-                $old_expense_stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ?");
-                $old_expense_stmt->execute([$id]);
-                $old_expense = $old_expense_stmt->fetch(PDO::FETCH_ASSOC);
+                    $stmt = $pdo->prepare("UPDATE expenses SET expense_date = ?, category_id = ?, expense_account_id = ?, amount = ?, currency_id = ?, description = ?, notes = ?, payment_method = ?, paid_from_account_id = ? WHERE id = ?");
+                    $stmt->execute([$expense_date, $category_id, $expense_chart_account_id, $amount, $currency_id, $description, $notes, $payment_method, $paid_from_account_id, $id]);
 
-                $branch_id = resolve_expense_branch_id($pdo, $paid_from_account_id, $old_expense['branch_id'] ?? null);
-                if (!$branch_id) {
-                    throw new Exception("تعذر تحديد الفرع لهذا المصروف.");
-                }
+                    $admin_id = (int)($_SESSION['admin_id'] ?? 0);
+                    $amount_f = (float)$amount;
 
-                $stmt = $pdo->prepare("UPDATE expenses SET expense_date = ?, category_id = ?, expense_account_id = ?, amount = ?, currency_id = ?, description = ?, notes = ?, payment_method = ?, paid_from_account_id = ? WHERE id = ?");
-                $stmt->execute([$expense_date, $category_id, $expense_chart_account_id, $amount, $currency_id, $description, $notes, $payment_method, $paid_from_account_id, $id]);
-
-                $admin_id = (int)($_SESSION['admin_id'] ?? 0);
-                $amount_f = (float)$amount;
-
-                if ($paid_from_account_id && $expense_chart_account_id) {
-                    if (!empty($old_expense['transaction_id'])) {
+                    if ($paid_from_account_id && $expense_chart_account_id) {
+                        if (!empty($old_expense['transaction_id'])) {
+                            php_delete_financial_transaction_and_reverse($pdo, (int)$old_expense['transaction_id']);
+                        }
+                        $entry_desc = "تحديث مصروف: " . $description;
+                        $tid = php_create_financial_entry(
+                            $pdo,
+                            $expense_date,
+                            'journal',
+                            'other',
+                            0,
+                            (int)$expense_chart_account_id,
+                            (int)$paid_from_account_id,
+                            $amount_f,
+                            (int)$currency_id,
+                            $entry_desc,
+                            $admin_id,
+                            $branch_id,
+                            null,
+                            null,
+                            'expense',
+                            (int)$id,
+                            true
+                        );
+                        if (!$tid) {
+                            throw new Exception("فشل إنشاء القيد المحاسبي عند التحديث.");
+                        }
+                        $pdo->prepare("UPDATE expenses SET transaction_id = ? WHERE id = ?")->execute([$tid, $id]);
+                    } elseif (!empty($old_expense['transaction_id'])) {
                         php_delete_financial_transaction_and_reverse($pdo, (int)$old_expense['transaction_id']);
+                        $pdo->prepare("UPDATE expenses SET transaction_id = NULL WHERE id = ?")->execute([$id]);
                     }
-                    $entry_desc = "تحديث مصروف: " . $description;
-                    $tid = php_create_financial_entry(
-                        $pdo,
-                        $expense_date,
-                        'journal',
-                        'other',
-                        0,
-                        (int)$expense_chart_account_id,
-                        (int)$paid_from_account_id,
-                        $amount_f,
-                        (int)$currency_id,
-                        $entry_desc,
-                        $admin_id,
-                        $branch_id,
-                        null,
-                        null,
-                        'expense',
-                        (int)$id,
-                        true
-                    );
-                    if (!$tid) {
-                        throw new Exception("فشل إنشاء القيد المحاسبي عند التحديث.");
-                    }
-                    $pdo->prepare("UPDATE expenses SET transaction_id = ? WHERE id = ?")->execute([$tid, $id]);
-                } elseif (!empty($old_expense['transaction_id'])) {
-                    php_delete_financial_transaction_and_reverse($pdo, (int)$old_expense['transaction_id']);
-                    $pdo->prepare("UPDATE expenses SET transaction_id = NULL WHERE id = ?")->execute([$id]);
-                }
 
-                $pdo->commit();
-                $_SESSION['flash_message'] = ['type' => 'success', 'body' => 'تم تحديث المصروف بنجاح.'];
-                echo "<script>location.href='expenses.php';</script>";
-                exit();
-            } catch (Exception $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
+                    $pdo->commit();
+                    $_SESSION['flash_message'] = ['type' => 'success', 'body' => 'تم تحديث المصروف بنجاح.'];
+                    echo "<script>location.href='expenses.php';</script>";
+                    exit();
+                } catch (Exception $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    $error = "حدث خطأ أثناء التحديث: " . $e->getMessage();
                 }
-                $error = "حدث خطأ أثناء التحديث: " . $e->getMessage();
             }
         }
     }
@@ -294,20 +506,29 @@ if (isset($_POST['post_expense'])) {
         try {
             $pdo->beginTransaction();
 
-            $stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ? AND status = 'draft' AND deleted_at IS NULL");
+            $stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL");
             $stmt->execute([$id]);
             $expense = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$expense) {
-                throw new Exception("المصروف غير موجود أو تم ترحيله بالفعل.");
+                throw new Exception("المصروف غير موجود.");
             }
 
-            // --- التحقق من إغلاق الفترة المالية ---
+            if (!is_expense_draft($expense)) {
+                throw new Exception("هذا المصروف محفوظ بحالة مرحلة أو ملغاة، لا يمكن ترحيله مرة أخرى.");
+            }
+
+            if (!can_post_expense($expense)) {
+                throw new Exception("ليس لديك صلاحية لترحيل هذا المصروف.");
+            }
+
             if (is_period_closed($pdo, $expense['expense_date'])) {
                 throw new Exception("تنبيه: لا يمكن ترحيل مصروف. التاريخ المحدد (" . $expense['expense_date'] . ") يقع ضمن فترة مالية مغلقة.");
             }
 
-            // إنشاء قيد محاسبي
+            $current_status_raw = (string)($expense['status'] ?? '');
+            $use_numeric_status = (ctype_digit($current_status_raw) || is_numeric($current_status_raw));
+
             if ($expense['paid_from_account_id'] && $expense['expense_account_id']) {
                 $created_by = (int)($_SESSION['admin_id'] ?? 0);
                 $amount_f = (float)$expense['amount'];
@@ -330,20 +551,20 @@ if (isset($_POST['post_expense'])) {
                     null,
                     'expense',
                     (int)$expense['id'],
-                    false // not an update
+                    false
                 );
 
                 if (!$tid) {
                     throw new Exception("فشل إنشاء القيد المحاسبي عند الترحيل.");
                 }
 
-                // تحديث حالة المصروف وربطه بالقيد
-                $update_stmt = $pdo->prepare("UPDATE expenses SET status = 'posted', transaction_id = ? WHERE id = ?");
-                $update_stmt->execute([$tid, $id]);
+                $new_status = $use_numeric_status ? 1 : 'posted';
+                $update_stmt = $pdo->prepare("UPDATE expenses SET status = ?, transaction_id = ? WHERE id = ?");
+                $update_stmt->execute([$new_status, $tid, $id]);
             } else {
-                // إذا لم تكن هناك حسابات لإنشاء قيد، فقط نغير الحالة
-                $update_stmt = $pdo->prepare("UPDATE expenses SET status = 'posted' WHERE id = ?");
-                $update_stmt->execute([$id]);
+                $new_status = $use_numeric_status ? 1 : 'posted';
+                $update_stmt = $pdo->prepare("UPDATE expenses SET status = ? WHERE id = ?");
+                $update_stmt->execute([$new_status, $id]);
             }
 
             $pdo->commit();
@@ -353,7 +574,6 @@ if (isset($_POST['post_expense'])) {
             $_SESSION['flash_message'] = ['type' => 'danger', 'body' => 'خطأ أثناء الترحيل: ' . $e->getMessage()];
         }
 
-        // Redirect back to avoid resubmission
         echo "<script>location.href='expenses.php';</script>";
         exit();
     }
@@ -368,10 +588,19 @@ if (isset($_GET['delete'])) {
         try {
             $pdo->beginTransaction();
 
-            // جلب المصروف لحذف قيده المالي
-            $expense_to_delete_stmt = $pdo->prepare("SELECT transaction_id FROM expenses WHERE id = ?");
+            $expense_to_delete_stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ?");
             $expense_to_delete_stmt->execute([$id]);
-            $transaction_id_to_delete = $expense_to_delete_stmt->fetchColumn();
+            $expense_to_delete = $expense_to_delete_stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$expense_to_delete) {
+                throw new Exception("المصروف غير موجود.");
+            }
+
+            if (!can_delete_expense($expense_to_delete)) {
+                throw new Exception("ليس لديك صلاحية لحذف هذا المصروف.");
+            }
+
+            $transaction_id_to_delete = $expense_to_delete['transaction_id'] ?? null;
 
             if ($transaction_id_to_delete) {
                 php_delete_financial_transaction_and_reverse($pdo, (int)$transaction_id_to_delete);
@@ -482,22 +711,49 @@ $page_title = "إدارة المصاريف";
                                 </td>
                                 <td><?php echo h($expense['username']); ?></td>
                                 <td class="text-center">
-                                    <?php if ($expense['status'] == 'draft'): ?>
-                                        <form method="POST" action="expenses.php" style="display: inline;">
-                                            <?php echo csrf_input(); ?>
-                                            <input type="hidden" name="id" value="<?php echo $expense['id']; ?>">
-                                            <button type="submit" name="post_expense" class="btn btn-sm btn-success me-1">
-                                                <i class="fas fa-check-circle"></i> ترحيل
+                                    <?php
+                                    $is_draft_norm = is_expense_draft($expense);
+                                    $is_posted_norm = is_expense_posted($expense);
+                                    ?>
+                                    <?php if ($is_draft_norm): ?>
+                                        <?php if (can_post_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-success me-1 text-white" onclick="postExpense(<?php echo $expense['id']; ?>)" title="ترحيل">
+                                                <i class="fas fa-upload"></i> ترحيل
                                             </button>
-                                        </form>
-                                        <button class="btn btn-sm btn-outline-primary me-1 edit-expense-btn" data-id="<?php echo $expense['id']; ?>">
-                                            <i class="fas fa-edit"></i> تعديل
-                                        </button>
-                                        <a href="expenses.php?delete=<?php echo $expense['id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('هل أنت متأكد من حذف هذا المصروف؟')">
-                                            <i class="fas fa-trash"></i> حذف
-                                        </a>
+                                        <?php endif; ?>
+                                        <?php if (can_edit_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-outline-primary me-1 edit-expense-btn" data-id="<?php echo $expense['id']; ?>" title="تعديل">
+                                                <i class="fas fa-edit"></i> تعديل
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if (can_delete_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense(<?php echo $expense['id']; ?>)" title="حذف">
+                                                <i class="fas fa-trash"></i> حذف
+                                            </button>
+                                        <?php endif; ?>
+                                    <?php elseif ($is_posted_norm): ?>
+                                        <?php if (can_unpost_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-warning me-1 text-white" onclick="unpostExpense(<?php echo $expense['id']; ?>)" title="سحب الترحيل">
+                                                <i class="fas fa-undo"></i> إلغاء الترحيل
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if (can_delete_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense(<?php echo $expense['id']; ?>)" title="حذف">
+                                                <i class="fas fa-trash"></i> حذف
+                                            </button>
+                                        <?php endif; ?>
                                     <?php else: ?>
-                                        <span class="text-muted">تم الترحيل</span>
+                                        <?php
+                                        if (can_edit_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-outline-primary me-1 edit-expense-btn" data-id="<?php echo $expense['id']; ?>" title="تعديل">
+                                                <i class="fas fa-edit"></i> تعديل
+                                            </button>
+                                        <?php endif;
+                                        if (can_delete_expense($expense)): ?>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense(<?php echo $expense['id']; ?>)" title="حذف">
+                                                <i class="fas fa-trash"></i> حذف
+                                            </button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -686,12 +942,116 @@ $page_title = "إدارة المصاريف";
 <?php require_once 'footer.php'; ?>
 
 <script>
+    const EXPENSE_CSRF = '<?php echo $_SESSION['csrf_token']; ?>';
+
+    window.postExpense = function(id) {
+        Swal.fire({
+            title: 'هل تريد ترحيل هذا المصروف؟',
+            text: "بمجرد الترحيل، سيتم تحديث أرصدة الحسابات.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'نعم، ترحيل',
+            cancelButtonText: 'تراجع'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: 'expenses.php',
+                    type: 'POST',
+                    data: {
+                        post_expense: '1',
+                        id: id,
+                        csrf_token: EXPENSE_CSRF
+                    },
+                    dataType: 'json',
+                    success: function(res) {
+                        if (res && res.success === false) {
+                            Swal.fire('خطأ!', res.message || 'فشل ترحيل المصروف.', 'error');
+                        } else {
+                            Swal.fire('تم الترحيل!', 'تم ترحيل المصروف وتحديث الأرصدة بنجاح.', 'success').then(() => location.reload());
+                        }
+                    },
+                    error: function(xhr) {
+                        if (xhr.status === 200) {
+                            location.reload();
+                        } else {
+                            Swal.fire('خطأ!', 'حدث خطأ في الاتصال بالخادم.', 'error');
+                        }
+                    }
+                });
+            }
+        });
+    };
+
+    window.unpostExpense = function(id) {
+        Swal.fire({
+            title: 'هل تريد سحب ترحيل هذا المصروف؟',
+            text: "سيتم عكس القيد المحاسبي وإرجاع المصروف إلى حالة مسودة.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ffc107',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'نعم، سحب الترحيل',
+            cancelButtonText: 'تراجع',
+            input: 'text',
+            inputPlaceholder: 'أدخل سبب سحب الترحيل...',
+            inputValidator: (value) => {
+                if (!value) return 'يجب إدخال سبب!';
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: 'expenses.php',
+                    type: 'POST',
+                    data: {
+                        unpost_expense: '1',
+                        id: id,
+                        csrf_token: EXPENSE_CSRF,
+                        reason: result.value
+                    },
+                    dataType: 'json',
+                    success: function(res) {
+                        if (res && res.success === false) {
+                            Swal.fire('خطأ!', res.message || 'فشل سحب الترحيل.', 'error');
+                        } else {
+                            Swal.fire('تم!', 'تم سحب ترحيل المصروف بنجاح.', 'success').then(() => location.reload());
+                        }
+                    },
+                    error: function(xhr) {
+                        if (xhr.status === 200) {
+                            location.reload();
+                        } else {
+                            Swal.fire('خطأ!', 'حدث خطأ في الاتصال بالخادم.', 'error');
+                        }
+                    }
+                });
+            }
+        });
+    };
+
+    window.deleteExpense = function(id) {
+        Swal.fire({
+            title: 'حذف المصروف نهائياً؟',
+            text: "لا يمكن التراجع عن هذه العملية!",
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'تراجع'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'expenses.php?delete=' + id + '&csrf_token=' + EXPENSE_CSRF;
+            }
+        });
+    };
+
     // حفظ الخيارات الأصلية للحسابات (الصناديق + البنوك) لاستخدامها في إعادة الفلترة
     var originalAddOptions = [];
     var originalEditOptions = [];
 
     document.addEventListener('DOMContentLoaded', function() {
-        // حفظ نسخة من الخيارات الأصلية عند تحميل الصفحة
         var addSelect = document.getElementById('paid_from_account_id');
         var editSelect = document.getElementById('edit_expense_paid_from_account_id');
         if (addSelect) originalAddOptions = Array.from(addSelect.querySelectorAll('option'));

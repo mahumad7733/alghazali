@@ -1,1 +1,2 @@
 2026-06-17 02:53:28 - SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'WVT1781655722013X' for key 'passport_number'
+2026-08-06 00:14:46 - SQLSTATE[23000]: Integrity constraint violation: 4025 CONSTRAINT `passports_chk_transaction_type` failed for `alghazali`.`passports`

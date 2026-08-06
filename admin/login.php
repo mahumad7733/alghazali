@@ -11,9 +11,10 @@ if (isset($_SESSION['admin_id'])) {
 $settings = getSettings($pdo);
 
 $error = '';
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'خطأ في التحقق من الطلب (CSRF). يرجى المحاولة مرة أخرى.';
+        try { log_login_attempt('failure', $_POST['username'] ?? null, 'CSRF_TOKEN_FAILURE', null); } catch (\Throwable $e) {}
     } else {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($user && password_verify($password, $user['password'])) {
         if ($user['status'] == 'inactive') {
             $error = 'حسابك غير نشط. يرجى التواصل مع المسؤول.';
+            try { log_login_attempt('locked', $username, 'USER_STATUS_INACTIVE', (int)$user['id']); } catch (\Throwable $e) {}
         } else {
             // Check if blocked_devices table exists first
             try {
@@ -39,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if ($deviceBlocked) {
                     $error = 'هذا الجهاز محظور من الدخول. يرجى التواصل مع المسؤول.';
+                    try { log_login_attempt('blocked_device', $username, 'DEVICE_BLOCKED', (int)$user['id']); } catch (\Throwable $e) {}
                     logUserActivity(
                         $user['id'],
                         $user['username'],
@@ -52,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                     if (isset($session_result['success']) && $session_result['success'] === false) {
                         $error = $session_result['message'] ?? 'تعذر تسجيل الدخول.';
+                        try { log_login_attempt('failure', $username, 'SESSION_CREATE_FAILED: ' . ($session_result['message'] ?? ''), (int)$user['id']); } catch (\Throwable $e) {}
                         logUserActivity(
                             $user['id'],
                             $user['username'],
@@ -73,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             'login',
                             'تسجيل دخول ناجح | نوع الجهاز: ' . ($ua_parsed['device'] ?? 'desktop')
                         );
+
+                        try { log_login_attempt('success', $username, null, (int)$user['id']); } catch (\Throwable $e) {}
 
                         $_SESSION['admin_id'] = $user['id'];
                         $_SESSION['user_id']  = $user['id'];
@@ -117,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'login_failed',
                 'محاولة تسجيل دخول فاشلة'
             );
+            try { log_login_attempt('failure', $username, 'INVALID_CREDENTIALS', null); } catch (\Throwable $e) {}
         }
         $error = 'اسم المستخدم أو كلمة المرور غير صحيحة';
     }

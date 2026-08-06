@@ -1,5 +1,7 @@
 <?php
 
+ob_start();
+
 /**
  * تشخيص لماذا لا تظهر زرارات الانتقال في تبويب سير العمل للعمرة
  * يحاكي تماماً منطق ajax_umrah.php action=view_details
@@ -8,12 +10,16 @@
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
 
-header('Content-Type: text/html; charset=utf-8');
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=utf-8');
+}
 echo "<!DOCTYPE html><html dir='rtl'><head><meta charset='UTF-8'><title>🔍 تشخيص عدم ظهور الانتقالات</title>";
 echo "<link rel='stylesheet' href='assets/css/bootstrap.min.css'>";
 echo "<style>body{font-family:Tahoma;padding:15px;} .ok{color:#16a34a} .bad{color:#dc2626;font-weight:bold} .warn{color:#d97706;font-weight:bold}

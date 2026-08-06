@@ -473,7 +473,7 @@ $deleted_messages_list = $deleted_messages_list->fetchAll();
 $recent_branches = $pdo->query("SELECT * FROM branches WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5")->fetchAll();
 $recent_contacts = $pdo->query("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 5")->fetchAll();
 $recent_subscribers = $pdo->query("SELECT * FROM subscribers ORDER BY created_at DESC LIMIT 5")->fetchAll();
-$recent_workflows = $pdo->query("SELECT * FROM workflows WHERE is_active = 1 ORDER BY created_at DESC LIMIT 5")->fetchAll();
+$recent_workflows = $pdo->query("SELECT w.*, w.name AS workflow_name FROM workflows w WHERE w.is_active = 1 ORDER BY w.created_at DESC LIMIT 5")->fetchAll();
 
 // 4. المقبوضات والمصروفات اليوم (للمدير والمحاسب) (Unified System)
 $today_receipts_stmt = $pdo->prepare("SELECT SUM(amount) as total, c.currency_name FROM financial_transactions d JOIN currencies c ON d.currency_id = c.id WHERE d.transaction_type = 'receipt' AND d.status = 'posted' AND d.transaction_date = CURDATE() GROUP BY d.currency_id");

@@ -3,7 +3,7 @@
 
 # Enable Rewrite Engine
 RewriteEngine On
-RewriteBase /ghazali/admin/
+RewriteBase /alghazali/admin/
 
 # Handle admin base URL - redirect to index.php
 DirectoryIndex index.php
@@ -51,9 +51,9 @@ RewriteRule ^([^\.]+)$ $1.php [NC,L]
 Options -Indexes
 
 # Error Pages
-ErrorDocument 404 /ghazali/admin/login.php
-ErrorDocument 403 /ghazali/admin/login.php
-ErrorDocument 500 /ghazali/admin/login.php
+ErrorDocument 404 /alghazali/admin/login.php
+ErrorDocument 403 /alghazali/admin/login.php
+ErrorDocument 500 /alghazali/admin/login.php
 
 # Gzip Compression
 <IfModule mod_deflate.c>

@@ -11,7 +11,7 @@ Branch: `refactor-finance-service`
 | 2 | Dependency and caller mapping | Complete | `FINANCE_DEPENDENCY_MAPPING.md` |
 | 3 | Database safety and compatibility migration | Complete for isolated verification | `DATABASE_SAFETY_REPORT.md`, `database/migrations/2026_08_06_001_finance_schema_compatibility.sql` |
 | 4 | Finance service architecture | Complete | `PHASE4_IMPLEMENTATION_REPORT_20260806.md` |
-| 5 | Backward-compatible facade | Complete | `core/FinanceService.php`, `PHASE5_FACADE_IMPLEMENTATION_REPORT_20260806.md`, `tools/finance_facade_compatibility_test.php` |
+| 5 | Backward-compatible facade | Partially complete | Facade and preliminary compatibility checks exist; full phase acceptance remains |
 | 6 | Service-by-responsibility migration | Not closed yet | Existing service files are preparatory; phase acceptance is pending |
 | 7 | Integration and safety acceptance | Not closed yet | Existing tests are preparatory; formal phase acceptance is pending |
 | 8 | Performance comparison | Not closed yet | Existing microbenchmark is preparatory |

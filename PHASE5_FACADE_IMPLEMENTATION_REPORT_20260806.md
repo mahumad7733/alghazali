@@ -30,6 +30,6 @@ Keep `FinanceService` as the stable application entry point while moving its imp
 - Broad accounting integration: 29/29 checks passed.
 - Production database: unchanged.
 
-## Phase 5 decision
+## Current phase 5 decision
 
-Phase 5 is complete. Existing callers can continue constructing `FinanceService`; new implementation work must be added to the appropriate service and exposed through the facade only when backward compatibility is preserved.
+Phase 5 is partially implemented. The facade and preliminary compatibility checks exist, but the phase is not marked fully complete until all legacy caller paths are reviewed and the full acceptance scope is formally approved. Existing callers can continue constructing `FinanceService`; new implementation work must be added to the appropriate service and exposed through the facade only when backward compatibility is preserved.

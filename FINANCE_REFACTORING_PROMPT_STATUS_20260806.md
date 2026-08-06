@@ -3,6 +3,7 @@
 التاريخ: 2026-08-06
 النظام: AlGhazali ERP
 الفرع: `refactor-finance-service`
+مصدر البرومبت: `C:\Users\mahum\.codex\attachments\6c08f171-df77-4d06-af89-64c8bd4aa0da\pasted-text.txt`
 
 ## التقرير المقابل لكل مرحلة
 

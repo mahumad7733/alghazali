@@ -13,14 +13,14 @@
 | 2 - Dependency Mapping | مكتملة | `FINANCE_DEPENDENCY_MAPPING.md` |
 | 3 - Database Safety | مكتملة على قاعدة الاختبار | `DATABASE_SAFETY_REPORT.md` + `database/migrations/2026_08_06_001_finance_schema_compatibility.sql` + `tools/database/verify_finance_schema_migration.php` |
 | 4 - Architecture | مكتملة | `PHASE4_IMPLEMENTATION_REPORT_20260806.md` |
-| 5 - Facade | مكتملة | `PHASE5_FACADE_IMPLEMENTATION_REPORT_20260806.md` + `tools/finance_facade_compatibility_test.php` |
-| 6 - نقل المنطق المالي | مكتملة | `core/Finance/` + `tools/finance_facade_integration_test.php` + `tools/finance_service_operation_integration_test.php` + `tools/finance_voucher_services_integration_test.php` |
-| 7 - الاختبارات | مكتملة على قاعدة الاختبار | `tools/run_integration_test.php` — 29/29، وملفات اختبارات التكامل المذكورة أعلاه |
-| 8 - الأداء | مكتملة كـ Microbenchmark | `PERFORMANCE_COMPARISON_REPORT.md` + `tools/finance_performance_benchmark.php` |
-| 9 - إدارة الأخطاء | مكتملة | `REFACTORING_ISSUES.md` |
-| 10 - التوثيق النهائي | مكتملة | `FINAL_REFACTORING_REPORT.md` + `DOCUMENTATION_FINANCE_REFACTORING.md` |
-| 11 - تسليم المعرفة | مكتملة | `DEVELOPER_GUIDE_FINANCE.md` + `SUPPORT_GUIDE_FINANCE.md` |
-| 12 - خطة الصيانة | مكتملة | `REFACTORING_COMPLETION_CHECKLIST_20260806.md` + هذا التقرير |
+| 5 - Facade | مكتملة الآن | `PHASE5_FACADE_IMPLEMENTATION_REPORT_20260806.md` + `tools/finance_phase5_facade_acceptance_test.php` + `tools/finance_facade_compatibility_test.php` |
+| 6 - نقل المنطق المالي | لم تُغلق بعد | توجد خدمات أولية واختبارات، لكن لم تُعتمد كمرحلة مستقلة بعد إغلاق المرحلة 5 |
+| 7 - الاختبارات | لم تُغلق بعد | توجد اختبارات تمهيدية، وسيتم اعتمادها ضمن المرحلة 7 بعد تنفيذ المرحلة 6 رسميًا |
+| 8 - الأداء | لم تُغلق بعد | `PERFORMANCE_COMPARISON_REPORT.md` موجود كمسودة قياس، والاعتماد النهائي مؤجل |
+| 9 - إدارة الأخطاء | لم تُغلق بعد | `REFACTORING_ISSUES.md` موجود، وسيتم اعتماده عند بدء المرحلة 9 |
+| 10 - التوثيق النهائي | لم تُغلق بعد | التقارير الحالية مسودات مرحلية وليست إغلاقًا نهائيًا للمراحل اللاحقة |
+| 11 - تسليم المعرفة | لم تُغلق بعد | الأدلة موجودة، لكن تسليمها النهائي مؤجل إلى المرحلة 11 |
+| 12 - خطة الصيانة | لم تُغلق بعد | ستُعتمد بعد إغلاق المراحل 6–11 |
 
 ## البرومبت الكامل
 
@@ -190,7 +190,7 @@
 - اختبار Architecture Smoke: PASS.
 - التقرير: `PHASE5_FACADE_IMPLEMENTATION_REPORT_20260806.md`.
 
-### ✅ المرحلة 6: نقل المنطق المالي - مكتملة
+### ⏳ المرحلة 6: نقل المنطق المالي - لم تُغلق بعد
 
 - الفواتير في `InvoiceService`.
 - سندات القبض والتخصيص في `ReceiptService`.
@@ -199,7 +199,7 @@
 - العمليات المركبة في `JournalService`.
 - الأرصدة والعميل النقدي في `BalanceService`.
 
-### ✅ المرحلة 7: الاختبارات - مكتملة على قاعدة الاختبار
+### ⏳ المرحلة 7: الاختبارات - لم تُغلق بعد
 
 - `tools/finance_facade_compatibility_test.php`: ناجح.
 - `tools/finance_architecture_smoke.php`: ناجح.
@@ -208,18 +208,18 @@
 - `tools/finance_voucher_services_integration_test.php`: ناجح.
 - `tools/run_integration_test.php`: عدد 29 ناجح، 0 فاشل، 100%.
 
-### ✅ المرحلة 8: الأداء - مكتملة كقياس Microbenchmark
+### ⏳ المرحلة 8: الأداء - لم تُغلق بعد
 
 - تم تشغيل `tools/finance_performance_benchmark.php`.
 - تم تحديث `PERFORMANCE_COMPARISON_REPORT.md`.
 - القياس لا يغيّر أي نتيجة مالية ولا يستبدل اختبار القبول التكاملي.
 
-### ✅ المرحلة 9: إدارة الأخطاء - مكتملة
+### ⏳ المرحلة 9: إدارة الأخطاء - لم تُغلق بعد
 
 - تم تحديث `REFACTORING_ISSUES.md`.
 - تم توثيق المشكلات والحلول وحالة Migration وحدود النشر.
 
-### ✅ المرحلة 10: التوثيق - مكتملة
+### ⏳ المرحلة 10: التوثيق - لم تُغلق بعد
 
 - `FINAL_REFACTORING_REPORT.md`.
 - `DOCUMENTATION_FINANCE_REFACTORING.md`.
@@ -227,19 +227,19 @@
 - `PHASE5_FACADE_IMPLEMENTATION_REPORT_20260806.md`.
 - `REFACTORING_COMPLETION_CHECKLIST_20260806.md`.
 
-### ✅ المرحلة 11: دليل المطور والدعم - مكتملة
+### ⏳ المرحلة 11: دليل المطور والدعم - لم تُغلق بعد
 
 - تم تحديث `DEVELOPER_GUIDE_FINANCE.md`.
 - تم تحديث `SUPPORT_GUIDE_FINANCE.md`.
 
-### ✅ المرحلة 12: خطة الصيانة - مكتملة
+### ⏳ المرحلة 12: خطة الصيانة - لم تُغلق بعد
 
 - تم توثيق طريقة إضافة الخدمات والاختبارات والتفويض والتراجع.
 - أي نشر على الإنتاج يبقى إجراءً منفصلًا يحتاج Backup وموافقة ونافذة صيانة.
 
 ## الخلاصة والحد المتبقي
 
-العمل البرمجي وإعادة الهيكلة والاختبارات والتوثيق للمراحل 1–12 مكتمل على قاعدة الاختبار المعزولة. الحد الوحيد غير المنفذ عمدًا هو تطبيق Migration على قاعدة الإنتاج، لأنه يحتاج موافقة نشر ونسخة Backup ونافذة صيانة معتمدة. لا يتم تنفيذ هذا الإجراء تلقائيًا ضمن إعادة الهيكلة.
+المراحل 1–4 مكتملة، والمرحلة 5 أُغلقت الآن باختبار قبول مستقل. المراحل 6–12 لم تُغلق بعد كمسار تسلسلي مستقل، حتى لو كانت بعض الملفات والاختبارات التمهيدية موجودة. الحد الإنتاجي المنفصل هو تطبيق Migration على قاعدة الإنتاج، لأنه يحتاج موافقة نشر ونسخة Backup ونافذة صيانة معتمدة.
 
 ## آخر Commits المهمة
 

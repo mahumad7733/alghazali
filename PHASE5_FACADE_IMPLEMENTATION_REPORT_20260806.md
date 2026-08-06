@@ -22,6 +22,7 @@ Keep `FinanceService` as the stable application entry point while moving its imp
 ## Acceptance evidence
 
 - `tools/finance_facade_compatibility_test.php`: PASS.
+- `tools/finance_phase5_facade_acceptance_test.php`: PASS.
 - `tools/finance_architecture_smoke.php`: PASS.
 - `tools/finance_facade_integration_test.php`: PASS on `alghazali_refactor_test`.
 - `tools/finance_service_operation_integration_test.php`: PASS on `alghazali_refactor_test`.

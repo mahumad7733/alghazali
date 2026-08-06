@@ -9,6 +9,7 @@ The previous status text in this file predates the completed migration slice. Cu
 - `tools/finance_architecture_smoke.php` passed.
 - `tools/finance_facade_integration_test.php` passed on isolated MariaDB database `alghazali_refactor_test`.
 - `tools/finance_service_operation_integration_test.php` passed on the same isolated database.
+- `tools/finance_facade_compatibility_test.php` passed for the public legacy method surface.
 - PHP lint passed for the facade and every PHP file under `core/Finance`.
 - Production database migrations remain unapplied; verification used an isolated database.
 

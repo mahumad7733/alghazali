@@ -16,6 +16,7 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 - `core/Finance/TransactionManager.php` - nested transaction/savepoint handling.
 - `tools/finance_facade_integration_test.php` - isolated end-to-end facade test.
 - `tools/finance_service_operation_integration_test.php` - isolated service-operation test.
+- `tools/finance_facade_compatibility_test.php` - public-method/signature compatibility check.
 
 ## Verification performed
 
@@ -23,6 +24,7 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 - `tools/finance_architecture_smoke.php` passed.
 - `tools/finance_facade_integration_test.php` passed against isolated database `alghazali_refactor_test` on MariaDB port 3307.
 - `tools/finance_service_operation_integration_test.php` passed against the same isolated database.
+- `tools/finance_facade_compatibility_test.php` passed; the facade exposes every public legacy method with matching parameter counts.
 - The facade test verified invoice creation/posting, receipt creation, payment allocation, receipt posting, partial payment status, and cleanup.
 - The service-operation test verified the new Journal/Balance orchestration, cash receipt allocation, posting, partial payment status, and cleanup.
 - The production database was not migrated or modified by this verification.

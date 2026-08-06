@@ -11,7 +11,7 @@ Verified flows:
 - payment and expense service entry points;
 - composed service-finance operation and default cash-customer/account resolution.
 
-The authoritative isolated tests are `tools/finance_facade_integration_test.php` and `tools/finance_service_operation_integration_test.php`.
+The authoritative tests are `tools/finance_facade_compatibility_test.php`, `tools/finance_facade_integration_test.php`, and `tools/finance_service_operation_integration_test.php`.
 
 ## المعمارية الحالية
 

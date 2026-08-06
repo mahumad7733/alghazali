@@ -1,6 +1,7 @@
 <?php
 require_once 'header.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 
 function normalize_expense_status($raw_status)
 {
@@ -320,7 +321,7 @@ if (isset($_POST['unpost_expense'])) {
                             }
                         } else {
                             $before = (int)$pdo->query("SELECT COUNT(*) FROM financial_transactions WHERE id = $tid_int")->fetchColumn();
-                            php_delete_financial_transaction_and_reverse($pdo, $tid_int);
+                            \Core\Finance\FinancePostingAdapter::deleteFinancialTransactionAndReverse($pdo, $tid_int);
                             $after = (int)$pdo->query("SELECT COUNT(*) FROM financial_transactions WHERE id = $tid_int AND status NOT IN ('cancelled','2','ملغي','canceled','reversed','معكوس')")->fetchColumn();
                             if ($before > 0 && $after === 0) {
                                 $transaction_warning = ' (تم عكس القيد المحاسبي المرتبط بنجاح)';
@@ -450,10 +451,10 @@ if (isset($_POST['update_expense'])) {
 
                     if ($paid_from_account_id && $expense_chart_account_id) {
                         if (!empty($old_expense['transaction_id'])) {
-                            php_delete_financial_transaction_and_reverse($pdo, (int)$old_expense['transaction_id']);
+                            \Core\Finance\FinancePostingAdapter::deleteFinancialTransactionAndReverse($pdo, (int)$old_expense['transaction_id']);
                         }
                         $entry_desc = "تحديث مصروف: " . $description;
-                        $tid = php_create_financial_entry(
+                        $tid = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                             $pdo,
                             $expense_date,
                             'journal',
@@ -477,7 +478,7 @@ if (isset($_POST['update_expense'])) {
                         }
                         $pdo->prepare("UPDATE expenses SET transaction_id = ? WHERE id = ?")->execute([$tid, $id]);
                     } elseif (!empty($old_expense['transaction_id'])) {
-                        php_delete_financial_transaction_and_reverse($pdo, (int)$old_expense['transaction_id']);
+                        \Core\Finance\FinancePostingAdapter::deleteFinancialTransactionAndReverse($pdo, (int)$old_expense['transaction_id']);
                         $pdo->prepare("UPDATE expenses SET transaction_id = NULL WHERE id = ?")->execute([$id]);
                     }
 
@@ -534,7 +535,7 @@ if (isset($_POST['post_expense'])) {
                 $amount_f = (float)$expense['amount'];
                 $entry_desc = "ترحيل مصروف: " . $expense['description'];
 
-                $tid = php_create_financial_entry(
+                $tid = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                     $pdo,
                     $expense['expense_date'],
                     'journal',
@@ -603,7 +604,7 @@ if (isset($_GET['delete'])) {
             $transaction_id_to_delete = $expense_to_delete['transaction_id'] ?? null;
 
             if ($transaction_id_to_delete) {
-                php_delete_financial_transaction_and_reverse($pdo, (int)$transaction_id_to_delete);
+                \Core\Finance\FinancePostingAdapter::deleteFinancialTransactionAndReverse($pdo, (int)$transaction_id_to_delete);
             }
 
             $stmt = $pdo->prepare("UPDATE expenses SET deleted_at = NOW() WHERE id = ?");

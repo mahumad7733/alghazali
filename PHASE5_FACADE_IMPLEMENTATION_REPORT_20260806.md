@@ -23,6 +23,7 @@ Keep `FinanceService` as the stable application entry point while moving its imp
 
 - `tools/finance_facade_compatibility_test.php`: PASS.
 - `tools/finance_phase5_facade_acceptance_test.php`: PASS.
+- `tools/finance_phase5_caller_acceptance_test.php`: PASS; no application caller constructs or loads the legacy service or gateway.
 - `tools/finance_architecture_smoke.php`: PASS.
 - `tools/finance_facade_integration_test.php`: PASS on `alghazali_refactor_test`.
 - `tools/finance_service_operation_integration_test.php`: PASS on `alghazali_refactor_test`.
@@ -32,4 +33,4 @@ Keep `FinanceService` as the stable application entry point while moving its imp
 
 ## Current phase 5 decision
 
-Phase 5 is partially implemented. The facade and preliminary compatibility checks exist, but the phase is not marked fully complete until all legacy caller paths are reviewed and the full acceptance scope is formally approved. Existing callers can continue constructing `FinanceService`; new implementation work must be added to the appropriate service and exposed through the facade only when backward compatibility is preserved.
+Phase 5 is complete. `FinanceService` is the only application entry point, preserves the legacy public method surface, delegates to responsibility-specific services, and does not load or construct the legacy implementation. The legacy implementation remains available only to dedicated comparison and rollback tooling.

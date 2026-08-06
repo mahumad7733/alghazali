@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../core/FinanceService.php';
+require_once __DIR__ . '/../core/LegacyFinanceService.php';
 
 $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $legacy = new LegacyFinanceService($pdo, 1);

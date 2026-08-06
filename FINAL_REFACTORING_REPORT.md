@@ -2,6 +2,13 @@
 
 ## Verified implementation update - 2026-08-06
 
+## Phase completion update - 2026-08-07
+
+- Phases 6 and 7 are accepted on the isolated MariaDB database; service migration acceptance and the broad accounting suite pass.
+- Phases 9–12 are documented and accepted within the refactoring scope.
+- Phase 8 has a passing microbenchmark (`legacy 4.120ms`, `facade 3.887ms` for 1,000 normalizations), but full SQL/query/memory/page-load comparison remains pending.
+- Production migration and production acceptance remain deployment activities requiring backup and approval.
+
 The previous status text in this file predates the completed migration slice. Current evidence is:
 
 - `FinanceService` is a backward-compatible facade and delegates all exposed financial operations to `core/Finance` services.
@@ -22,8 +29,8 @@ The broad integration test now passes 29/29 checks (100%) on the isolated MariaD
 - ✅ Architecture جديدة قابلة للتحميل، مع Contracts وDependency Injection وFacade.
 - ✅ الاستدعاءات القديمة ما زالت تمر عبر `FinanceService`.
 - ✅ اختبار Smoke المحلي ناجح بعد توفر PHP.
-- ⏳ الاختبارات المالية الحقيقية وقياس الأداء النهائي ينتظران تشغيل MySQL على قاعدة اختبار.
-- ⏳ النقل الداخلي الكامل من `LegacyFinanceService` إلى الخدمات يحتاج إكمال اختبارات التكامل أولًا.
+- ✅ الاختبارات المالية المعزولة والنقل الداخلي للخدمات اجتازا اختبارات القبول على MariaDB.
+- 🟡 قياس الأداء الواقعي الكامل ما زال يحتاج قياس SQL والذاكرة وزمن المعاملات وتحميل الصفحات.
 
 ## الملفات الجديدة الرئيسية
 

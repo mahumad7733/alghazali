@@ -3,6 +3,9 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\AuditLoggerInterface;
+use Core\Finance\Exceptions\FinanceException;
+use Core\Finance\Exceptions\FiscalPeriodClosedException;
+use Core\Finance\Exceptions\PermissionDeniedException;
 use PDO;
 use Throwable;
 
@@ -112,16 +115,29 @@ final class FinanceContext
                 return;
             }
             $permissions = $_SESSION['_permissions'] ?? [];
-            if (is_array($permissions) && $permissions !== []
-                && !in_array($permission, $permissions, true)
+            if (!is_array($permissions) || $permissions === []) {
+                throw new FinanceException(
+                    "Permission provider unavailable for {$operation}",
+                    'permission',
+                    ['operation' => $operation, 'required_permission' => $permission]
+                );
+            }
+            if (!in_array($permission, $permissions, true)
                 && !in_array('*', $permissions, true)
                 && !in_array('super_admin', $permissions, true)) {
                 throw new \RuntimeException("Permission denied for {$operation}");
             }
         } catch (Throwable $e) {
-            if (str_contains(strtolower($e->getMessage()), 'permission')) {
+            if ($e instanceof PermissionDeniedException) {
                 throw $e;
             }
+            throw new FinanceException(
+                "Permission verification failed for {$operation}",
+                'permission',
+                ['operation' => $operation, 'required_permission' => $permission],
+                0,
+                $e instanceof \Exception ? $e : null
+            );
         }
     }
 
@@ -135,13 +151,27 @@ final class FinanceContext
             );
             $stmt->execute([$date]);
             $period = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if ($period && !empty($period['is_closed'])) {
-                throw new \RuntimeException("Fiscal period {$period['period_name']} is closed");
+            if (!$period) {
+                throw new FinanceException(
+                    "No fiscal period found for {$date}",
+                    'fiscal',
+                    ['operation_date' => $date]
+                );
+            }
+            if (!empty($period['is_closed'])) {
+                throw new FiscalPeriodClosedException((string)$period['period_name'], $date);
             }
         } catch (Throwable $e) {
-            if (str_contains(strtolower($e->getMessage()), 'closed')) {
+            if ($e instanceof FiscalPeriodClosedException || $e instanceof FinanceException) {
                 throw $e;
             }
+            throw new FinanceException(
+                "Fiscal period verification failed for {$date}",
+                'fiscal',
+                ['operation_date' => $date],
+                0,
+                $e instanceof \Exception ? $e : null
+            );
         }
     }
 

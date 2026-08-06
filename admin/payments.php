@@ -1,6 +1,7 @@
 <?php
 require_once 'header.php';
 require_once '../includes/CurrencyExchange.php';
+require_once '../core/FinanceService.php';
 
 /**
  * وظائف الصلاحيات والتحقق
@@ -316,7 +317,10 @@ if (isset($_POST['add_payment'])) {
                 if ($old_voucher['status'] == 'posted') {
                     $pdo->prepare("UPDATE financial_transactions SET status = 'draft', posted_at = NULL, posted_by = NULL WHERE id = ?")
                         ->execute([$id]);
-                    php_recalculate_invoice_payments($pdo, $old_invoice_ids);
+                    $financeService = new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
+                    foreach ($old_invoice_ids as $oldInvoiceId) {
+                        $financeService->recalculateInvoicePaymentStatus((int)$oldInvoiceId);
+                    }
                 }
             } else {
                 // إنشاء السند الأول (بالمبلغ الموزع أو المبلغ كامل إذا لم يكن هناك توزيع)

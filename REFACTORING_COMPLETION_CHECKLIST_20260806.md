@@ -11,14 +11,14 @@ Branch: `refactor-finance-service`
 | 2 | Dependency and caller mapping | Complete | `FINANCE_DEPENDENCY_MAPPING.md` |
 | 3 | Database safety and compatibility migration | Complete for isolated verification | `DATABASE_SAFETY_REPORT.md`, `database/migrations/2026_08_06_001_finance_schema_compatibility.sql` |
 | 4 | Finance service architecture | Complete | `PHASE4_IMPLEMENTATION_REPORT_20260806.md` |
-| 5 | Backward-compatible facade | Partially complete | Facade and preliminary compatibility checks exist; full phase acceptance remains |
-| 6 | Service-by-responsibility migration | Not closed yet | Existing service files are preparatory; phase acceptance is pending |
-| 7 | Integration and safety acceptance | Not closed yet | Existing tests are preparatory; formal phase acceptance is pending |
-| 8 | Performance comparison | Not closed yet | Existing microbenchmark is preparatory |
-| 9 | Issue tracking and rollback documentation | Not closed yet | Existing issue file is preparatory |
-| 10 | Final refactoring documentation | Not closed yet | Existing reports are preparatory |
-| 11 | Developer and support handoff | Not closed yet | Existing guides are preparatory |
-| 12 | Maintenance plan | Not closed yet | Will be finalized after phases 6–11 |
+| 5 | Backward-compatible facade | Complete | Facade, exact public surface compatibility, and application caller acceptance |
+| 6 | Service-by-responsibility migration | Complete for isolated verification | `PHASE6_SERVICE_MIGRATION_REPORT_20260807.md` |
+| 7 | Integration and safety acceptance | Complete for isolated verification | `PHASE7_INTEGRATION_TEST_REPORT_20260807.md` |
+| 8 | Performance comparison | Partial | Microbenchmark complete; real SQL/query/memory/page metrics remain |
+| 9 | Issue tracking and rollback documentation | Complete | `PHASE9_ERROR_MANAGEMENT_REPORT_20260807.md` |
+| 10 | Final refactoring documentation | Complete | Final and phase reports updated |
+| 11 | Developer and support handoff | Complete | Developer and support guides updated |
+| 12 | Maintenance plan | Complete | `MAINTENANCE_PLAN_FINANCE_20260807.md` |
 
 ## Current verification result
 

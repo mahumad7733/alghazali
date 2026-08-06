@@ -3,6 +3,7 @@ require_once '../../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
 require_once '../../includes/accounting_functions.php';
+require_once '../../core/FinanceService.php';
 
 header('Content-Type: application/json');
 
@@ -143,8 +144,11 @@ try {
 
     // إعادة حساب مبالغ الفواتير المتأثرة
     $affected_invoice_ids = array_unique(array_filter($affected_invoice_ids));
-    if (!empty($affected_invoice_ids) && function_exists('php_recalculate_invoice_payments')) {
-        php_recalculate_invoice_payments($pdo, $affected_invoice_ids);
+    if (!empty($affected_invoice_ids)) {
+        $financeService = new FinanceService($pdo, (int)$user_id);
+        foreach ($affected_invoice_ids as $affectedInvoiceId) {
+            $financeService->recalculateInvoicePaymentStatus((int)$affectedInvoiceId);
+        }
     }
 
     // تسجيل العملية في Audit Log

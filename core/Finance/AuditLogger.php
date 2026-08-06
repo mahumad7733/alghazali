@@ -3,6 +3,7 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\AuditLoggerInterface;
+use Core\Finance\Exceptions\FinanceException;
 use PDO;
 use Throwable;
 
@@ -34,7 +35,13 @@ final class AuditLogger implements AuditLoggerInterface
                 $json === false ? null : $json,
             ]);
         } catch (Throwable $e) {
-            error_log('Finance AuditLogger failed: ' . $e->getMessage());
+            throw new FinanceException(
+                'Financial audit logging failed; operation must not continue',
+                'integrity',
+                ['action' => $action, 'entity_type' => $entityType, 'entity_id' => $entityId],
+                0,
+                $e instanceof \Exception ? $e : null
+            );
         }
     }
 }

@@ -2,6 +2,7 @@
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/FinanceService.php';
 require_once '../includes/security.php';
 if (!isset($_SESSION['admin_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
@@ -87,7 +88,8 @@ function family_visit_reset_invoice_to_draft(PDO $pdo, int $invoiceId, int $user
             $stmtAllocs = $pdo->prepare("SELECT DISTINCT invoice_id FROM payment_allocations WHERE financial_transaction_id = ?");
             $stmtAllocs->execute([$ftId]);
             foreach ($stmtAllocs->fetchAll(PDO::FETCH_COLUMN) as $linkedInvoiceId) {
-                php_recalculate_invoice_payment($pdo, $linkedInvoiceId);
+                $financeService ??= new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
+                $financeService->recalculateInvoicePaymentStatus((int)$linkedInvoiceId);
             }
         }
     }
@@ -395,7 +397,8 @@ elseif ($action === 'post_finance') {
             $stmtInv = $pdo->prepare("SELECT invoice_status FROM invoices WHERE id = ?");
             $stmtInv->execute([$invoiceId]);
             if ($stmtInv->fetchColumn() === 'draft') {
-                php_post_invoice($pdo, (int)$invoiceId, $userId, true);
+                $financeService ??= new FinanceService($pdo, $userId);
+                $financeService->postInvoice((int)$invoiceId);
                 $postedCount++;
             }
         }

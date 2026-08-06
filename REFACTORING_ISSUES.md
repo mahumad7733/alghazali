@@ -3,6 +3,12 @@ Wall time: 1.7 seconds
 Output:
 # Refactoring Issues
 
+## Phase 9 controlled status - 2026-08-07
+
+- Issue tracking and rollback documentation are complete for the refactoring scope.
+- The remaining deployment boundaries are intentional: production migration and production-wide collation changes require backup, approval, and a maintenance window.
+- No issue in this report authorizes direct production data correction.
+
 ## Resolved migration slice - 2026-08-06
 
 The former gradual-delegation issue is resolved for the public `FinanceService` operations. Invoice, receipt, payment, expense, service-operation, and cash-customer flows are implemented in `core/Finance` and verified on the isolated database. The legacy adapter files remain intentionally for backward compatibility.
@@ -46,4 +52,3 @@ The former gradual-delegation issue is resolved for the public `FinanceService` 
 - ISSUE-002: Resolved for the public facade surface; migrated services no longer call the legacy gateway.
 - ISSUE-003: Resolved for isolated acceptance; test sessions use explicit UTF-8 collation and the broad integration test passes 29/29. A production-wide collation migration remains a separately reviewed database deployment.
 - ISSUE-004: The compatibility migration is now idempotent and passes `tools/database/verify_finance_schema_migration.php` on `alghazali_refactor_test`. It remains unapplied to production pending backup and deployment approval.
-

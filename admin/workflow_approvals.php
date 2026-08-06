@@ -1,6 +1,7 @@
 <?php
 ob_start();
 require_once 'header.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 
 // التحقق من الصلاحية (المدراء فقط أو مستلم وثائق أو من لديه صلاحية اعتماد الحجوزات)
 if (!in_array(strtolower($_SESSION['role'] ?? ''), ['admin', 'developer', 'مدير', 'مطور']) && !has_permission('document_receiver_confirm') && !has_permission('bookings_approve_requests')) {
@@ -91,7 +92,7 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                         $debit_account_id = $stmt_cust_coa->fetchColumn();
 
                         if ($account_id && $debit_account_id) {
-                            $new_payment_id = php_create_financial_entry(
+                            $new_payment_id = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                                 $pdo,
                                 date('Y-m-d'),
                                 'payment',

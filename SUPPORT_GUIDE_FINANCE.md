@@ -1,5 +1,7 @@
 # Finance Support Guide
 
+Verified on 2026-08-07. Use the isolated database diagnostics before any production action.
+
 ## First response to a finance error
 
 1. Stop the affected deployment or repeated operation; do not retry a posting blindly.

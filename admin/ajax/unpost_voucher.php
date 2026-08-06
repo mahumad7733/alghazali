@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once '../../includes/functions.php';
 require_once '../../includes/accounting_functions.php';
+require_once '../../core/FinanceService.php';
 
 header('Content-Type: application/json');
 
@@ -61,8 +62,9 @@ try {
     $stmt_allocs->execute([$id]);
     $invoice_ids = $stmt_allocs->fetchAll(PDO::FETCH_COLUMN);
 
+    $financeService = new FinanceService($pdo, (int)$user_id);
     foreach ($invoice_ids as $inv_id) {
-        php_recalculate_invoice_payment($pdo, $inv_id);
+        $financeService->recalculateInvoicePaymentStatus((int)$inv_id);
     }
 
     // 5. تسجيل في audit_log

@@ -7,9 +7,11 @@ use Core\Finance\Contracts\PaymentInterface;
 class PaymentService implements PaymentInterface
 {
     private FinanceContext $context;
-    public function __construct(FinanceContext $context)
+    private FinancePostingAdapter $postingAdapter;
+    public function __construct(FinanceContext $context, FinancePostingAdapter $postingAdapter)
     {
         $this->context = $context;
+        $this->postingAdapter = $postingAdapter;
     }
 
     public function createPaymentVoucherDraft(array $data): int
@@ -23,21 +25,20 @@ class PaymentService implements PaymentInterface
         }
         $this->context->assertAccountUsable((int)$data['account_id'], 'payment');
         $this->context->assertAccountUsable($partyAccount, 'supplier');
-        $stmt = $this->context->pdo()->prepare(
-            'CALL sp_create_payment_voucher(?, ?, ?, ?, ?, 1.0, ?, ?, ?, ?, ?, ?, @v_id, @v_num)'
-        );
-        $stmt->execute([
-            $data['branch_id'], 'supplier', $data['supplier_id'], $data['paid_amount'],
-            $data['purchase_currency_id'], $data['account_id'], $partyAccount,
-            $data['source_number'] ?? $data['source_id'], $data['description'],
-            $this->context->userId(), null,
-        ]);
-        $stmt->closeCursor();
-        $id = (int)$this->context->pdo()->query('SELECT @v_id')->fetchColumn();
-        $this->context->audit('create_payment_voucher_draft', 'payment_voucher', $id, [
-            'supplier_id' => $data['supplier_id'], 'amount' => $data['paid_amount'],
-        ]);
-        return $id;
+        return (int)$this->context->executeAtomically(function () use ($data, $partyAccount): int {
+            $id = $this->postingAdapter->createPaymentVoucher($this->context->pdo(), [
+                'branch_id' => $data['branch_id'], 'party_type' => 'supplier',
+                'party_id' => $data['supplier_id'], 'amount' => $data['paid_amount'],
+                'currency_id' => $data['purchase_currency_id'], 'exchange_rate' => $data['exchange_rate'],
+                'cash_account_id' => $data['account_id'], 'party_account_id' => $partyAccount,
+                'reference' => $data['source_number'] ?? $data['source_id'],
+                'description' => $data['description'],
+            ], $this->context->userId());
+            $this->context->audit('create_payment_voucher_draft', 'payment_voucher', $id, [
+                'supplier_id' => $data['supplier_id'], 'amount' => $data['paid_amount'],
+            ]);
+            return $id;
+        });
     }
 
     public function postPaymentVoucher(int $voucherId): void
@@ -46,15 +47,14 @@ class PaymentService implements PaymentInterface
             throw new \InvalidArgumentException('Invalid payment voucher id');
         }
         $this->context->assertUserCan('post_payment_voucher', 'post payment voucher');
-        if (!function_exists('php_post_payment_voucher')) {
-            throw new \RuntimeException('php_post_payment_voucher is not loaded');
-        }
-        php_post_payment_voucher($this->context->pdo(), $voucherId, $this->context->userId());
-        $this->context->pdo()->prepare(
-            "UPDATE financial_transactions
-                SET posted_ip = COALESCE(NULLIF(posted_ip, ''), ?), updated_ip = ?
-              WHERE id = ?"
-        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
-        $this->context->audit('post_payment_voucher', 'payment_voucher', $voucherId);
+        $this->context->executeAtomically(function () use ($voucherId): void {
+            $this->postingAdapter->postPaymentVoucher($this->context->pdo(), $voucherId, $this->context->userId());
+            $this->context->pdo()->prepare(
+                "UPDATE financial_transactions
+                    SET posted_ip = COALESCE(NULLIF(posted_ip, ''), ?), updated_ip = ?
+                  WHERE id = ?"
+            )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
+            $this->context->audit('post_payment_voucher', 'payment_voucher', $voucherId);
+        });
     }
 }

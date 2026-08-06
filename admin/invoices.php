@@ -2,6 +2,7 @@
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/FinanceService.php';
 
 $settings = getSettings($pdo);
 $base_currency = $pdo->query("SELECT * FROM currencies WHERE is_default = 1")->fetch();
@@ -1129,7 +1130,8 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
                         $invoice_ids = $stmt_allocs->fetchAll(PDO::FETCH_COLUMN);
                         
                         foreach ($invoice_ids as $inv_id) {
-                            php_recalculate_invoice_payment($pdo, $inv_id);
+                            $financeService ??= new FinanceService($pdo, (int)$user_id);
+                            $financeService->recalculateInvoicePaymentStatus((int)$inv_id);
                         }
                         
                         // خامساً: تسجيل في audit_log
@@ -1238,7 +1240,8 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'post_invoic
             // --- نهاية التحقق ---
 
             // تنفيذ الترحيل باستخدام الدالة PHP الجديدة
-            php_post_invoice($pdo, $st_id, $user_id);
+            $financeService = new FinanceService($pdo, (int)$user_id);
+            $financeService->postInvoice((int)$st_id);
 
             // جلب البيانات بعد الترحيل
             $stmt_after = $pdo->prepare("SELECT * FROM invoices WHERE id = ?");

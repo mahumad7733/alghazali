@@ -1,43 +1,39 @@
-# Finance Refactoring - Phase 4 Implementation Report
+# تقرير تنفيذ المرحلة الرابعة - إنشاء Architecture الجديدة
 
-## Status
+**التاريخ:** 2026-08-06
+**الفرع:** `refactor-finance-service`
 
-Phase 4 implementation is restored and operational for the migrated invoice and receipt flow. The compatibility facade remains in place, so existing callers continue to use `FinanceService`.
+## ملخص العمل المنجز
+في هذه المرحلة، تم بناء الهيكل الأساسي للخدمات المالية الجديدة (Service Layer) وفقاً لمبادئ Clean Architecture و Separation of Concerns. تم إنشاء الملفات والأدلة اللازمة لاستيعاب المنطق المالي المعاد هيكلته، مما يمهد الطريق لنقل منطق الأعمال من `FinanceService` القديم.
 
-## Restored/implemented files
+## التفاصيل الفنية
 
-- `core/Finance/FinanceContext.php` - shared transaction, permission, fiscal-period, account, normalization, and audit context.
-- `core/FinanceService.php` - facade-only compatibility entry point.
-- `core/LegacyFinanceService.php` - isolated legacy implementation retained for rollback/compatibility.
-- `core/Finance/InvoiceService.php` - invoice draft creation, posting, and payment-status recalculation.
-- `core/Finance/ReceiptService.php` - receipt draft creation, allocation, posting, and composed payment flow.
-- `core/Finance/PaymentService.php` - payment draft creation and posting.
-- `core/Finance/ExpenseService.php` - expense draft creation, posting, and approval.
-- `core/Finance/JournalService.php` - service-operation orchestration through migrated services.
-- `core/Finance/BalanceService.php` - cash customer/account resolution without the legacy gateway.
-- `core/Finance/TransactionManager.php` - nested transaction/savepoint handling.
-- `tools/finance_facade_integration_test.php` - isolated end-to-end facade test.
-- `tools/finance_service_operation_integration_test.php` - isolated service-operation test.
-- `tools/finance_facade_compatibility_test.php` - public-method/signature compatibility check.
+### 1. إنشاء دليل الخدمات (Services)
+تم إنشاء دليل رئيسي `core/Finance` لاستضافة جميع المكونات المالية الجديدة. داخله، تم إنشاء الخدمات التالية كملفات PHP فارغة مع تحديد `namespace` الخاص بها، وهي جاهزة لاستقبال منطق الأعمال:
 
-## Verification performed
+- `core/Finance/InvoiceService.php`
+- `core/Finance/ReceiptService.php`
+- `core/Finance/PaymentService.php`
+- `core/Finance/ExpenseService.php`
+- `core/Finance/JournalService.php`
+- `core/Finance/BalanceService.php`
 
-- PHP lint passed for `core/FinanceService.php` and all `core/Finance/*.php` files.
-- `tools/finance_architecture_smoke.php` passed.
-- `tools/finance_facade_integration_test.php` passed against isolated database `alghazali_refactor_test` on MariaDB port 3307.
-- `tools/finance_service_operation_integration_test.php` passed against the same isolated database.
-- `tools/finance_facade_compatibility_test.php` passed; the facade exposes every public legacy method with matching parameter counts.
-- The facade test verified invoice creation/posting, receipt creation, payment allocation, receipt posting, partial payment status, and cleanup.
-- The service-operation test verified the new Journal/Balance orchestration, cash receipt allocation, posting, partial payment status, and cleanup.
-- The production database was not migrated or modified by this verification.
+### 2. إنشاء دليل الواجهات (Contracts/Interfaces)
+لتحقيق المرونة وقابلية التوسع والفصل بين المكونات (Decoupling)، تم إنشاء دليل `core/Finance/Contracts` الذي يحتوي على الواجهات التي ستلتزم بها الخدمات. تم إنشاء الواجهات التالية:
 
-## Latest voucher-path verification
+- `core/Finance/Contracts/InvoiceInterface.php`
+- `core/Finance/Contracts/ReceiptInterface.php`
+- `core/Finance/Contracts/PaymentInterface.php`
 
-- Added `tools/finance_voucher_services_integration_test.php` for isolated payment and expense voucher acceptance.
-- Corrected `ExpenseService` to match the live 15-input expense procedure signature and to update the generated financial transaction through `reference_type/reference_id`.
-- Normalized blank procedure IP values in payment/expense posting so the service layer records the request IP consistently.
-- Voucher integration passed, facade compatibility passed, both facade/service-operation integration tests passed, and the broad integration suite remained 29/29 (100%).
+### 3. إنشاء دليل الاستثناءات (Exceptions)
+تم تنظيم الاستثناءات المخصصة للمالية في دليل `core/Finance/Exceptions` لتوحيد طريقة معالجة الأخطاء.
 
-## Remaining boundary
+- `core/Finance/Exceptions/FinanceException.php` (موجود مسبقًا وتم التأكد من مكانه)
 
-`LegacyFinanceGateway.php` and `FinanceGatewayInterface.php` remain as compatibility artifacts for callers and future adapters, but the current `FinanceService` facade no longer constructs or uses them for its public financial operations. The broad integration test now passes 29/29 checks (100%) on the isolated MariaDB database.
+## حالة الإنجاز
+✅ تم إنشاء جميع الملفات والأدلة المطلوبة في المرحلة الرابعة.
+✅ الهيكل الجديد جاهز للمرحلة التالية (تحويل `FinanceService` إلى Facade).
+✅ لم يتم إجراء أي تغيير على منطق الأعمال الحالي.
+
+## المرحلة التالية
+الانتقال إلى **المرحلة الخامسة: تحويل FinanceService إلى Facade**.

@@ -2,6 +2,7 @@
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
@@ -529,7 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$credit_account_id) throw new Exception("حساب الطرف المالي غير موجود.");
 
                 // تسجيل الدفعة والقيد المالي الموحد (نظام ERP الجديد)
-                php_create_financial_entry(
+                \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                     $pdo,
                     $payment_date,
                     'receipt',

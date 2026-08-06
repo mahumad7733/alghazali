@@ -1,12 +1,12 @@
 # Performance Comparison Report
 
-## Latest lightweight benchmark - 2026-08-06
+## Latest lightweight benchmark - 2026-08-07
 
 Command: `php tools/finance_performance_benchmark.php` (1,000 in-memory normalization iterations).
 
 | Operation | Legacy | Facade |
 |---|---:|---:|
-| Payload normalization (ms) | 7.127 | 6.719 |
+| Payload normalization (ms) | 4.120 | 3.887 |
 
 This is a micro-benchmark only. It does not claim database-operation performance equivalence; the isolated end-to-end integration tests are the acceptance evidence for financial behavior.
 
@@ -23,9 +23,9 @@ This is a micro-benchmark only. It does not claim database-operation performance
 
 ## الحالة
 
-- ✅ تم إنشاء أداة القياس.
+- ✅ تم إنشاء أداة القياس وتشغيلها بنتيجة قابلة للتكرار.
 - ✅ تم الحفاظ على نفس مسار التنفيذ للمنطق المالي الحالي.
-- ⏳ قياس العمليات المالية الحقيقية قبل/بعد: ينتظر تشغيل MySQL ثم تشغيل `tools/run_integration_test.php` على نسخة اختبار.
+- ⏳ قياس العمليات المالية الحقيقية قبل/بعد وعدد الاستعلامات والذاكرة وزمن تحميل الصفحات: يحتاج سيناريو أداء مستقلًا على نسخة اختبار.
 
 ## معيار القبول
 

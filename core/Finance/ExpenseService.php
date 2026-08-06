@@ -6,9 +6,11 @@ namespace Core\Finance;
 class ExpenseService
 {
     private FinanceContext $context;
-    public function __construct(FinanceContext $context)
+    private FinancePostingAdapter $postingAdapter;
+    public function __construct(FinanceContext $context, FinancePostingAdapter $postingAdapter)
     {
         $this->context = $context;
+        $this->postingAdapter = $postingAdapter;
     }
 
     public function createExpenseVoucherDraft(array $data): int
@@ -21,25 +23,15 @@ class ExpenseService
         }
         $this->context->assertAccountUsable((int)$data['account_id'], 'cash/bank');
         $this->context->assertAccountUsable((int)$data['expense_account_id'], 'expense');
-        $stmt = $this->context->pdo()->prepare(
-            'CALL sp_create_expense_voucher(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @v_id, @v_num)'
-        );
-        $stmt->execute([
-            $data['branch_id'], $data['voucher_date'] ?: date('Y-m-d'),
-            $data['expense_account_id'], $data['account_id'], $data['supplier_id'] ?: null,
-            $data['cost_center_id'] ?: null, $data['currency_id'],
-            (float)($data['exchange_rate'] ?? 1.0),
-            $data['paid_amount'], (float)($data['tax_amount'] ?? 0),
-            $data['description'] ?: null, $data['reference_number'] ?: null,
-            $data['budget_id'] ?: null, $this->context->userId(),
-            $data['source_number'] ?? $data['source_id'],
-        ]);
-        $stmt->closeCursor();
-        $id = (int)$this->context->pdo()->query('SELECT @v_id')->fetchColumn();
-        $this->context->audit('create_expense_voucher_draft', 'expense_voucher', $id, [
-            'expense_account_id' => $data['expense_account_id'], 'amount' => $data['paid_amount'],
-        ]);
-        return $id;
+        return (int)$this->context->executeAtomically(function () use ($data): int {
+            $id = $this->postingAdapter->createExpenseVoucher(
+                $this->context->pdo(), $data, $this->context->userId()
+            );
+            $this->context->audit('create_expense_voucher_draft', 'expense_voucher', $id, [
+                'expense_account_id' => $data['expense_account_id'], 'amount' => $data['paid_amount'],
+            ]);
+            return $id;
+        });
     }
 
     public function postExpenseVoucher(int $voucherId): void
@@ -48,15 +40,15 @@ class ExpenseService
             throw new \InvalidArgumentException('Invalid expense voucher id');
         }
         $this->context->assertUserCan('post_expense_voucher', 'post expense voucher');
-        $stmt = $this->context->pdo()->prepare('CALL sp_post_expense_voucher(?, ?)');
-        $stmt->execute([$voucherId, $this->context->userId()]);
-        $stmt->closeCursor();
-        $this->context->pdo()->prepare(
-            "UPDATE financial_transactions
-                SET posted_ip = COALESCE(NULLIF(posted_ip, ''), ?), updated_ip = ?
-              WHERE reference_type = ? AND reference_id = ?"
-        )->execute([$this->context->requestIp(), $this->context->requestIp(), 'expense_voucher', $voucherId]);
-        $this->context->audit('post_expense_voucher', 'expense_voucher', $voucherId);
+        $this->context->executeAtomically(function () use ($voucherId): void {
+            $this->postingAdapter->postExpenseVoucher($this->context->pdo(), $voucherId, $this->context->userId());
+            $this->context->pdo()->prepare(
+                "UPDATE financial_transactions
+                    SET posted_ip = COALESCE(NULLIF(posted_ip, ''), ?), updated_ip = ?
+                  WHERE reference_type = ? AND reference_id = ?"
+            )->execute([$this->context->requestIp(), $this->context->requestIp(), 'expense_voucher', $voucherId]);
+            $this->context->audit('post_expense_voucher', 'expense_voucher', $voucherId);
+        });
     }
 
     public function processExpenseApproval(int $voucherId, int $level, bool $approved, ?string $comment = null): void
@@ -65,11 +57,13 @@ class ExpenseService
             throw new \InvalidArgumentException('Invalid expense voucher id');
         }
         $this->context->assertUserCan('approve_expense_voucher', 'approve expense voucher');
-        $stmt = $this->context->pdo()->prepare('CALL sp_process_expense_approval(?, ?, ?, ?, ?)');
-        $stmt->execute([$voucherId, $this->context->userId(), $level, $approved ? 1 : 0, $comment]);
-        $stmt->closeCursor();
-        $this->context->audit('expense_voucher_approval', 'expense_voucher', $voucherId, [
-            'level' => $level, 'approved' => $approved, 'comment' => $comment,
-        ]);
+        $this->context->executeAtomically(function () use ($voucherId, $level, $approved, $comment): void {
+            $this->postingAdapter->processExpenseApproval(
+                $this->context->pdo(), $voucherId, $this->context->userId(), $level, $approved, $comment
+            );
+            $this->context->audit('expense_voucher_approval', 'expense_voucher', $voucherId, [
+                'level' => $level, 'approved' => $approved, 'comment' => $comment,
+            ]);
+        });
     }
 }

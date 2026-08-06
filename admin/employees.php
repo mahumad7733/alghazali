@@ -1,6 +1,7 @@
 <?php
 ob_start();
 require_once 'header.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 
 // Check and add missing attendance_location_id column if needed
 try {
@@ -91,7 +92,7 @@ if (isset($_POST['add_employee'])) {
             // 2. إنشاء حساب تلقائي إذا لم يتم اختياره أو استخدام الحساب الموجود
             $account_id_to_process = $account_id;
             if (!$account_id_to_process) {
-                $account_id_to_process = php_handle_entity_account_creation($pdo, 'employee', $new_emp_id, $full_name);
+                $account_id_to_process = \Core\Finance\FinancePostingAdapter::handleEntityAccountCreation($pdo, 'employee', $new_emp_id, $full_name);
                 // تحديث جدول employees بمعرف الحساب الجديد إذا تم إنشاؤه تلقائياً
                 $stmt_update_employee_account = $pdo->prepare("UPDATE employees SET account_id = ? WHERE id = ?");
                 $stmt_update_employee_account->execute([$account_id_to_process, $new_emp_id]);
@@ -178,7 +179,7 @@ if (isset($_POST['update_employee'])) {
                 $stmt_check_employee_exists = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE id = ? AND deleted_at IS NULL");
                 $stmt_check_employee_exists->execute([$id]);
                 if ($stmt_check_employee_exists->fetchColumn() > 0) {
-                    $account_id_to_process = php_handle_entity_account_creation($pdo, 'employee', $id, $full_name);
+                    $account_id_to_process = \Core\Finance\FinancePostingAdapter::handleEntityAccountCreation($pdo, 'employee', $id, $full_name);
                     // تحديث الموظف بمعرف الحساب الجديد
                     $pdo->prepare("UPDATE employees SET account_id = ? WHERE id = ?")->execute([$account_id_to_process, $id]);
                 }

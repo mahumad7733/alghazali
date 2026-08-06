@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../core/FinanceService.php';
+require_once __DIR__ . '/../core/LegacyFinanceService.php';
 
 $legacy = new ReflectionClass('LegacyFinanceService');
 $facade = new ReflectionClass('FinanceService');

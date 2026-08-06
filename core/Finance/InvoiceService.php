@@ -7,9 +7,11 @@ use Core\Finance\Contracts\InvoiceInterface;
 class InvoiceService implements InvoiceInterface
 {
     private FinanceContext $context;
-    public function __construct(FinanceContext $context)
+    private FinancePostingAdapter $postingAdapter;
+    public function __construct(FinanceContext $context, FinancePostingAdapter $postingAdapter)
     {
         $this->context = $context;
+        $this->postingAdapter = $postingAdapter;
     }
 
     public function createInvoiceDraft(array $data, string $category): int
@@ -41,28 +43,16 @@ class InvoiceService implements InvoiceInterface
             throw new \InvalidArgumentException('Invalid invoice amount or currency');
         }
 
-        if (!function_exists('php_create_invoice')) {
-            throw new \RuntimeException('php_create_invoice is not loaded');
-        }
-        $cost = 0.0;
-        if ($category === 'sales' && $data['purchase_total_amount'] > 0) {
-            $cost = $data['purchase_total_amount'];
-            if ($data['sale_currency_id'] !== $data['purchase_currency_id'] && $data['exchange_rate'] > 0) {
-                $cost *= $data['exchange_rate'];
-            }
-        }
-        $id = php_create_invoice(
-            $this->context->pdo(), $category, $data['branch_id'], $data['source_type'],
-            $data['source_id'], $partyId, $currencyId, $total,
-            $category === 'sales' ? $data['discount_amount'] : 0,
-            $cost, $data['delivery_type'], $data['description'],
-            $data['operation_date'], $this->context->userId(), $data['agent_id'], $data['account_id']
-        );
-        $this->context->audit('create_' . $category . '_invoice_draft', 'invoice', (int)$id, [
-            'source_type' => $data['source_type'], 'source_id' => $data['source_id'],
-            'party_id' => $partyId, 'currency_id' => $currencyId, 'total' => $total,
-        ]);
-        return (int)$id;
+        return (int)$this->context->executeAtomically(function () use ($data, $category, $partyId, $currencyId, $total): int {
+            $id = $this->postingAdapter->createInvoice(
+                $this->context->pdo(), $data, $category, $this->context->userId()
+            );
+            $this->context->audit('create_' . $category . '_invoice_draft', 'invoice', $id, [
+                'source_type' => $data['source_type'], 'source_id' => $data['source_id'],
+                'party_id' => $partyId, 'currency_id' => $currencyId, 'total' => $total,
+            ]);
+            return $id;
+        });
     }
 
     public function postInvoice(int $invoiceId): void
@@ -71,9 +61,8 @@ class InvoiceService implements InvoiceInterface
             throw new \InvalidArgumentException('Invalid invoice id');
         }
         $this->context->assertUserCan('post_invoice', 'post invoice');
-        $pdo = $this->context->pdo();
-        $pdo->beginTransaction();
-        try {
+        $this->context->executeAtomically(function () use ($invoiceId): void {
+            $pdo = $this->context->pdo();
             $stmt = $pdo->prepare('SELECT invoice_status, invoice_date FROM invoices WHERE id = ? LIMIT 1 FOR UPDATE');
             $stmt->execute([$invoiceId]);
             $invoice = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -84,20 +73,11 @@ class InvoiceService implements InvoiceInterface
                 throw new \RuntimeException("Invoice {$invoiceId} cannot be posted from its current state");
             }
             $this->context->assertFiscalPeriodOpen($invoice['invoice_date']);
-            if (!function_exists('php_post_invoice')) {
-                throw new \RuntimeException('php_post_invoice is not loaded');
-            }
-            php_post_invoice($pdo, $invoiceId, $this->context->userId(), true);
+            $this->postingAdapter->postInvoice($pdo, $invoiceId, $this->context->userId());
             $pdo->prepare('UPDATE invoices SET updated_at = COALESCE(updated_at, NOW()) WHERE id = ?')
                 ->execute([$invoiceId]);
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
-        }
-        $this->context->audit('post_invoice', 'invoice', $invoiceId);
+            $this->context->audit('post_invoice', 'invoice', $invoiceId);
+        });
     }
 
     public function recalculateInvoicePaymentStatus(int $invoiceId): void

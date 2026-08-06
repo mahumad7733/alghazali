@@ -1,5 +1,7 @@
 # Finance Developer Guide
 
+Verified on 2026-08-07. The current application entry point is the Facade; the isolated acceptance suite is the required verification path.
+
 ## Entry point
 
 Use the backward-compatible facade for application calls:

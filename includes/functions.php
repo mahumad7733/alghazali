@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_config.php';
 require_once __DIR__ . '/tafqeet.php';
+require_once __DIR__ . '/../core/Finance/FinancePostingAdapter.php';
 
 /**
  * XSS Protection helper
@@ -2337,7 +2338,9 @@ function get_workflow_fields_by_type($transaction_type)
  */
 function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data = null, $new_data = null, $reason = null)
 {
-    if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) return false;
+    if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
+        throw new \RuntimeException('Audit logging requires an authenticated user.');
+    }
 
     $user_id = $_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 1;
     $user_ip = $_SERVER['REMOTE_ADDR'] ?? null;
@@ -2360,12 +2363,13 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
                 $record_date = $stmt->fetchColumn();
             }
         } catch (Exception $e) {
+            throw new \RuntimeException('Audit logging could not verify the financial record date.', 0, $e);
         }
 
         if ($record_date && $record_date <= $closing_date) {
             // تسجيل محاولة تعديل مرفوضة
             $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([
+            if (!$stmt->execute([
                 $user_id,
                 'Unauthorized Access Attempt',
                 $table_name,
@@ -2374,14 +2378,16 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
                 json_encode(['attempted_action' => $action_type, 'reason' => 'Financial Period Closed'], JSON_UNESCAPED_UNICODE),
                 $user_ip,
                 $user_agent
-            ]);
+            ])) {
+                throw new \RuntimeException('Audit logging failed for a closed-period access attempt.');
+            }
             return false;
         }
     }
 
     try {
         $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        return $stmt->execute([
+        if (!$stmt->execute([
             $user_id,
             $action_type,
             $table_name,
@@ -2390,9 +2396,12 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
             $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null,
             $user_ip,
             $user_agent
-        ]);
+        ])) {
+            throw new \RuntimeException('Audit logging failed.');
+        }
+        return true;
     } catch (PDOException $e) {
-        return false;
+        throw new \RuntimeException('Audit logging failed.', 0, $e);
     }
 }
 
@@ -3290,7 +3299,7 @@ function record_service_transaction($pdo, $owner_type, $owner_id, $amount, $curr
     $user_id = $_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? null;
 
     // ترحيل القيد (استخدام دالة PHP بدلاً من الإجراء المخزن)
-    $transaction_id = php_create_financial_entry(
+    $transaction_id = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
         $pdo,
         date('Y-m-d'),
         'receipt',

@@ -8,10 +8,12 @@ class ReceiptService implements ReceiptInterface
 {
     private FinanceContext $context;
     private InvoiceService $invoices;
-    public function __construct(FinanceContext $context, InvoiceService $invoices)
+    private FinancePostingAdapter $postingAdapter;
+    public function __construct(FinanceContext $context, InvoiceService $invoices, FinancePostingAdapter $postingAdapter)
     {
         $this->context = $context;
         $this->invoices = $invoices;
+        $this->postingAdapter = $postingAdapter;
     }
 
     public function createReceiptVoucherDraft(array $data): int
@@ -25,21 +27,20 @@ class ReceiptService implements ReceiptInterface
         }
         $this->context->assertAccountUsable((int)$data['account_id'], 'receipt');
         $this->context->assertAccountUsable($partyAccount, 'customer');
-        $stmt = $this->context->pdo()->prepare(
-            'CALL sp_create_receipt_voucher(?, ?, ?, ?, ?, 1.0, ?, ?, ?, ?, ?, ?, @v_id, @v_num)'
-        );
-        $stmt->execute([
-            $data['branch_id'], 'customer', $data['customer_id'], $data['paid_amount'],
-            $data['sale_currency_id'], $data['account_id'], $partyAccount,
-            $data['source_number'] ?? $data['source_id'], $data['description'],
-            $this->context->userId(), null,
-        ]);
-        $stmt->closeCursor();
-        $id = (int)$this->context->pdo()->query('SELECT @v_id')->fetchColumn();
-        $this->context->audit('create_receipt_voucher_draft', 'receipt_voucher', $id, [
-            'customer_id' => $data['customer_id'], 'amount' => $data['paid_amount'],
-        ]);
-        return $id;
+        return (int)$this->context->executeAtomically(function () use ($data, $partyAccount): int {
+            $id = $this->postingAdapter->createReceiptVoucher($this->context->pdo(), [
+                'branch_id' => $data['branch_id'], 'party_type' => 'customer',
+                'party_id' => $data['customer_id'], 'amount' => $data['paid_amount'],
+                'currency_id' => $data['sale_currency_id'], 'exchange_rate' => $data['exchange_rate'],
+                'cash_account_id' => $data['account_id'], 'party_account_id' => $partyAccount,
+                'reference' => $data['source_number'] ?? $data['source_id'],
+                'description' => $data['description'],
+            ], $this->context->userId());
+            $this->context->audit('create_receipt_voucher_draft', 'receipt_voucher', $id, [
+                'customer_id' => $data['customer_id'], 'amount' => $data['paid_amount'],
+            ]);
+            return $id;
+        });
     }
 
     public function allocatePayment(int $voucherId, int $invoiceId, float $allocatedAmount): void
@@ -86,14 +87,13 @@ class ReceiptService implements ReceiptInterface
             throw new \InvalidArgumentException('Invalid receipt voucher id');
         }
         $this->context->assertUserCan('post_receipt_voucher', 'post receipt voucher');
-        if (!function_exists('php_post_receipt_voucher')) {
-            throw new \RuntimeException('php_post_receipt_voucher is not loaded');
-        }
-        php_post_receipt_voucher($this->context->pdo(), $voucherId, $this->context->userId());
-        $this->context->pdo()->prepare(
-            'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
-        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
-        $this->context->audit('post_receipt_voucher', 'receipt_voucher', $voucherId);
+        $this->context->executeAtomically(function () use ($voucherId): void {
+            $this->postingAdapter->postReceiptVoucher($this->context->pdo(), $voucherId, $this->context->userId());
+            $this->context->pdo()->prepare(
+                'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
+            )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
+            $this->context->audit('post_receipt_voucher', 'receipt_voucher', $voucherId);
+        });
     }
 
     public function receiveInvoicePayment(array $data): int

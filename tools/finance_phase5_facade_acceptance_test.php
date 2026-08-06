@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../core/FinanceService.php';
+require_once __DIR__ . '/../core/LegacyFinanceService.php';
 
 $facadeSource = file_get_contents(__DIR__ . '/../core/FinanceService.php');
 if ($facadeSource === false) {

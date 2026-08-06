@@ -1,16 +1,14 @@
 <?php
 
-require_once __DIR__ . '/../includes/accounting_functions.php';
-require_once __DIR__ . '/LegacyFinanceService.php';
-
-// Backward-compatible facade. The legacy implementation remains available
-// behind the service layer while operations are migrated incrementally.
+// Backward-compatible facade. The legacy implementation is loaded only by
+// dedicated comparison and rollback tooling, never by the application path.
 require_once __DIR__ . '/Finance/Contracts/TransactionManagerInterface.php';
 require_once __DIR__ . '/Finance/Contracts/AuditLoggerInterface.php';
 require_once __DIR__ . '/Finance/Contracts/InvoiceInterface.php';
 require_once __DIR__ . '/Finance/Contracts/ReceiptInterface.php';
 require_once __DIR__ . '/Finance/Contracts/PaymentInterface.php';
 require_once __DIR__ . '/Finance/TransactionManager.php';
+require_once __DIR__ . '/Finance/FinancePostingAdapter.php';
 require_once __DIR__ . '/Finance/AuditLogger.php';
 require_once __DIR__ . '/Finance/FinanceContext.php';
 require_once __DIR__ . '/Finance/Exceptions/FinanceException.php';
@@ -34,10 +32,12 @@ class FinanceService
     private \Core\Finance\BalanceService $balanceService;
     private \Core\Finance\TransactionManager $transactionManager;
     private \Core\Finance\FinanceContext $context;
+    private \Core\Finance\FinancePostingAdapter $postingAdapter;
 
     public function __construct(PDO $pdo, ?int $userId = null)
     {
         $this->transactionManager = new \Core\Finance\TransactionManager($pdo);
+        $this->postingAdapter = new \Core\Finance\FinancePostingAdapter();
         $audit = new \Core\Finance\AuditLogger($pdo, (int)($userId ?: ($_SESSION['admin_id'] ?? 1)));
         $this->context = new \Core\Finance\FinanceContext(
             $pdo,
@@ -45,10 +45,10 @@ class FinanceService
             $this->transactionManager,
             $audit
         );
-        $this->invoiceService = new \Core\Finance\InvoiceService($this->context);
-        $this->receiptService = new \Core\Finance\ReceiptService($this->context, $this->invoiceService);
-        $this->paymentService = new \Core\Finance\PaymentService($this->context);
-        $this->expenseService = new \Core\Finance\ExpenseService($this->context);
+        $this->invoiceService = new \Core\Finance\InvoiceService($this->context, $this->postingAdapter);
+        $this->receiptService = new \Core\Finance\ReceiptService($this->context, $this->invoiceService, $this->postingAdapter);
+        $this->paymentService = new \Core\Finance\PaymentService($this->context, $this->postingAdapter);
+        $this->expenseService = new \Core\Finance\ExpenseService($this->context, $this->postingAdapter);
         $this->balanceService = new \Core\Finance\BalanceService($this->context);
         $this->journalService = new \Core\Finance\JournalService(
             $this->context,
@@ -75,5 +75,3 @@ class FinanceService
     public function postExpenseVoucher(int $voucherId): void { $this->expenseService->postExpenseVoucher($voucherId); }
     public function processExpenseApproval(int $voucherId, int $level, bool $approved, ?string $comment = null): void { $this->expenseService->processExpenseApproval($voucherId, $level, $approved, $comment); }
 }
-
-

@@ -3,17 +3,13 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\InvoiceInterface;
-use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class InvoiceService implements InvoiceInterface
 {
     private FinanceContext $context;
-    private ?FinanceGatewayInterface $gateway;
-
-    public function __construct(FinanceContext $context, ?FinanceGatewayInterface $gateway = null)
+    public function __construct(FinanceContext $context)
     {
         $this->context = $context;
-        $this->gateway = $gateway;
     }
 
     public function createInvoiceDraft(array $data, string $category): int

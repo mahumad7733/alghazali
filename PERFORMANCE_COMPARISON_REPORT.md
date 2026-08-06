@@ -1,5 +1,15 @@
 # Performance Comparison Report
 
+## Latest lightweight benchmark - 2026-08-06
+
+Command: `php tools/finance_performance_benchmark.php` (1,000 in-memory normalization iterations).
+
+| Operation | Legacy | Facade |
+|---|---:|---:|
+| Payload normalization (ms) | 7.381 | 7.359 |
+
+This is a micro-benchmark only. It does not claim database-operation performance equivalence; the isolated end-to-end integration tests are the acceptance evidence for financial behavior.
+
 تاريخ القياس: 2026-08-06
 
 ## نطاق القياس

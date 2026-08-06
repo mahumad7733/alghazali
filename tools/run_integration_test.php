@@ -55,6 +55,8 @@ if (!$customer) {
 $customer_id     = (int)$customer['id'];
 $customer_acct   = (int)$customer['account_id'];
 $currency_id     = (int)$customer['currency_id'];
+$pdo->exec("CALL sp_rebuild_balances()");
+$customer = $pdo->query("SELECT c.id, c.full_name AS name, c.account_id, abu.currency_id, abu.current_balance FROM customers c LEFT JOIN account_balances_unified abu ON abu.account_id = c.account_id AND abu.currency_id = $currency_id WHERE c.id = $customer_id LIMIT 1")->fetch();
 $balance_before  = (float)$customer['current_balance'];
 echo "✅ العميل المختبر: {$customer['name']} (#$customer_id) | حساب=$customer_acct | عملة=$currency_id | رصيد قبل الاختبار=$balance_before\n";
 

@@ -1,5 +1,9 @@
 # Refactoring Issues
 
+## Resolved migration slice - 2026-08-06
+
+The former gradual-delegation issue is resolved for the public `FinanceService` operations. Invoice, receipt, payment, expense, service-operation, and cash-customer flows are implemented in `core/Finance` and verified on the isolated database. The legacy adapter files remain intentionally for backward compatibility.
+
 ## ISSUE-001: MySQL غير متاح أثناء التحقق
 
 - الوصف: اختبار `tools/test_signature_compat.php` توقف بسبب رفض الاتصال بـ `127.0.0.1:3306`.

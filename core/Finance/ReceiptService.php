@@ -3,19 +3,15 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\ReceiptInterface;
-use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class ReceiptService implements ReceiptInterface
 {
     private FinanceContext $context;
     private InvoiceService $invoices;
-    private ?FinanceGatewayInterface $gateway;
-
-    public function __construct(FinanceContext $context, InvoiceService $invoices, ?FinanceGatewayInterface $gateway = null)
+    public function __construct(FinanceContext $context, InvoiceService $invoices)
     {
         $this->context = $context;
         $this->invoices = $invoices;
-        $this->gateway = $gateway;
     }
 
     public function createReceiptVoucherDraft(array $data): int

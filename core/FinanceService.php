@@ -1292,13 +1292,11 @@ class LegacyFinanceService
 // Backward-compatible facade. The legacy implementation remains available
 // behind the service layer while operations are migrated incrementally.
 require_once __DIR__ . '/Finance/Contracts/TransactionManagerInterface.php';
-require_once __DIR__ . '/Finance/Contracts/FinanceGatewayInterface.php';
 require_once __DIR__ . '/Finance/Contracts/AuditLoggerInterface.php';
 require_once __DIR__ . '/Finance/Contracts/InvoiceInterface.php';
 require_once __DIR__ . '/Finance/Contracts/ReceiptInterface.php';
 require_once __DIR__ . '/Finance/Contracts/PaymentInterface.php';
 require_once __DIR__ . '/Finance/TransactionManager.php';
-require_once __DIR__ . '/Finance/LegacyFinanceGateway.php';
 require_once __DIR__ . '/Finance/AuditLogger.php';
 require_once __DIR__ . '/Finance/FinanceContext.php';
 require_once __DIR__ . '/Finance/Exceptions/FinanceException.php';
@@ -1314,7 +1312,6 @@ require_once __DIR__ . '/Finance/BalanceService.php';
 
 class FinanceService
 {
-    private LegacyFinanceService $legacy;
     private \Core\Finance\InvoiceService $invoiceService;
     private \Core\Finance\ReceiptService $receiptService;
     private \Core\Finance\PaymentService $paymentService;
@@ -1326,8 +1323,6 @@ class FinanceService
 
     public function __construct(PDO $pdo, ?int $userId = null)
     {
-        $this->legacy = new LegacyFinanceService($pdo, $userId);
-        $gateway = new \Core\Finance\LegacyFinanceGateway($this->legacy);
         $this->transactionManager = new \Core\Finance\TransactionManager($pdo);
         $audit = new \Core\Finance\AuditLogger($pdo, (int)($userId ?: ($_SESSION['admin_id'] ?? 1)));
         $this->context = new \Core\Finance\FinanceContext(
@@ -1336,12 +1331,17 @@ class FinanceService
             $this->transactionManager,
             $audit
         );
-        $this->invoiceService = new \Core\Finance\InvoiceService($this->context, $gateway);
-        $this->receiptService = new \Core\Finance\ReceiptService($this->context, $this->invoiceService, $gateway);
-        $this->paymentService = new \Core\Finance\PaymentService($this->context, $gateway);
-        $this->expenseService = new \Core\Finance\ExpenseService($this->context, $gateway);
-        $this->journalService = new \Core\Finance\JournalService($gateway);
-        $this->balanceService = new \Core\Finance\BalanceService($gateway);
+        $this->invoiceService = new \Core\Finance\InvoiceService($this->context);
+        $this->receiptService = new \Core\Finance\ReceiptService($this->context, $this->invoiceService);
+        $this->paymentService = new \Core\Finance\PaymentService($this->context);
+        $this->expenseService = new \Core\Finance\ExpenseService($this->context);
+        $this->balanceService = new \Core\Finance\BalanceService($this->context);
+        $this->journalService = new \Core\Finance\JournalService(
+            $this->context,
+            $this->invoiceService,
+            $this->receiptService,
+            $this->balanceService
+        );
     }
 
     public function normalizeFinancialPayload(array $data): array { return $this->context->normalize($data); }

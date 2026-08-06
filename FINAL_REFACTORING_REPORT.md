@@ -1,5 +1,19 @@
 # Final Refactoring Report
 
+## Verified implementation update - 2026-08-06
+
+The previous status text in this file predates the completed migration slice. Current evidence is:
+
+- `FinanceService` is a backward-compatible facade and delegates all exposed financial operations to `core/Finance` services.
+- Invoice, receipt, payment, expense, service-operation, and cash-customer flows no longer use `LegacyFinanceGateway` from the facade.
+- `tools/finance_architecture_smoke.php` passed.
+- `tools/finance_facade_integration_test.php` passed on isolated MariaDB database `alghazali_refactor_test`.
+- `tools/finance_service_operation_integration_test.php` passed on the same isolated database.
+- PHP lint passed for the facade and every PHP file under `core/Finance`.
+- Production database migrations remain unapplied; verification used an isolated database.
+
+The broad legacy integration test remains a diagnostic result (82.8%) and is not represented as full acceptance: five failures are documented legacy-procedure/test-contract issues in `REFACTORING_ISSUES.md`.
+
 ## الحالة الحالية
 
 - ✅ Git Safety وDependency Mapping وDatabase Safety موثقة.

@@ -2,17 +2,13 @@
 
 namespace Core\Finance;
 
-use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class ExpenseService
 {
     private FinanceContext $context;
-    private ?FinanceGatewayInterface $gateway;
-
-    public function __construct(FinanceContext $context, ?FinanceGatewayInterface $gateway = null)
+    public function __construct(FinanceContext $context)
     {
         $this->context = $context;
-        $this->gateway = $gateway;
     }
 
     public function createExpenseVoucherDraft(array $data): int

@@ -3,17 +3,13 @@
 namespace Core\Finance;
 
 use Core\Finance\Contracts\PaymentInterface;
-use Core\Finance\Contracts\FinanceGatewayInterface;
 
 class PaymentService implements PaymentInterface
 {
     private FinanceContext $context;
-    private ?FinanceGatewayInterface $gateway;
-
-    public function __construct(FinanceContext $context, ?FinanceGatewayInterface $gateway = null)
+    public function __construct(FinanceContext $context)
     {
         $this->context = $context;
-        $this->gateway = $gateway;
     }
 
     public function createPaymentVoucherDraft(array $data): int

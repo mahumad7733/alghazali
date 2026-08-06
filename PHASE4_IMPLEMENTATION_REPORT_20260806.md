@@ -11,17 +11,22 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 - `core/Finance/ReceiptService.php` - receipt draft creation, allocation, posting, and composed payment flow.
 - `core/Finance/PaymentService.php` - payment draft creation and posting.
 - `core/Finance/ExpenseService.php` - expense draft creation, posting, and approval.
+- `core/Finance/JournalService.php` - service-operation orchestration through migrated services.
+- `core/Finance/BalanceService.php` - cash customer/account resolution without the legacy gateway.
 - `core/Finance/TransactionManager.php` - nested transaction/savepoint handling.
 - `tools/finance_facade_integration_test.php` - isolated end-to-end facade test.
+- `tools/finance_service_operation_integration_test.php` - isolated service-operation test.
 
 ## Verification performed
 
 - PHP lint passed for `core/FinanceService.php` and all `core/Finance/*.php` files.
 - `tools/finance_architecture_smoke.php` passed.
 - `tools/finance_facade_integration_test.php` passed against isolated database `alghazali_refactor_test` on MariaDB port 3307.
+- `tools/finance_service_operation_integration_test.php` passed against the same isolated database.
 - The facade test verified invoice creation/posting, receipt creation, payment allocation, receipt posting, partial payment status, and cleanup.
+- The service-operation test verified the new Journal/Balance orchestration, cash receipt allocation, posting, partial payment status, and cleanup.
 - The production database was not migrated or modified by this verification.
 
 ## Remaining boundary
 
-Journal and balance read/write paths still use the compatibility gateway during the next migration slice. The older broad integration test remains at 82.8%; its five failures are documented compatibility limitations in the legacy procedures/test expectations and are not treated as a passing full-system acceptance result.
+`LegacyFinanceGateway.php` and `FinanceGatewayInterface.php` remain as compatibility artifacts for callers and future adapters, but the current `FinanceService` facade no longer constructs or uses them for its public financial operations. The older broad integration test remains at 82.8%; its five failures are documented compatibility limitations in legacy procedures/test expectations and are not treated as a passing full-system acceptance result.

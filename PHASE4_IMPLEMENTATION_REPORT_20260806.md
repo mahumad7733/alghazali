@@ -31,6 +31,13 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 - The service-operation test verified the new Journal/Balance orchestration, cash receipt allocation, posting, partial payment status, and cleanup.
 - The production database was not migrated or modified by this verification.
 
+## Latest voucher-path verification
+
+- Added `tools/finance_voucher_services_integration_test.php` for isolated payment and expense voucher acceptance.
+- Corrected `ExpenseService` to match the live 15-input expense procedure signature and to update the generated financial transaction through `reference_type/reference_id`.
+- Normalized blank procedure IP values in payment/expense posting so the service layer records the request IP consistently.
+- Voucher integration passed, facade compatibility passed, both facade/service-operation integration tests passed, and the broad integration suite remained 29/29 (100%).
+
 ## Remaining boundary
 
 `LegacyFinanceGateway.php` and `FinanceGatewayInterface.php` remain as compatibility artifacts for callers and future adapters, but the current `FinanceService` facade no longer constructs or uses them for its public financial operations. The broad integration test now passes 29/29 checks (100%) on the isolated MariaDB database.

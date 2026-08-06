@@ -22,14 +22,17 @@ class ExpenseService
         $this->context->assertAccountUsable((int)$data['account_id'], 'cash/bank');
         $this->context->assertAccountUsable((int)$data['expense_account_id'], 'expense');
         $stmt = $this->context->pdo()->prepare(
-            'CALL sp_create_expense_voucher(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @v_id, @v_num)'
+            'CALL sp_create_expense_voucher(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @v_id, @v_num)'
         );
         $stmt->execute([
-            $data['branch_id'], $data['expense_account_id'], $data['account_id'],
-            $data['paid_amount'], $data['currency_id'], (float)($data['equivalent_amount'] ?? 0),
-            $data['voucher_date'] ?: date('Y-m-d'), $data['description'] ?: null,
-            $data['reference_number'] ?: null, $data['cost_center_id'] ?: null,
-            $data['supplier_id'] ?: null, $data['budget_id'] ?: null, $this->context->userId(),
+            $data['branch_id'], $data['voucher_date'] ?: date('Y-m-d'),
+            $data['expense_account_id'], $data['account_id'], $data['supplier_id'] ?: null,
+            $data['cost_center_id'] ?: null, $data['currency_id'],
+            (float)($data['exchange_rate'] ?? 1.0),
+            $data['paid_amount'], (float)($data['tax_amount'] ?? 0),
+            $data['description'] ?: null, $data['reference_number'] ?: null,
+            $data['budget_id'] ?: null, $this->context->userId(),
+            $data['source_number'] ?? $data['source_id'],
         ]);
         $stmt->closeCursor();
         $id = (int)$this->context->pdo()->query('SELECT @v_id')->fetchColumn();
@@ -49,8 +52,10 @@ class ExpenseService
         $stmt->execute([$voucherId, $this->context->userId()]);
         $stmt->closeCursor();
         $this->context->pdo()->prepare(
-            'UPDATE financial_transactions SET posted_ip = COALESCE(posted_ip, ?), updated_ip = ? WHERE id = ?'
-        )->execute([$this->context->requestIp(), $this->context->requestIp(), $voucherId]);
+            "UPDATE financial_transactions
+                SET posted_ip = COALESCE(NULLIF(posted_ip, ''), ?), updated_ip = ?
+              WHERE reference_type = ? AND reference_id = ?"
+        )->execute([$this->context->requestIp(), $this->context->requestIp(), 'expense_voucher', $voucherId]);
         $this->context->audit('post_expense_voucher', 'expense_voucher', $voucherId);
     }
 

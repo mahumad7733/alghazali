@@ -6,7 +6,7 @@ Command: `php tools/finance_performance_benchmark.php` (1,000 in-memory normaliz
 
 | Operation | Legacy | Facade |
 |---|---:|---:|
-| Payload normalization (ms) | 7.381 | 7.359 |
+| Payload normalization (ms) | 5.810 | 7.360 |
 
 This is a micro-benchmark only. It does not claim database-operation performance equivalence; the isolated end-to-end integration tests are the acceptance evidence for financial behavior.
 

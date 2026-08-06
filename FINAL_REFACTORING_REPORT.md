@@ -14,7 +14,7 @@ The previous status text in this file predates the completed migration slice. Cu
 - PHP lint passed for the facade and every PHP file under `core/Finance`.
 - Production database migrations remain unapplied; verification used an isolated database.
 
-The broad legacy integration test remains a diagnostic result (82.8%) and is not represented as full acceptance: five failures are documented legacy-procedure/test-contract issues in `REFACTORING_ISSUES.md`.
+The broad integration test now passes 29/29 checks (100%) on the isolated MariaDB database. Its currency assertion explicitly distinguishes a multi-currency account from a single-currency account, and its unpost assertion verifies the safety block when a posted payment exists.
 
 ## الحالة الحالية
 

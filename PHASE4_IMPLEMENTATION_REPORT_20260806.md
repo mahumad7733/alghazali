@@ -33,4 +33,4 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 
 ## Remaining boundary
 
-`LegacyFinanceGateway.php` and `FinanceGatewayInterface.php` remain as compatibility artifacts for callers and future adapters, but the current `FinanceService` facade no longer constructs or uses them for its public financial operations. The older broad integration test remains at 82.8%; its five failures are documented compatibility limitations in legacy procedures/test expectations and are not treated as a passing full-system acceptance result.
+`LegacyFinanceGateway.php` and `FinanceGatewayInterface.php` remain as compatibility artifacts for callers and future adapters, but the current `FinanceService` facade no longer constructs or uses them for its public financial operations. The broad integration test now passes 29/29 checks (100%) on the isolated MariaDB database.

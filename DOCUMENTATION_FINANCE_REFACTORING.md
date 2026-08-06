@@ -2,7 +2,7 @@
 
 ## Current verified state (2026-08-06)
 
-The facade now delegates its public operations to independent services with shared context and transaction handling. `LegacyFinanceService` remains in the file as a compatibility class, but it is not constructed by the current facade path. `LegacyFinanceGateway.php` remains only as an adapter artifact for compatibility and future integrations.
+The facade now delegates its public operations to independent services with shared context and transaction handling. The legacy implementation is isolated in `core/LegacyFinanceService.php` and is not constructed by the current facade path. `LegacyFinanceGateway.php` remains only as an adapter artifact for compatibility and future integrations.
 
 Verified flows:
 

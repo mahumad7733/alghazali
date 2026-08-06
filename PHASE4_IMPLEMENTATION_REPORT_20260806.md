@@ -7,6 +7,8 @@ Phase 4 implementation is restored and operational for the migrated invoice and 
 ## Restored/implemented files
 
 - `core/Finance/FinanceContext.php` - shared transaction, permission, fiscal-period, account, normalization, and audit context.
+- `core/FinanceService.php` - facade-only compatibility entry point.
+- `core/LegacyFinanceService.php` - isolated legacy implementation retained for rollback/compatibility.
 - `core/Finance/InvoiceService.php` - invoice draft creation, posting, and payment-status recalculation.
 - `core/Finance/ReceiptService.php` - receipt draft creation, allocation, posting, and composed payment flow.
 - `core/Finance/PaymentService.php` - payment draft creation and posting.

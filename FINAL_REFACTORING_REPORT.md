@@ -5,6 +5,7 @@
 The previous status text in this file predates the completed migration slice. Current evidence is:
 
 - `FinanceService` is a backward-compatible facade and delegates all exposed financial operations to `core/Finance` services.
+- The legacy implementation is physically isolated in `core/LegacyFinanceService.php`; `core/FinanceService.php` is facade-only.
 - Invoice, receipt, payment, expense, service-operation, and cash-customer flows no longer use `LegacyFinanceGateway` from the facade.
 - `tools/finance_architecture_smoke.php` passed.
 - `tools/finance_facade_integration_test.php` passed on isolated MariaDB database `alghazali_refactor_test`.

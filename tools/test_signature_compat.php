@@ -5,11 +5,11 @@
  */
 
 $env = is_file(__DIR__ . '/../.env') ? parse_ini_file(__DIR__ . '/../.env') : [];
-$host = $env['DB_HOST'] ?? '127.0.0.1';
-$port = $env['DB_PORT'] ?? '3306';
-$user = $env['DB_USER'] ?? 'root';
-$pass = $env['DB_PASS'] ?? '';
-$db   = $env['DB_NAME'] ?? 'alghazali';
+$host = getenv('FINANCE_TEST_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$port = getenv('FINANCE_TEST_DB_PORT') ?: ($env['DB_PORT'] ?? '3306');
+$user = getenv('FINANCE_TEST_DB_USER') ?: ($env['DB_USER'] ?? 'root');
+$pass = getenv('FINANCE_TEST_DB_PASS') ?: ($env['DB_PASS'] ?? '');
+$db   = getenv('FINANCE_TEST_DB') ?: ($env['DB_NAME'] ?? 'alghazali');
 $charset = 'utf8mb4';
 
 $pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=$charset", $user, $pass, [

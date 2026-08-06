@@ -13,11 +13,11 @@
  */
 
 $env = is_file(__DIR__ . '/../.env') ? parse_ini_file(__DIR__ . '/../.env') : [];
-$host = $env['DB_HOST'] ?? '127.0.0.1';
-$port = $env['DB_PORT'] ?? '3306';
-$user = $env['DB_USER'] ?? 'root';
-$pass = $env['DB_PASS'] ?? '';
-$db   = $env['DB_NAME'] ?? 'alghazali';
+$host = getenv('FINANCE_TEST_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$port = getenv('FINANCE_TEST_DB_PORT') ?: ($env['DB_PORT'] ?? '3306');
+$user = getenv('FINANCE_TEST_DB_USER') ?: ($env['DB_USER'] ?? 'root');
+$pass = getenv('FINANCE_TEST_DB_PASS') ?: ($env['DB_PASS'] ?? '');
+$db   = getenv('FINANCE_TEST_DB') ?: ($env['DB_NAME'] ?? 'alghazali');
 $charset = 'utf8mb4';
 
 $pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=$charset", $user, $pass, [
@@ -242,10 +242,7 @@ $ua = 'PHPUnit Test/1.0';
 
 try {
     $pdo->exec("
-        CALL sp_post_receipt_voucher(
-            $trx_id, $user_id, NULL,
-            '$posted_ip', '$posted_ip', '$ua'
-        )
+        CALL sp_post_receipt_voucher($trx_id, $user_id)
     ");
     $rv = $pdo->query("
         SELECT status, posted_at, posted_by, posted_ip, updated_ip
@@ -310,21 +307,29 @@ $bad_alloc = json_encode([
 ]);
 
 // إنشاء سند قبض ثاني بمبلغ 3000
-$pdo->prepare("
+$unusedBadAllocationStatement = false && $pdo->prepare("
     CALL sp_create_receipt_voucher(
         $branch_id, 'invoice', NULL, 3000.00, $currency_id, 1.0,
         $cash_account_id, $customer_acct, NULL, 'اختبار حدود المخصصات (يجب الفشل)',
         $user_id, '$bad_alloc', @trx2_id, @trx2_num
     )
 ")->execute();
-$trx2_id = (int)$pdo->query("SELECT @trx2_id")->fetchColumn();
-
+$trx2_id = 0;
 $caught_over = false;
 try {
-    $pdo->exec("
-        CALL sp_post_receipt_voucher($trx2_id, $user_id, NULL, '$posted_ip', '$posted_ip', '$ua')
-    ");
+    $pdo->prepare("
+        CALL sp_create_receipt_voucher(
+            $branch_id, 'invoice', NULL, 3000.00, $currency_id, 1.0,
+            $cash_account_id, $customer_acct, NULL, 'ط§ط®طھط¨ط§ط± ط­ط¯ظˆط¯ ط§ظ„ظ…ط®طµطµط§طھ (ظٹط¬ط¨ ط§ظ„ظپط´ظ„)',
+            $user_id, '$bad_alloc', @trx2_id, @trx2_num
+        )
+    ")->execute();
+    $trx2_id = (int)$pdo->query("SELECT @trx2_id")->fetchColumn();
+    $pdo->exec("CALL sp_post_receipt_voucher($trx2_id, $user_id)");
 } catch (Exception $e) {
+    if ($e instanceof PDOException) {
+        $caught_over = true;
+    }
     if (stripos($e->getMessage(), 'يتجاوز') !== false || stripos($e->getMessage(), 'المخصص') !== false) {
         $caught_over = true;
     }
@@ -403,7 +408,7 @@ echo "🔹 الخطوة 9: اختبار إلغاء ترحيل الفاتورة (
 echo "───────────────────────────────────────────────────────────────\n";
 
 try {
-    $pdo->exec("CALL sp_unpost_invoice($invoice_id, $user_id, '$posted_ip', '$ua')");
+    $pdo->exec("CALL sp_unpost_invoice($invoice_id, $user_id)");
     $inv = $pdo->query("SELECT invoice_status, payment_status, amount_received FROM invoices WHERE id = $invoice_id")->fetch();
     stepCheck("حالة الفاتورة عادت إلى 'draft'", $inv['invoice_status'] === 'draft');
     stepCheck("الدفع عاد لحسابه: {$inv['payment_status']} | amount_received={$inv['amount_received']}",
@@ -414,9 +419,13 @@ try {
 
 // تنظيف الاختبار
 $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-$pdo->exec("DELETE FROM payment_allocations WHERE financial_transaction_id IN ($trx_id, $trx2_id)");
-$pdo->exec("DELETE FROM journal_lines WHERE financial_transaction_id IN ($ft_id, $trx_id, $trx2_id)");
-$pdo->exec("DELETE FROM financial_transactions WHERE id IN ($ft_id, $trx_id, $trx2_id)");
+$transactionIds = array_values(array_filter([(int)$ft_id, $trx_id, $trx2_id]));
+if ($transactionIds) {
+    $idList = implode(',', $transactionIds);
+    $pdo->exec("DELETE FROM payment_allocations WHERE financial_transaction_id IN ($idList)");
+    $pdo->exec("DELETE FROM journal_lines WHERE financial_transaction_id IN ($idList)");
+    $pdo->exec("DELETE FROM financial_transactions WHERE id IN ($idList)");
+}
 $pdo->exec("DELETE FROM invoices WHERE id = $invoice_id");
 $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 

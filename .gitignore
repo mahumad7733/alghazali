@@ -1,17 +1,174 @@
-# Git ignore for sensitive and local files
+# ============================================
+# 🔐 ملفات البيئة والإعدادات الحساسة
+# ============================================
 .env
-.vscode/settings.json
+.env.local
+.env.*.local
+.env.production
+.env.backup
+config/database.php
+config/config.local.php
+*.env
+
+# ============================================
+# 📝 ملفات السجلات (Logs)
+# ============================================
+*.log
+logs/
+storage/logs/
+admin/db_error.log
+settings_debug.log
+service_accounts.log
+test_post_log.txt
+*_log.txt
+error_log
+php_errors.log
+
+# ============================================
+# 🔄 ملفات الجلسات (Sessions)
+# ============================================
+sessions/
+session/
+tmp/
+temp/
+*.sess
+
+# ============================================
+# 📤 الملفات المرفوعة (Uploads)
+# ============================================
+assets/uploads/
+uploads/
+storage/uploads/
+*.uploaded
+
+# ============================================
+# 💾 النسخ الاحتياطية والملفات المؤقتة
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+storage/system_admin_fixes/
+_fields*.txt
+_debug*.php
+_test*.php
+_mini_out.txt
+_test_out.txt
+
+# ============================================
+# 📦 الحزم والمكتبات
+# ============================================
+/vendor/
+node_modules/
+bower_components/
+composer.phar
+composer.lock.backup
+package-lock.json.backup
+
+# ============================================
+# 🛠️ المحررات وبيئات التطوير
+# ============================================
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# PhpStorm / IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# NetBeans
+nbproject/
+nb-configuration.xml
+
+# Eclipse
+.project
+.settings/
+.buildpath
+
+# ============================================
+# 🖥️ ملفات نظام التشغيل
+# ============================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# 🗄️ ملفات قاعدة البيانات
+# ============================================
+*.sql.gz
+*.sql.zip
+database/backups/
+db_backups/
+*.sqlite
+*.sqlite3
+
+# ============================================
+# ⚡ ملفات التخزين المؤقت (Cache)
+# ============================================
+cache/
+storage/cache/
+*.cache
+.twig-cache/
+bootstrap/cache/
+
+# ============================================
+# 🔧 ملفات البناء والأدوات
+# ============================================
 /tools/*.bat
 /tools/*_*.php
 /tools/*.log
-/.env.local
-/.env.*.local
+/tools/database/*.log
+build/
+dist/
 
-# Node / vendor
-/node_modules/
-/vendor/
+# ============================================
+# 📊 ملفات التقارير المؤقتة (إن وجدت)
+# ============================================
+*.generated.html
+Qwen_html_*.html
+reports/temp/
 
-# Editor
-.idea/
-*.swp
-.DS_Store
+# ============================================
+# 🌐 ملفات الخادم المحلية
+# ============================================
+.htaccess.local
+web.config.local
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# 🔒 ملفات الشهادات والمفاتيح
+# ============================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+ssl/
+certificates/

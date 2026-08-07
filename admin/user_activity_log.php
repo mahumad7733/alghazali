@@ -1,4 +1,8 @@
 <?php
+// Unified activity center: keep this legacy URL as a compatible redirect.
+$activityQuery = !empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '';
+header('Location: system_admin/activity.php' . $activityQuery);
+exit;
 $page_title = "سجل المستخدمين والنشاط";
 require_once 'header.php';
 

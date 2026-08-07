@@ -1,6 +1,7 @@
 <?php
 require_once 'header.php';
 require_once '../includes/CurrencyExchange.php';
+require_once '../core/FinanceService.php';
 
 /**
  * وظائف الصلاحيات والتحقق
@@ -68,31 +69,43 @@ function can_reverse_voucher($voucher)
 
 function can_delete_voucher($voucher)
 {
-    global $user_role, $user_id, $user_branch_id;
-    if ($user_role == 'developer') return true;
+    global $user_role, $user_id, $user_branch_id, $user_role_id;
+    $role_lc = strtolower((string)$user_role);
+    $role_id = (int)($user_role_id ?? 0);
+    if ($role_lc === 'developer' || $role_id === 2) return true;
 
-    // لا يمكن حذف السندات المرحلة
-    if ($voucher['status'] == 'posted') return false;
+    // ✅ السندات المعكوسة (الأصلي والعكسي) يمكن حذفها مع الصلاحية المناسبة
+    $is_part_of_reversal =
+        !empty($voucher['original_voucher_id']) ||
+        ($voucher['reference_type'] ?? '') === 'reversal' ||
+        !empty($voucher['reversal_voucher_id']) ||
+        !empty($voucher['is_reversed']) ||
+        !empty($voucher['has_reversal']);
 
-    // تحديد هل السند أصلي أم عكسي
+    // السندات العادية المرحلة لا يمكن حذفها إلا بعد سحب الترحيل
+    if (!$is_part_of_reversal && $voucher['status'] == 'posted') return false;
+
+    // تحديد هل السند جزء من زوج معكوس أم عادي
     $is_reversal = !empty($voucher['original_voucher_id']) || ($voucher['reference_type'] ?? '') === 'reversal';
     $ttype = strtolower($voucher['transaction_type'] ?? '');
 
-    // الصلاحيات التفصيلية
-    if (!$is_reversal) {
-        if ($ttype === 'receipt' && has_permission_v3('receipt_delete_original')) return true;
-        if ($ttype === 'payment' && has_permission_v3('payment_delete_original')) return true;
-    } else {
+    // الصلاحيات التفصيلية (للسندات العادية أو جزء من زوج معكوس)
+    if ($is_part_of_reversal) {
+        // زوج معكوس: نتحقق من صلاحيات حذف المعكوسات
         if ($ttype === 'receipt' && has_permission_v3('receipt_delete_reversal')) return true;
         if ($ttype === 'payment' && has_permission_v3('payment_delete_reversal')) return true;
+    } else {
+        // سند عادي: صلاحيات الحذف العادي
+        if ($ttype === 'receipt' && has_permission_v3('receipt_delete_original')) return true;
+        if ($ttype === 'payment' && has_permission_v3('payment_delete_original')) return true;
     }
 
     // توافق خلفي: الصلاحية العامة القديمة
     if (has_permission_v3('voucher_delete')) return true;
 
-    if ($user_role == 'admin') return true;
-    if ($user_role == 'branch_manager' && $voucher['branch_id'] == $user_branch_id) return true;
-    if ($user_role == 'accountant') return true;
+    if ($role_lc === 'admin' || $role_id === 1) return true;
+    if ($role_lc === 'branch_manager' && $voucher['branch_id'] == $user_branch_id) return true;
+    if ($role_lc === 'accountant') return true;
     return $voucher['created_by'] == $user_id;
 }
 
@@ -137,7 +150,7 @@ if (isset($_POST['add_payment'])) {
             $stmt_setting = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'require_cost_center'");
             $stmt_setting->execute();
             $require_cost_center = (bool)$stmt_setting->fetchColumn();
-            
+
             if ($require_cost_center && !$cost_center_id) {
                 throw new Exception("يرجى اختيار مركز التكلفة.");
             }
@@ -304,7 +317,10 @@ if (isset($_POST['add_payment'])) {
                 if ($old_voucher['status'] == 'posted') {
                     $pdo->prepare("UPDATE financial_transactions SET status = 'draft', posted_at = NULL, posted_by = NULL WHERE id = ?")
                         ->execute([$id]);
-                    php_recalculate_invoice_payments($pdo, $old_invoice_ids);
+                    $financeService = new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
+                    foreach ($old_invoice_ids as $oldInvoiceId) {
+                        $financeService->recalculateInvoicePaymentStatus((int)$oldInvoiceId);
+                    }
                 }
             } else {
                 // إنشاء السند الأول (بالمبلغ الموزع أو المبلغ كامل إذا لم يكن هناك توزيع)
@@ -315,7 +331,7 @@ if (isset($_POST['add_payment'])) {
 
                 // Generate transaction number
                 $transaction_number = fn_get_next_sequence($pdo, 'payment');
-                
+
                 // Get exchange rate
                 $stmt_curr = $pdo->prepare("SELECT exchange_rate FROM currencies WHERE id = ?");
                 $stmt_curr->execute([$currency_id]);
@@ -426,7 +442,7 @@ $query = "SELECT t.*, c.currency_symbol, coa.account_name_ar as account_name,
                     WHEN t.entity_type = 'expense' THEN (SELECT account_name_ar FROM unified_accounts WHERE id = t.entity_id)
                     ELSE 'غير معروف'
                 END as party_name,
-                (SELECT EXISTS(SELECT 1 FROM financial_transactions rt 
+                (SELECT EXISTS(SELECT 1 FROM financial_transactions rt
                               WHERE rt.reference_type = 'reversal' AND rt.reference_id = t.id LIMIT 1)) as has_reversal
           FROM financial_transactions t
           JOIN unified_accounts coa ON t.cash_bank_account_id = coa.id
@@ -575,15 +591,15 @@ $require_cost_center = !empty($settings['require_cost_center']);
         border: 1px solid rgba(255, 255, 255, 0.4);
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
     }
-    
+
     .modal-dialog-scrollable .modal-content {
         max-height: calc(100vh - 3.5rem);
     }
-    
+
     .modal-dialog-scrollable .modal-body {
         overflow-y: auto;
     }
-    
+
     .modal-dialog-scrollable .modal-footer {
         position: sticky;
         bottom: 0;
@@ -614,77 +630,93 @@ $require_cost_center = !empty($settings['require_cost_center']);
     </div>
 
     <div class="apple-card">
-        <div class="table-responsive"><table class="apple-table">
-            <thead>
-                <tr>
-                    <th>رقم السند</th>
-                    <th>التاريخ</th>
-                    <th>المستفيد</th>
-                    <th>الحساب</th>
-                    <th>المبلغ</th>
-                    <th>الحالة</th>
-                    <th>الإجراءات</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($payments as $r):
-                    $stmt_pa = $pdo->prepare("SELECT COUNT(*) as inv_count, SUM(allocated_amount) as total_alloc FROM payment_allocations WHERE financial_transaction_id = ?");
-                    $stmt_pa->execute([$r['id']]);
-                    $alloc_info = $stmt_pa->fetch();
-                ?>
+        <div class="table-responsive">
+            <table class="apple-table">
+                <thead>
                     <tr>
-                        <td class="fw-bold"><?php echo h($r['transaction_number']); ?></td>
-                        <td><?php echo h($r['transaction_date']); ?></td>
-                        <td>
-                            <div class="fw-bold"><?php echo h($r['party_name']); ?></div>
-                            <div class="small text-muted">
-                                <?php
-                                $type_map = ['customer' => 'عميل', 'agent' => 'وكيل', 'supplier' => 'مورد', 'employee' => 'موظف', 'branch' => 'فرع', 'bank' => 'بنك', 'cash' => 'صندوق', 'expense' => 'حساب مصروف/آخر'];
-                                echo h($type_map[$r['entity_type']] ?? $r['entity_type']);
-                                ?>
-                            </div>
-                        </td>
-                        <td><?php echo h($r['account_name']); ?></td>
-                        <td class="fw-bold text-danger"><?php echo number_format($r['amount'], 2); ?> <?php echo h($r['currency_symbol']); ?></td>
-                        <td>
-                            <?php if ($r['status'] == 'reversed' || $r['is_reversed'] || $r['original_voucher_id']): ?>
-                                <span class="apple-badge bg-secondary text-white">🟠 معكوس</span>
-                            <?php elseif ($r['status'] == 'draft'): ?>
-                                <span class="apple-badge bg-draft">🟡 مسودة</span>
-                            <?php elseif ($r['status'] == 'posted'): ?>
-                                <span class="apple-badge bg-posted">🟢 مرحل</span>
-                            <?php else: ?>
-                                <span class="apple-badge bg-cancelled">🔴 ملغي</span>
-                            <?php endif; ?>
-
-                            <?php if ($alloc_info['inv_count'] > 0): ?>
-                                <div class="mt-1"><span class="badge bg-info-subtle text-info border border-info-subtle small">تسديد فواتير (<?php echo $alloc_info['inv_count']; ?>)</span></div>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-light rounded-circle me-1" onclick="viewVoucher(<?php echo $r['id']; ?>)" title="عرض"><i class="fas fa-eye"></i></button>
-
-                            <?php if (in_array($r['status'], ['draft', 'cancelled']) && !$r['is_reversed'] && !$r['original_voucher_id']): ?>
-                                <?php if (can_edit_voucher($r)): ?>
-                                    <button class="btn btn-sm btn-light rounded-circle me-1" onclick="editVoucher(<?php echo $r['id']; ?>)" title="تعديل"><i class="fas fa-edit"></i></button>
-                                <?php endif; ?>
-                                <?php if (can_post_voucher($r)): ?>
-                                    <button class="btn btn-sm btn-success rounded-circle me-1 text-white" onclick="postVoucher(<?php echo $r['id']; ?>)" title="ترحيل"><i class="fas fa-upload"></i></button>
-                                <?php endif; ?>
-                            <?php elseif ($r['status'] == 'posted' && can_reverse_voucher($r) && !$r['is_reversed'] && !$r['original_voucher_id']): ?>
-                                <button class="btn btn-sm btn-danger rounded-circle me-1 text-white" onclick="cancelVoucher(<?php echo $r['id']; ?>)" title="عكس الترحيل"><i class="fas fa-undo"></i></button>
-                            <?php endif; ?>
-
-                            <?php if (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$r['is_reversed'] && !$r['original_voucher_id']): ?>
-                                <button class="btn btn-sm btn-outline-danger rounded-circle me-1" onclick="deleteVoucher(<?php echo $r['id']; ?>)" title="حذف"><i class="fas fa-trash"></i></button>
-                            <?php endif; ?>
-
-                            <a href="print_payment.php?id=<?php echo $r['id']; ?>" target="_blank" class="btn btn-sm btn-light rounded-circle"><i class="fas fa-print"></i></a>
-                        </td>
+                        <th>رقم السند</th>
+                        <th>التاريخ</th>
+                        <th>المستفيد</th>
+                        <th>الحساب</th>
+                        <th>المبلغ</th>
+                        <th>الحالة</th>
+                        <th>الإجراءات</th>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table></div>
+                </thead>
+                <tbody>
+                    <?php foreach ($payments as $r):
+                        $stmt_pa = $pdo->prepare("SELECT COUNT(*) as inv_count, SUM(allocated_amount) as total_alloc FROM payment_allocations WHERE financial_transaction_id = ?");
+                        $stmt_pa->execute([$r['id']]);
+                        $alloc_info = $stmt_pa->fetch();
+                    ?>
+                        <tr>
+                            <td class="fw-bold"><?php echo h($r['transaction_number']); ?></td>
+                            <td><?php echo h($r['transaction_date']); ?></td>
+                            <td>
+                                <div class="fw-bold"><?php echo h($r['party_name']); ?></div>
+                                <div class="small text-muted">
+                                    <?php
+                                    $type_map = ['customer' => 'عميل', 'agent' => 'وكيل', 'supplier' => 'مورد', 'employee' => 'موظف', 'branch' => 'فرع', 'bank' => 'بنك', 'cash' => 'صندوق', 'expense' => 'حساب مصروف/آخر'];
+                                    echo h($type_map[$r['entity_type']] ?? $r['entity_type']);
+                                    ?>
+                                </div>
+                            </td>
+                            <td><?php echo h($r['account_name']); ?></td>
+                            <td class="fw-bold text-danger"><?php echo number_format($r['amount'], 2); ?> <?php echo h($r['currency_symbol']); ?></td>
+                            <td>
+                                <?php if ($r['status'] == 'reversed' || $r['is_reversed'] || $r['original_voucher_id']): ?>
+                                    <span class="apple-badge bg-secondary text-white">🟠 معكوس</span>
+                                <?php elseif ($r['status'] == 'draft'): ?>
+                                    <span class="apple-badge bg-draft">🟡 مسودة</span>
+                                <?php elseif ($r['status'] == 'posted'): ?>
+                                    <span class="apple-badge bg-posted">🟢 مرحل</span>
+                                <?php else: ?>
+                                    <span class="apple-badge bg-cancelled">🔴 ملغي</span>
+                                <?php endif; ?>
+
+                                <?php if ($alloc_info['inv_count'] > 0): ?>
+                                    <div class="mt-1"><span class="badge bg-info-subtle text-info border border-info-subtle small">تسديد فواتير (<?php echo $alloc_info['inv_count']; ?>)</span></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-light rounded-circle me-1" onclick="viewVoucher(<?php echo $r['id']; ?>)" title="عرض"><i class="fas fa-eye"></i></button>
+
+                                <?php if (in_array($r['status'], ['draft', 'cancelled']) && !$r['is_reversed'] && !$r['original_voucher_id']): ?>
+                                    <?php if (can_edit_voucher($r)): ?>
+                                        <button class="btn btn-sm btn-light rounded-circle me-1" onclick="editVoucher(<?php echo $r['id']; ?>)" title="تعديل"><i class="fas fa-edit"></i></button>
+                                    <?php endif; ?>
+                                    <?php if (can_post_voucher($r)): ?>
+                                        <button class="btn btn-sm btn-success rounded-circle me-1 text-white" onclick="postVoucher(<?php echo $r['id']; ?>)" title="ترحيل"><i class="fas fa-upload"></i></button>
+                                    <?php endif; ?>
+                                <?php elseif ($r['status'] == 'posted' && can_reverse_voucher($r) && !$r['is_reversed'] && !$r['original_voucher_id']): ?>
+                                    <button class="btn btn-sm btn-danger rounded-circle me-1 text-white" onclick="cancelVoucher(<?php echo $r['id']; ?>)" title="عكس الترحيل"><i class="fas fa-undo"></i></button>
+                                <?php endif; ?>
+
+                                <?php
+                                $is_reversed_pair = !empty($r['has_reversal']) || !empty($r['is_reversed']) || !empty($r['original_voucher_id']) || (($r['reference_type'] ?? '') === 'reversal');
+                                $show_delete = false;
+                                $delete_reversed_pair = false;
+                                if ($is_reversed_pair && can_delete_voucher($r)) {
+                                    $show_delete = true;
+                                    $delete_reversed_pair = true;
+                                } elseif (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$r['is_reversed'] && !$r['original_voucher_id']) {
+                                    $show_delete = true;
+                                }
+                                if ($show_delete): ?>
+                                    <button class="btn btn-sm <?php echo $delete_reversed_pair ? 'btn-outline-warning' : 'btn-outline-danger'; ?> rounded-circle me-1"
+                                        onclick="deleteVoucher(<?php echo $r['id']; ?>, <?php echo $delete_reversed_pair ? 'true' : 'false'; ?>)"
+                                        title="<?php echo $delete_reversed_pair ? 'حذف السند والسند العكسي معاً' : 'حذف'; ?>">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                <?php endif; ?>
+
+                                <a href="print_payment.php?id=<?php echo $r['id']; ?>" target="_blank" class="btn btn-sm btn-light rounded-circle"><i class="fas fa-print"></i></a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -785,7 +817,7 @@ $require_cost_center = !empty($settings['require_cost_center']);
         $('#invoices_section').addClass('d-none');
         $('#invoices_list').empty();
         $('#amount_text').text('---');
-        
+
         // Reset cost center field visibility
         var costCenterWrapper = $('#cost-center-wrapper');
         var costCenterSelect = $('#cost_center_id');
@@ -1202,11 +1234,11 @@ $require_cost_center = !empty($settings['require_cost_center']);
             $('#modalTitle').text('تعديل سند صرف: ' + v.transaction_number);
             $('#date').val(v.transaction_date);
             $('#payee_type').val(v.entity_type);
-            
+
             // Handle cost center field visibility
             var costCenterWrapper = $('#cost-center-wrapper');
             var costCenterSelect = $('#cost_center_id');
-            
+
             // If require cost center is on, or the voucher already has a cost center id, show the field
             if (REQUIRE_COST_CENTER || (v.cost_center_id && v.cost_center_id !== null && v.cost_center_id !== '')) {
                 costCenterWrapper.show();
@@ -1222,12 +1254,12 @@ $require_cost_center = !empty($settings['require_cost_center']);
                 $('#account_id').val(v.cash_bank_account_id);
                 $('#amount').val(v.amount);
                 $('#description').val(v.description);
-                
+
                 // Set cost center value if present
                 if (v.cost_center_id) {
                     costCenterSelect.val(v.cost_center_id);
                 }
-                
+
                 updateTafqeet();
 
                 // تحميل الفواتير المخصصة وتحديدها
@@ -1246,7 +1278,7 @@ $require_cost_center = !empty($settings['require_cost_center']);
     <?php endif; ?>
     const REQUIRE_COST_CENTER = <?php echo $require_cost_center ? 'true' : 'false'; ?>;
     const CSRF_TOKEN = '<?php echo $_SESSION['csrf_token']; ?>';
-    
+
     // ربط الدوال المحلية بالدوال العامة في receipts-actions.js
     window.editVoucherLocal = editVoucher;
 </script>

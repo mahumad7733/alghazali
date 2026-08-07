@@ -2,7 +2,7 @@
 require_once '../../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
-require_once '../../includes/accounting_functions.php';
+require_once '../../core/FinanceService.php';
 
 header('Content-Type: application/json');
 
@@ -60,18 +60,12 @@ try {
     if (!$voucher) throw new Exception("السند غير موجود أو مرحل مسبقاً.");
 
     // 2. ترحيل السند باستخدام دوال PHP
+    $financeService = new FinanceService($pdo, (int)$user_id);
     if ($voucher['transaction_type'] == 'receipt') {
-        php_post_receipt_voucher($pdo, $id, $user_id);
+        $financeService->postReceiptVoucher((int)$id);
     } else {
-        php_post_payment_voucher($pdo, $id, $user_id);
+        $financeService->postPaymentVoucher((int)$id);
     }
-
-    // 3. تسجيل في audit_log
-    $voucher_after = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
-    $voucher_after->execute([$id]);
-    $voucher_after = $voucher_after->fetch(PDO::FETCH_ASSOC);
-    log_audit($pdo, 'post', 'financial_transactions', $id, $voucher, $voucher_after,
-        "ترحيل سند " . ($voucher['transaction_type'] == 'receipt' ? 'قبض' : 'صرف'));
 
     echo json_encode(['success' => true]);
 } catch (Exception $e) {

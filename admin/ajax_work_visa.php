@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/accounting_functions.php';
+require_once __DIR__ . '/../core/FinanceService.php';
 require_once __DIR__ . '/../includes/security.php';
 
 if (!isset($pdo) || !($pdo instanceof PDO)) {
@@ -190,7 +191,8 @@ function work_visa_reset_invoice_to_draft(PDO $pdo, int $invoiceId, int $userId)
             $stmtAllocs = $pdo->prepare("SELECT DISTINCT invoice_id FROM payment_allocations WHERE financial_transaction_id = ?");
             $stmtAllocs->execute([$ftId]);
             foreach ($stmtAllocs->fetchAll(PDO::FETCH_COLUMN) as $linkedInvoiceId) {
-                php_recalculate_invoice_payment($pdo, $linkedInvoiceId);
+                $financeService ??= new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
+                $financeService->recalculateInvoicePaymentStatus((int)$linkedInvoiceId);
             }
         }
     }
@@ -343,7 +345,8 @@ function work_visa_delete_invoice_record(PDO $pdo, int $invoiceId): void
     log_audit($pdo, 'delete', 'invoices', $invoiceId, $invoice, null, 'حذف فاتورة من معاملة فيز العمل');
 
     foreach (array_values(array_unique($recalculateInvoiceIds)) as $linkedInvoiceId) {
-        php_recalculate_invoice_payment($pdo, (int)$linkedInvoiceId);
+                $financeService ??= new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
+                $financeService->recalculateInvoicePaymentStatus((int)$linkedInvoiceId);
     }
 }
 
@@ -602,7 +605,8 @@ if ($action === 'get_work_visa_details') {
                 $stmtInv = $pdo->prepare("SELECT invoice_status FROM invoices WHERE id = ?");
                 $stmtInv->execute([$invoiceId]);
                 if ($stmtInv->fetchColumn() === 'draft') {
-                    php_post_invoice($pdo, $invoiceId, $user_id, true);
+                    $financeService ??= new FinanceService($pdo, (int)$user_id);
+                    $financeService->postInvoice((int)$invoiceId);
                     $posted_count++;
                 }
             }

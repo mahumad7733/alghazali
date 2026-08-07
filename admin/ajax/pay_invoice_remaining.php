@@ -1,6 +1,8 @@
 <?php
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../core/FinanceService.php';
+require_once '../../core/Finance/FinancePostingAdapter.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 header('Content-Type: application/json');
@@ -61,6 +63,8 @@ if (!$invoice_id || $pay_amount <= 0 || !$financial_account_id || !$party_type |
 
 try {
     $pdo->beginTransaction();
+    $postingAdapter = new \Core\Finance\FinancePostingAdapter();
+    $auditLogger = new \Core\Finance\AuditLogger($pdo, (int)$admin_id);
 
     // 1. حساب مبلغ التوزيع (بعملة الفاتورة)
     $allocated_amount = ($payment_currency_id == $invoice_currency_id) ? $pay_amount : ($pay_amount / $exchange_rate);
@@ -130,32 +134,40 @@ try {
     $sys_exchange_rate = $stmt_curr->fetchColumn() ?: 1.0;
 
     if ($invoice_category == 'sales') {
-        $stmt = $pdo->prepare("CALL sp_create_receipt_voucher(?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, @v_id, @v_num)");
-        $stmt->execute([$branch_id, $final_party_type, $final_party_id, $pay_amount, $payment_currency_id, $sys_exchange_rate, $financial_account_id, $party_account_id, $payment_desc, $admin_id]);
-        $stmt->closeCursor();
-        
-        $res = $pdo->query("SELECT @v_id as id, @v_num as num")->fetch();
-        $voucher_id = $res['id'];
+        $voucher_id = $postingAdapter->createReceiptVoucher($pdo, [
+            'branch_id' => $branch_id, 'party_type' => $final_party_type,
+            'party_id' => $final_party_id, 'amount' => $pay_amount,
+            'currency_id' => $payment_currency_id, 'exchange_rate' => $sys_exchange_rate,
+            'cash_account_id' => $financial_account_id, 'party_account_id' => $party_account_id,
+            'reference' => $invoice_id, 'description' => $payment_desc,
+        ], (int)$admin_id);
         $voucher_number = $res['num'];
 
         // 4. إدراج التوزيع (حتى لو كان السند مسودة، نربطه بالفاتورة)
         $stmt_alloc = $pdo->prepare("INSERT INTO payment_allocations (financial_transaction_id, invoice_id, allocated_amount) VALUES (?, ?, ?)");
         $stmt_alloc->execute([$voucher_id, $invoice_id, $allocated_amount]);
+        $auditLogger->log('create_receipt_voucher_draft', 'receipt_voucher', (int)$voucher_id, [
+            'invoice_id' => (int)$invoice_id, 'amount' => $pay_amount,
+        ]);
 
         // ملاحظة: لن نقوم بتحديث الفاتورة (amount_received) أو ترحيل السند هنا
         // سيتم التحديث عند قيام المستخدم بترحيل السند يدوياً من السجل
 
     } else {
-        $stmt = $pdo->prepare("CALL sp_create_payment_voucher(?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, @v_id, @v_num)");
-        $stmt->execute([$branch_id, $final_party_type, $final_party_id, $pay_amount, $payment_currency_id, $sys_exchange_rate, $financial_account_id, $party_account_id, $payment_desc, $admin_id]);
-        $stmt->closeCursor();
-        
-        $res = $pdo->query("SELECT @v_id as id, @v_num as num")->fetch();
-        $voucher_id = $res['id'];
+        $voucher_id = $postingAdapter->createPaymentVoucher($pdo, [
+            'branch_id' => $branch_id, 'party_type' => $final_party_type,
+            'party_id' => $final_party_id, 'amount' => $pay_amount,
+            'currency_id' => $payment_currency_id, 'exchange_rate' => $sys_exchange_rate,
+            'cash_account_id' => $financial_account_id, 'party_account_id' => $party_account_id,
+            'reference' => $invoice_id, 'description' => $payment_desc,
+        ], (int)$admin_id);
 
         // 4. إدراج التوزيع
         $stmt_alloc = $pdo->prepare("INSERT INTO payment_allocations (financial_transaction_id, invoice_id, allocated_amount) VALUES (?, ?, ?)");
         $stmt_alloc->execute([$voucher_id, $invoice_id, $allocated_amount]);
+        $auditLogger->log('create_payment_voucher_draft', 'payment_voucher', (int)$voucher_id, [
+            'invoice_id' => (int)$invoice_id, 'amount' => $pay_amount,
+        ]);
     }
 
     $pdo->commit();

@@ -7,6 +7,7 @@ ini_set('display_errors', 0); // No HTML errors!
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 require_once '../includes/security.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
@@ -71,7 +72,7 @@ function create_exchange_accounting_entries($pdo, array $data, $exchange_id, $tr
 
     $description = "تحويل العملة: $transaction_number | من $from_amount إلى $to_amount";
 
-    php_create_financial_entry(
+    \Core\Finance\FinancePostingAdapter::createFinancialEntry(
         $pdo,
         $date,
         'exchange',
@@ -91,7 +92,7 @@ function create_exchange_accounting_entries($pdo, array $data, $exchange_id, $tr
         true
     );
 
-    php_create_financial_entry(
+    \Core\Finance\FinancePostingAdapter::createFinancialEntry(
         $pdo,
         $date,
         'exchange',
@@ -131,9 +132,9 @@ function create_exchange_accounting_entries($pdo, array $data, $exchange_id, $tr
     $loss_account_id = (int)($pdo->query("SELECT id FROM unified_accounts WHERE account_code = '502' LIMIT 1")->fetchColumn() ?: 20);
 
     if ($diff_base > 0) {
-        php_create_financial_entry($pdo, $date, 'exchange_diff', null, null, null, $profit_account_id, abs($diff_base), $base_currency_id, "ربح فروقات العملة - عملية $transaction_number", $user_id, $branch_id, null, null, 'exchange', $exchange_id, true);
+        \Core\Finance\FinancePostingAdapter::createFinancialEntry($pdo, $date, 'exchange_diff', null, null, null, $profit_account_id, abs($diff_base), $base_currency_id, "ربح فروقات العملة - عملية $transaction_number", $user_id, $branch_id, null, null, 'exchange', $exchange_id, true);
     } else {
-        php_create_financial_entry($pdo, $date, 'exchange_diff', null, null, $loss_account_id, null, abs($diff_base), $base_currency_id, "خسارة فروقات العملة - عملية $transaction_number", $user_id, $branch_id, null, null, 'exchange', $exchange_id, true);
+        \Core\Finance\FinancePostingAdapter::createFinancialEntry($pdo, $date, 'exchange_diff', null, null, $loss_account_id, null, abs($diff_base), $base_currency_id, "خسارة فروقات العملة - عملية $transaction_number", $user_id, $branch_id, null, null, 'exchange', $exchange_id, true);
     }
 }
 

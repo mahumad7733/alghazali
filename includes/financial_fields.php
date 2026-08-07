@@ -1017,7 +1017,7 @@ $val = static function ($key, $default = '') use ($current_invoice) {
                     $('#' + pid('received_amount_field')).hide();
                 } else if (type === 'bank_transfer') {
                     label = 'الحساب: البنوك';
-                    $('#' + pid('received_amount_field')).hide();
+                    $('#' + pid('received_amount_field')).show();
                 } else if (type === 'agent') {
                     label = 'الحساب: الوكلاء';
                     $('#' + pid('received_amount_field')).hide();

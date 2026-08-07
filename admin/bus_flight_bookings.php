@@ -2095,6 +2095,7 @@ if (isset($_SESSION['flash_message'])) {
                 <form method="POST" action="<?php echo h($bookingPageUrl); ?>">
                     <?php echo csrf_input(); ?>
                     <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
+                    <input type="hidden" name="update_booking" value="1">
                     <div class="modal-header bg-primary text-white border-0 py-3">
                         <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2"></i> تعديل بيانات الحجز</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

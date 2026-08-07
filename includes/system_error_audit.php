@@ -53,12 +53,12 @@ function ensure_system_error_audit_table(PDO $pdo): void
 function system_error_level_from_errno(int $errno): string
 {
     return match ($errno) {
-        E_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR => 'error',
-        E_WARNING, E_USER_WARNING => 'warning',
-        E_PARSE => 'parse',
-        E_NOTICE, E_USER_NOTICE => 'notice',
-        E_DEPRECATED, E_USER_DEPRECATED => 'deprecated',
-        default => 'unknown',
+        E_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR => 'ERROR',
+        E_WARNING, E_USER_WARNING => 'WARNING',
+        E_PARSE => 'PARSE',
+        E_NOTICE, E_USER_NOTICE => 'NOTICE',
+        E_DEPRECATED, E_USER_DEPRECATED => 'DEPRECATED',
+        default => 'UNKNOWN',
     };
 }
 

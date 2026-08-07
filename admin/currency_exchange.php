@@ -6,6 +6,7 @@
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../core/Finance/FinancePostingAdapter.php';
 require_once '../includes/security.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
@@ -192,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exchange'])) {
                 $description = "تصريف عملات: $transaction_number | بيع $from_amount مقابل شراء $to_amount";
 
                 // تسجيل الطرف المدين (الحساب المحول إليه)
-                $res1 = php_create_financial_entry(
+                $res1 = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                     $pdo,
                     $date,
                     'exchange',
@@ -212,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exchange'])) {
                 );
 
                 // تسجيل الطرف الدائن (الحساب المحول منه)
-                $res2 = php_create_financial_entry(
+                $res2 = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                     $pdo,
                     $date,
                     'exchange',
@@ -242,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exchange'])) {
                         // ربح صرف
                         $pl_account_id = $profit_account_id;
                         $pl_desc = "أرباح فروق صرف عملية $transaction_number";
-                        $res3 = php_create_financial_entry(
+                        $res3 = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                             $pdo,
                             $date,
                             'exchange_diff',
@@ -264,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exchange'])) {
                         // خسارة صرف
                         $pl_account_id = $loss_account_id;
                         $pl_desc = "خسائر فروق صرف عملية $transaction_number";
-                        $res3 = php_create_financial_entry(
+                        $res3 = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                             $pdo,
                             $date,
                             'exchange_diff',

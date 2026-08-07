@@ -1355,6 +1355,8 @@ $statuses_json = json_encode($statuses);
                     <tbody>
                         <?php
                         foreach ($passports as $p):
+                            $createdAt = $p['created_at'] ?? null;
+                            $creatorName = $p['creator_name'] ?? null;
                         ?>
                             <tr>
                                 <td class="px-4" data-label="المعاملة / الاسم">
@@ -1366,15 +1368,15 @@ $statuses_json = json_encode($statuses);
                                  <td data-label="رقم الجواز"><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($p['passport_number']); ?></span></td>
                                  <td data-label="تاريخ الإضافة">
                                     <div class="text-primary small fw-bold" style="font-size: 0.75rem;">
-                                        <i class="far fa-clock me-1"></i> <?php echo date('H:i', strtotime($p['created_at'])); ?>
+                                        <i class="far fa-clock me-1"></i> <?php echo $createdAt ? date('H:i', strtotime($createdAt)) : '---'; ?>
                                     </div>
                                     <div class="text-muted small" style="font-size: 0.7rem;">
-                                        <?php echo date('Y-m-d', strtotime($p['created_at'])); ?>
+                                        <?php echo $createdAt ? date('Y-m-d', strtotime($createdAt)) : '---'; ?>
                                     </div>
                                 </td>
                                  <td data-label="المستخدم">
                                     <div class="small fw-bold text-secondary">
-                                        <i class="fas fa-user-edit me-1 opacity-50"></i> <?php echo htmlspecialchars($p['creator_name'] ?: '---'); ?>
+                                        <i class="fas fa-user-edit me-1 opacity-50"></i> <?php echo htmlspecialchars($creatorName ?: '---'); ?>
                                     </div>
                                 </td>
                                 <td class="text-center">

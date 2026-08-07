@@ -42,7 +42,7 @@ class BookingFinancialUpdater
 
             $resolvedFinance = $this->updateDraftSalesInvoice($salesInvoice, $bookingContext, $financeData);
 
-            if ($salesInvoice['invoice_status'] === 'draft' && array_key_exists('amount_received', $financeData)) {
+            if ($salesInvoice['invoice_status'] === 'draft' && array_key_exists('amount_received', $financeData) && $financeData['amount_received'] !== null) {
                 $this->replaceDraftSalesInvoicePayment($salesInvoice, $bookingContext, $resolvedFinance);
             }
 
@@ -179,9 +179,8 @@ class BookingFinancialUpdater
             throw new Exception("المبلغ الواصل لا يمكن أن يكون أكبر من صافي سعر البيع ($netSale)");
         }
 
-        $this->deletePostedReceiptVouchers($salesInvoice['id']);
-
         if ($paidAmount <= 0) {
+            $this->deletePostedReceiptVouchers($salesInvoice['id']);
             $this->financeService->recalculateInvoicePaymentStatus((int)$salesInvoice['id']);
             return;
         }
@@ -197,6 +196,8 @@ class BookingFinancialUpdater
         if (empty($resolvedFinance['customer_id'])) {
             throw new Exception('العميل مطلوب عند وجود مبلغ واصل.');
         }
+
+        $this->deletePostedReceiptVouchers($salesInvoice['id']);
 
         $this->financeService->receiveInvoicePayment([
             'source_id' => (int)$salesInvoice['id'],

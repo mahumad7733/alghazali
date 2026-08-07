@@ -501,6 +501,11 @@ function php_post_invoice($pdo, $invoice_id, $posted_by = null, $use_outer_trans
                     $stmt_rev = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_status = 1 LIMIT 1");
                     $stmt_rev->execute();
                     $revenue_account_id = $stmt_rev->fetchColumn();
+                    if (empty($revenue_account_id)) {
+                        $stmt_rev = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_status = 'active' AND (account_type = 'revenue' OR account_code LIKE '4%') LIMIT 1");
+                        $stmt_rev->execute();
+                        $revenue_account_id = $stmt_rev->fetchColumn();
+                    }
                 }
                 
                 if (empty($revenue_account_id)) {
@@ -1496,7 +1501,7 @@ function php_recalculate_invoice_payment($pdo, $invoice_id)
         
         // حساب إجمالي المبالغ المدفوعة
         $stmt_paid = $pdo->prepare("
-            SELECT COALESCE(SUM(pa.amount), 0)
+            SELECT COALESCE(SUM(pa.allocated_amount), 0)
             FROM payment_allocations pa
             JOIN financial_transactions ft ON pa.financial_transaction_id = ft.id
             WHERE pa.invoice_id = ? AND ft.status IN ('draft', 'posted')

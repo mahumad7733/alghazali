@@ -1,0 +1,39 @@
+2026-08-06 02:02:29 - Update settings triggered!
+POST keys: Array
+(
+    [0] => active_tab
+    [1] => enable_bus_bookings
+    [2] => enable_flight_bookings
+    [3] => bookings_show_profit
+    [4] => bookings_show_purchase_price
+    [5] => bookings_allow_partial_payments
+    [6] => bookings_enable_print
+    [7] => bookings_enable_export
+    [8] => bookings_enable_return_date
+    [9] => bookings_enable_bus_type
+    [10] => bookings_auto_posting
+    [11] => bookings_posting_trigger
+    [12] => bookings_workflow_enabled
+    [13] => bookings_auto_numbering
+    [14] => bus_booking_prefix
+    [15] => flight_booking_prefix
+    [16] => booking_start_number
+    [17] => booking_number_digits
+    [18] => bus_flight_service_terms
+    [19] => __submitted_settings
+    [20] => update_settings
+)
+
+2026-08-06 02:18:07 - Update settings triggered!
+POST keys: Array
+(
+    [0] => active_tab
+    [1] => site_name
+    [2] => email
+    [3] => copyright_text
+    [4] => developer_name
+    [5] => developer_link
+    [6] => __submitted_settings
+    [7] => update_settings
+)
+

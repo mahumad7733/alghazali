@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_config.php';
 require_once __DIR__ . '/tafqeet.php';
+require_once __DIR__ . '/../core/Finance/FinancePostingAdapter.php';
 
 /**
  * XSS Protection helper
@@ -101,16 +102,16 @@ if (!function_exists('normalize_service_display_name')) {
             'postal_services' => 'الخدمات البريدية',
             'general' => 'عام'
         ];
-        
+
         $source_type = trim((string)$source_type);
-        
+
         // Check aliases
         $all_aliases = array_merge(
             get_umrah_service_aliases(),
             get_hajj_service_aliases(),
             get_postal_service_aliases()
         );
-        
+
         if (in_array($source_type, $all_aliases)) {
             if (is_umrah_service($source_type)) {
                 return 'العمرة';
@@ -120,7 +121,7 @@ if (!function_exists('normalize_service_display_name')) {
                 return 'الخدمات البريدية';
             }
         }
-        
+
         // Check the mapping in getServiceInvoiceConfig
         $settings = [];
         $config_mapping = [
@@ -144,7 +145,7 @@ if (!function_exists('normalize_service_display_name')) {
             'work_visa' => 'فيز العمل',
             'postal_services' => 'الخدمات البريدية'
         ];
-        
+
         return $config_mapping[$source_type] ?? $display_names[$source_type] ?? $source_type;
     }
 }
@@ -1161,16 +1162,23 @@ if (!function_exists('currentUserIsAdmin')) {
             return false;
         }
         $role = $_SESSION['role'] ?? '';
+        $role_l = '';
         if (is_string($role)) {
             $role_l = strtolower($role);
             if (in_array($role_l, ['superadmin', 'admin', 'owner', 'مدير', 'مالك', 'مشرف'], true)) {
                 return true;
             }
         }
+        // Developers are administrators in the existing admin header as well.
+        if ($role_l === 'developer') {
+            return true;
+        }
         if (function_exists('hasPermission') && !empty($_SESSION['user_id'])) {
-            if (hasPermission($_SESSION['user_id'], 'manage_users')
+            if (
+                hasPermission($_SESSION['user_id'], 'manage_users')
                 || hasPermission($_SESSION['user_id'], 'manage_sessions')
-                || hasPermission($_SESSION['user_id'], 'system_settings')) {
+                || hasPermission($_SESSION['user_id'], 'system_settings')
+            ) {
                 return true;
             }
         }
@@ -2330,7 +2338,9 @@ function get_workflow_fields_by_type($transaction_type)
  */
 function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data = null, $new_data = null, $reason = null)
 {
-    if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) return false;
+    if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
+        throw new \RuntimeException('Audit logging requires an authenticated user.');
+    }
 
     $user_id = $_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 1;
     $user_ip = $_SERVER['REMOTE_ADDR'] ?? null;
@@ -2353,12 +2363,13 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
                 $record_date = $stmt->fetchColumn();
             }
         } catch (Exception $e) {
+            throw new \RuntimeException('Audit logging could not verify the financial record date.', 0, $e);
         }
 
         if ($record_date && $record_date <= $closing_date) {
             // تسجيل محاولة تعديل مرفوضة
             $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([
+            if (!$stmt->execute([
                 $user_id,
                 'Unauthorized Access Attempt',
                 $table_name,
@@ -2367,14 +2378,16 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
                 json_encode(['attempted_action' => $action_type, 'reason' => 'Financial Period Closed'], JSON_UNESCAPED_UNICODE),
                 $user_ip,
                 $user_agent
-            ]);
+            ])) {
+                throw new \RuntimeException('Audit logging failed for a closed-period access attempt.');
+            }
             return false;
         }
     }
 
     try {
         $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        return $stmt->execute([
+        if (!$stmt->execute([
             $user_id,
             $action_type,
             $table_name,
@@ -2383,9 +2396,12 @@ function log_audit($pdo, $action_type, $table_name, $record_id = null, $old_data
             $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null,
             $user_ip,
             $user_agent
-        ]);
+        ])) {
+            throw new \RuntimeException('Audit logging failed.');
+        }
+        return true;
     } catch (PDOException $e) {
-        return false;
+        throw new \RuntimeException('Audit logging failed.', 0, $e);
     }
 }
 
@@ -2420,18 +2436,42 @@ function parseUserAgent($ua)
         $device_ar = 'تابلت';
     }
 
-    if (preg_match('/windows|win32/i', $ua)) { $os_en = 'Windows'; $os_ar = 'ويندوز'; }
-    elseif (preg_match('/android/i', $ua))   { $os_en = 'Android'; $os_ar = 'أندرويد'; }
-    elseif (preg_match('/iphone|ipad|ipod/i', $ua)) { $os_en = 'iOS'; $os_ar = 'iOS'; }
-    elseif (preg_match('/linux/i', $ua))     { $os_en = 'Linux'; $os_ar = 'لينكس'; }
-    elseif (preg_match('/macintosh|mac os x/i', $ua)) { $os_en = 'macOS'; $os_ar = 'ماك أو إس'; }
+    if (preg_match('/windows|win32/i', $ua)) {
+        $os_en = 'Windows';
+        $os_ar = 'ويندوز';
+    } elseif (preg_match('/android/i', $ua)) {
+        $os_en = 'Android';
+        $os_ar = 'أندرويد';
+    } elseif (preg_match('/iphone|ipad|ipod/i', $ua)) {
+        $os_en = 'iOS';
+        $os_ar = 'iOS';
+    } elseif (preg_match('/linux/i', $ua)) {
+        $os_en = 'Linux';
+        $os_ar = 'لينكس';
+    } elseif (preg_match('/macintosh|mac os x/i', $ua)) {
+        $os_en = 'macOS';
+        $os_ar = 'ماك أو إس';
+    }
 
-    if (preg_match('/msie|trident/i', $ua)) { $browser_en = 'Internet Explorer'; $browser_ar = 'إنترنت إكسبلورر'; }
-    elseif (preg_match('/edge|edg/i', $ua)) { $browser_en = 'Edge'; $browser_ar = 'إيدج'; }
-    elseif (preg_match('/firefox/i', $ua))  { $browser_en = 'Firefox'; $browser_ar = 'فَيَرفُوكس'; }
-    elseif (preg_match('/opr\/|opera/i', $ua)) { $browser_en = 'Opera'; $browser_ar = 'أوبرا'; }
-    elseif (preg_match('/chrome/i', $ua))   { $browser_en = 'Chrome'; $browser_ar = 'كُرُوم'; }
-    elseif (preg_match('/safari/i', $ua))   { $browser_en = 'Safari'; $browser_ar = 'سَفَارِي'; }
+    if (preg_match('/msie|trident/i', $ua)) {
+        $browser_en = 'Internet Explorer';
+        $browser_ar = 'إنترنت إكسبلورر';
+    } elseif (preg_match('/edge|edg/i', $ua)) {
+        $browser_en = 'Edge';
+        $browser_ar = 'إيدج';
+    } elseif (preg_match('/firefox/i', $ua)) {
+        $browser_en = 'Firefox';
+        $browser_ar = 'فَيَرفُوكس';
+    } elseif (preg_match('/opr\/|opera/i', $ua)) {
+        $browser_en = 'Opera';
+        $browser_ar = 'أوبرا';
+    } elseif (preg_match('/chrome/i', $ua)) {
+        $browser_en = 'Chrome';
+        $browser_ar = 'كُرُوم';
+    } elseif (preg_match('/safari/i', $ua)) {
+        $browser_en = 'Safari';
+        $browser_ar = 'سَفَارِي';
+    }
 
     $lower_browser = strtolower($browser_en);
     $lower_os = strtolower($os_en);
@@ -3259,7 +3299,7 @@ function record_service_transaction($pdo, $owner_type, $owner_id, $amount, $curr
     $user_id = $_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? null;
 
     // ترحيل القيد (استخدام دالة PHP بدلاً من الإجراء المخزن)
-    $transaction_id = php_create_financial_entry(
+    $transaction_id = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
         $pdo,
         date('Y-m-d'),
         'receipt',
@@ -3746,4 +3786,404 @@ function generateRefreshToken($user_id)
 
     $secret_key = getenv('JWT_SECRET_KEY') ?: 'default_secret_key_for_ghazali_system';
     return Firebase\JWT\JWT::encode($payload, $secret_key, 'HS256');
+}
+
+// =========================================================================
+// SYSTEM ADMINISTRATION CENTER - Lazy Table Ensurers & Helpers
+// =========================================================================
+
+function ensure_system_admin_tables()
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    global $pdo;
+    if (!$pdo) {
+        return;
+    }
+
+    $ensured = true;
+
+    $alterErrCols = [
+        "error_fingerprint VARCHAR(64) DEFAULT NULL",
+        "occurrences INT UNSIGNED DEFAULT 1",
+        "priority ENUM('low','medium','high','critical') DEFAULT 'low'",
+        "status ENUM('new','investigating','resolved','ignored') DEFAULT 'new'",
+        "assignee_id INT NULL DEFAULT NULL",
+        "ticket_ref VARCHAR(50) DEFAULT NULL",
+        "tags VARCHAR(255) DEFAULT NULL",
+        "last_occurred_at DATETIME DEFAULT NULL",
+        "resolved_at DATETIME DEFAULT NULL",
+        "resolved_by INT NULL DEFAULT NULL",
+        "repair_notes TEXT NULL DEFAULT NULL",
+        "environment VARCHAR(20) DEFAULT 'production'",
+    ];
+    try {
+        $existing = [];
+        $q = $pdo->query("SHOW COLUMNS FROM system_error_audit");
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $c) {
+            $existing[] = strtolower($c);
+        }
+        foreach ($alterErrCols as $def) {
+            $colName = strtolower(explode(' ', $def)[0]);
+            if (!in_array($colName, $existing, true)) {
+                $pdo->exec("ALTER TABLE system_error_audit ADD COLUMN $def");
+            }
+        }
+    } catch (\Throwable $e) { /* ignore */
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `security_vulnerabilities` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `vulnerability_type` ENUM('sql_injection','xss','csrf','session_problem','upload_problem','password_issue','permission_misconfig','data_exposure','other') NOT NULL,
+      `severity` ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+      `confidence` TINYINT UNSIGNED NOT NULL DEFAULT 50,
+      `title` VARCHAR(255) NOT NULL,
+      `description` TEXT NULL,
+      `affected_url` VARCHAR(500) NULL,
+      `affected_file` VARCHAR(255) NULL,
+      `affected_line` INT UNSIGNED NULL,
+      `ip_address` VARCHAR(45) NULL,
+      `user_id` INT NULL,
+      `payload_sample` VARCHAR(500) NULL,
+      `evidence_json` LONGTEXT NULL,
+      `status` ENUM('open','in_progress','resolved','false_positive') NOT NULL DEFAULT 'open',
+      `assigned_to` INT NULL,
+      `resolved_at` DATETIME NULL,
+      `resolution_notes` TEXT NULL,
+      `cvss_score` DECIMAL(3,1) NULL,
+      `tags` VARCHAR(255) NULL,
+      KEY `idx_sv_type` (`vulnerability_type`),
+      KEY `idx_sv_severity` (`severity`),
+      KEY `idx_sv_status` (`status`),
+      KEY `idx_sv_created` (`created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `security_events` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `occurred_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `event_type` ENUM('brute_force','unauthorized_access','permission_change','sensitive_data_change','csrf_failure','rate_limit_exceeded','session_hijack_attempt','sql_injection_attempt','xss_attempt','other') NOT NULL,
+      `severity` ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+      `source_ip` VARCHAR(45) NULL,
+      `user_id` INT NULL,
+      `user_agent` VARCHAR(500) NULL,
+      `session_id` VARCHAR(128) NULL,
+      `target_user_id` INT NULL,
+      `target_table` VARCHAR(100) NULL,
+      `target_record_id` BIGINT NULL,
+      `affected_field` VARCHAR(100) NULL,
+      `before_value_snapshot_hash` VARCHAR(64) NULL,
+      `after_value_snapshot_hash` VARCHAR(64) NULL,
+      `details_json` LONGTEXT NULL,
+      `is_reviewed` TINYINT(1) NOT NULL DEFAULT 0,
+      `reviewed_by` INT NULL,
+      `reviewed_at` DATETIME NULL,
+      `notes` VARCHAR(500) NULL,
+      KEY `idx_se_type` (`event_type`),
+      KEY `idx_se_occurred` (`occurred_at`),
+      KEY `idx_se_user` (`user_id`),
+      KEY `idx_se_ip` (`source_ip`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `system_performance_logs` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `timestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `request_id` VARCHAR(40) NULL,
+      `script_path` VARCHAR(500) NULL,
+      `request_method` VARCHAR(10) NULL,
+      `url` VARCHAR(1000) NULL,
+      `user_id` INT NULL,
+      `ip_address` VARCHAR(45) NULL,
+      `total_execution_ms` INT UNSIGNED NULL,
+      `db_execution_ms` INT UNSIGNED NULL,
+      `db_query_count` INT UNSIGNED DEFAULT 0,
+      `memory_peak_bytes` BIGINT UNSIGNED NULL,
+      `cpu_usage_percent` DECIMAL(5,2) NULL,
+      `slow_queries_json` LONGTEXT NULL,
+      `page_render_ms` INT UNSIGNED NULL,
+      `api_calls_count` INT UNSIGNED DEFAULT 0,
+      `errors_count` INT UNSIGNED DEFAULT 0,
+      `warnings_count` INT UNSIGNED DEFAULT 0,
+      KEY `idx_spl_timestamp` (`timestamp`),
+      KEY `idx_spl_script` (`script_path`(191)),
+      KEY `idx_spl_total` (`total_execution_ms`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `system_health_logs` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `executed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `executor_user_id` INT NULL,
+      `overall_status` ENUM('healthy','warning','critical','unknown') NOT NULL DEFAULT 'unknown',
+      `component` ENUM('db','php','apache','extensions','disk_permissions','disk_space','tables','external_connectivity','backup_freshness','other') NOT NULL,
+      `component_status` ENUM('ok','warn','fail','skipped') NOT NULL DEFAULT 'ok',
+      `component_message` VARCHAR(500) NULL,
+      `component_metrics_json` LONGTEXT NULL,
+      `recommendation` VARCHAR(500) NULL,
+      `next_scheduled_check_at` DATETIME NULL,
+      KEY `idx_shl_executed` (`executed_at`),
+      KEY `idx_shl_component` (`component`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `backup_records` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `completed_at` DATETIME NULL,
+      `backup_type` ENUM('full','db_only','files_only') NOT NULL DEFAULT 'db_only',
+      `scope_description` VARCHAR(500) NULL,
+      `backup_size_bytes` BIGINT UNSIGNED NULL,
+      `backup_filename` VARCHAR(500) NULL,
+      `backup_storage_path` VARCHAR(500) NULL,
+      `backup_checksum_sha256` VARCHAR(64) NULL,
+      `status` ENUM('running','success','failed','partial') NOT NULL DEFAULT 'running',
+      `failure_reason` VARCHAR(500) NULL,
+      `initiated_by` VARCHAR(50) NULL,
+      `retention_days` INT UNSIGNED DEFAULT 30,
+      `is_encrypted` TINYINT(1) NOT NULL DEFAULT 0,
+      `verified_at` DATETIME NULL,
+      `verified_by` INT NULL,
+      `notes` TEXT NULL,
+      KEY `idx_br_started` (`started_at`),
+      KEY `idx_br_status` (`status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `financial_transaction_audit` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `occurred_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `user_id` INT NULL,
+      `user_ip` VARCHAR(45) NULL,
+      `session_id` VARCHAR(128) NULL,
+      `transaction_type` ENUM('invoice_create','invoice_update','invoice_cancel','invoice_posted','receipt','payment','exchange_rate_change','journal_line_create','journal_line_update','refund','financial_unpost','other') NOT NULL,
+      `target_table` VARCHAR(100) NULL,
+      `target_record_id` BIGINT NULL,
+      `invoice_id` BIGINT NULL,
+      `affected_account_id` INT NULL,
+      `amount_before` DECIMAL(15,3) NULL,
+      `amount_after` DECIMAL(15,3) NULL,
+      `currency_id_before` INT NULL,
+      `currency_id_after` INT NULL,
+      `exchange_rate_applied` DECIMAL(15,6) NULL,
+      `status_before` VARCHAR(50) NULL,
+      `status_after` VARCHAR(50) NULL,
+      `before_json` LONGTEXT NULL,
+      `after_json` LONGTEXT NULL,
+      `affected_fields_csv` VARCHAR(500) NULL,
+      `change_reason` VARCHAR(500) NULL,
+      `is_reviewed` TINYINT(1) NOT NULL DEFAULT 0,
+      `reviewed_by` INT NULL,
+      `reviewed_at` DATETIME NULL,
+      KEY `idx_fta_occurred` (`occurred_at`),
+      KEY `idx_fta_user` (`user_id`),
+      KEY `idx_fta_type` (`transaction_type`),
+      KEY `idx_fta_invoice` (`invoice_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `login_attempts` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `attempted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `username_entered` VARCHAR(150) NULL,
+      `ip_address` VARCHAR(45) NULL,
+      `user_agent` VARCHAR(500) NULL,
+      `session_id` VARCHAR(128) NULL,
+      `outcome` ENUM('success','failure','locked','blocked_device') NOT NULL,
+      `failure_reason` VARCHAR(100) NULL,
+      `user_id_if_found` INT NULL,
+      `is_from_whitelisted_ip` TINYINT(1) NOT NULL DEFAULT 0,
+      `device_fingerprint_sha` VARCHAR(64) NULL,
+      KEY `idx_la_attempted` (`attempted_at`),
+      KEY `idx_la_ip` (`ip_address`),
+      KEY `idx_la_outcome` (`outcome`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function record_security_event($event_type, $severity = 'medium', array $details = [])
+{
+    ensure_system_admin_tables();
+    global $pdo;
+    if (!$pdo) {
+        return null;
+    }
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO security_events
+            (event_type, severity, source_ip, user_id, user_agent, session_id, target_user_id, target_table, target_record_id, affected_field, before_value_snapshot_hash, after_value_snapshot_hash, details_json)
+            VALUES (:et, :sv, :ip, :uid, :ua, :sid, :tuid, :tt, :trid, :af, :bhash, :ahash, :dj)");
+        $evtMap = [
+            ':et' => $event_type,
+            ':sv' => in_array($severity, ['low', 'medium', 'high', 'critical']) ? $severity : 'medium',
+            ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            ':uid' => $_SESSION['admin_id'] ?? ($_SESSION['user_id'] ?? null),
+            ':ua' => mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500),
+            ':sid' => session_id() ? hash('sha256', session_id()) : null,
+            ':tuid' => $details['target_user_id'] ?? null,
+            ':tt' => $details['target_table'] ?? null,
+            ':trid' => $details['target_record_id'] ?? null,
+            ':af' => $details['affected_field'] ?? null,
+            ':bhash' => $details['before_hash'] ?? null,
+            ':ahash' => $details['after_hash'] ?? null,
+            ':dj' => empty($details) ? null : json_encode($details, JSON_UNESCAPED_UNICODE),
+        ];
+        $stmt->execute($evtMap);
+        return $pdo->lastInsertId();
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function record_financial_transaction_snapshot($transaction_type, array $snapshot_before, array $snapshot_after, array $meta = [])
+{
+    ensure_system_admin_tables();
+    global $pdo;
+    if (!$pdo) {
+        return null;
+    }
+    try {
+        $beforeClean = [];
+        foreach ($snapshot_before as $k => $v) {
+            if (stripos($k, 'password') !== false || stripos($k, 'secret') !== false || stripos($k, 'token') !== false) {
+                $beforeClean[$k] = '[REDACTED]';
+            } else {
+                $beforeClean[$k] = $v;
+            }
+        }
+        $afterClean = [];
+        foreach ($snapshot_after as $k => $v) {
+            if (stripos($k, 'password') !== false || stripos($k, 'secret') !== false || stripos($k, 'token') !== false) {
+                $afterClean[$k] = '[REDACTED]';
+            } else {
+                $afterClean[$k] = $v;
+            }
+        }
+        $affected = [];
+        foreach (array_keys(array_merge($beforeClean, $afterClean)) as $k) {
+            if (($beforeClean[$k] ?? null) !== ($afterClean[$k] ?? null)) {
+                $affected[] = $k;
+            }
+        }
+        $stmt = $pdo->prepare("INSERT INTO financial_transaction_audit
+            (user_id, user_ip, session_id, transaction_type, target_table, target_record_id, invoice_id, affected_account_id, amount_before, amount_after, currency_id_before, currency_id_after, exchange_rate_applied, status_before, status_after, before_json, after_json, affected_fields_csv, change_reason)
+            VALUES (:uid, :ip, :sid, :tt, :tgt, :trid, :inv, :acc, :ab, :aa, :cb, :ca, :er, :sb, :sa, :bj, :aj, :af, :cr)");
+        $stmt->execute([
+            ':uid' => $_SESSION['admin_id'] ?? ($_SESSION['user_id'] ?? null),
+            ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            ':sid' => session_id() ? hash('sha256', session_id()) : null,
+            ':tt' => $transaction_type,
+            ':tgt' => $meta['target_table'] ?? null,
+            ':trid' => $meta['target_record_id'] ?? null,
+            ':inv' => $meta['invoice_id'] ?? null,
+            ':acc' => $meta['affected_account_id'] ?? null,
+            ':ab' => $meta['amount_before'] ?? null,
+            ':aa' => $meta['amount_after'] ?? null,
+            ':cb' => $meta['currency_id_before'] ?? null,
+            ':ca' => $meta['currency_id_after'] ?? null,
+            ':er' => $meta['exchange_rate_applied'] ?? null,
+            ':sb' => $meta['status_before'] ?? null,
+            ':sa' => $meta['status_after'] ?? null,
+            ':bj' => json_encode($beforeClean, JSON_UNESCAPED_UNICODE),
+            ':aj' => json_encode($afterClean, JSON_UNESCAPED_UNICODE),
+            ':af' => implode(',', array_slice($affected, 0, 50)),
+            ':cr' => $meta['change_reason'] ?? null,
+        ]);
+        if (!empty($affected) && in_array($transaction_type, ['invoice_cancel', 'financial_unpost', 'exchange_rate_change', 'refund'], true)) {
+            record_security_event('sensitive_data_change', 'high', array_merge($meta, [
+                'snapshot_before_hash' => hash('sha256', json_encode($beforeClean)),
+                'snapshot_after_hash' => hash('sha256', json_encode($afterClean)),
+                'affected_fields' => $affected,
+            ]));
+        }
+        return $pdo->lastInsertId();
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function log_login_attempt($outcome, $username_entered = null, $failure_reason = null, $user_id_if_found = null)
+{
+    ensure_system_admin_tables();
+    global $pdo;
+    if (!$pdo) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare("INSERT INTO login_attempts (username_entered, ip_address, user_agent, session_id, outcome, failure_reason, user_id_if_found, device_fingerprint_sha) VALUES (:u, :ip, :ua, :sid, :o, :r, :uf, :dfp)");
+        $stmt->execute([
+            ':u' => $username_entered,
+            ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            ':ua' => mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500),
+            ':sid' => session_id() ? hash('sha256', session_id()) : null,
+            ':o' => in_array($outcome, ['success', 'failure', 'locked', 'blocked_device']) ? $outcome : 'failure',
+            ':r' => $failure_reason,
+            ':uf' => $user_id_if_found,
+            ':dfp' => function_exists('generateDeviceFingerprint') ? generateDeviceFingerprint() : null,
+        ]);
+        return $pdo->lastInsertId();
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function get_system_admin_stats()
+{
+    ensure_system_admin_tables();
+    global $pdo;
+    if (!$pdo) {
+        return [];
+    }
+    $stats = [];
+    try {
+        $todayStart = date('Y-m-d 00:00:00');
+        $q = $pdo->query("SELECT COUNT(*) FROM system_error_audit WHERE created_at >= '$todayStart' AND level IN ('ERROR','CRITICAL','EMERGENCY','WARNING')");
+        $stats['errors_today'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT COUNT(*) FROM system_error_audit WHERE created_at >= '$todayStart'
+            AND (level IN ('CRITICAL','EMERGENCY') OR priority = 'critical')");
+        $stats['errors_critical'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT COUNT(*) FROM security_events WHERE occurred_at >= '$todayStart'
+            AND event_type IN ('brute_force','sql_injection_attempt','xss_attempt','session_hijack_attempt','csrf_failure')");
+        $stats['intrusion_attempts_today'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT COUNT(DISTINCT user_id) FROM user_sessions WHERE last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) AND status = 'active'");
+        $stats['active_users'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT COUNT(*) FROM financial_transactions WHERE DATE(transaction_date) = CURDATE()");
+        $stats['financial_ops_today'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT COUNT(*) FROM notifications WHERE (is_read = 0 OR is_read IS NULL) AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+        $stats['notifications_unread'] = (int)$q->fetchColumn();
+
+        $q = $pdo->query("SELECT url, COUNT(*) AS cnt FROM system_error_audit WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY url ORDER BY cnt DESC LIMIT 5");
+        $stats['top_error_pages'] = $q->fetchAll(PDO::FETCH_ASSOC);
+
+        $q = $pdo->query("SELECT script_path, total_execution_ms FROM system_performance_logs WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY total_execution_ms DESC LIMIT 5");
+        $stats['slow_ops'] = $q->fetchAll(PDO::FETCH_ASSOC);
+
+        $df = @disk_free_space(__DIR__);
+        $dt = @disk_total_space(__DIR__);
+        $stats['disk_free_bytes'] = $df ?: 0;
+        $stats['disk_total_bytes'] = $dt ?: 0;
+
+        $q = $pdo->query("SELECT * FROM backup_records ORDER BY started_at DESC LIMIT 1");
+        $stats['last_backup'] = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        try {
+            $stats['db_alive'] = (bool)$pdo->query("SELECT 1")->fetchColumn();
+        } catch (\Throwable $e) {
+            $stats['db_alive'] = false;
+        }
+        $stats['php_version'] = PHP_VERSION;
+        $stats['php_sapi'] = PHP_SAPI;
+        try {
+            if (function_exists('apache_get_version')) {
+                $stats['apache_version'] = apache_get_version();
+            } else {
+                $stats['apache_version'] = null;
+            }
+        } catch (\Throwable $e) {
+            $stats['apache_version'] = null;
+        }
+    } catch (\Throwable $e) { /* ignore */
+    }
+    return $stats;
 }

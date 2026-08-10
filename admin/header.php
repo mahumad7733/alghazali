@@ -466,6 +466,7 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="assets/js/tafqeet.js"></script>
+    <script src="js/customer-profile-search.js"></script>
     <script>
         (function() {
             function enableIconFallback() {
@@ -2395,16 +2396,6 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
                         خدمات الحج
                     </a>
                 <?php endif; ?>
-                <?php if (get_module_status($pdo, 'enable_umrah')): ?>
-                    <a href="umrah_hosts.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'umrah_hosts.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                        <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-house-user"></i></span>
-                        إدارة المستضيفين
-                    </a>
-                    <a href="umrah_guarantors.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'umrah_guarantors.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                        <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-user-shield"></i></span>
-                        إدارة الضامنين
-                    </a>
-                <?php endif; ?>
             <?php endif; ?>
 
             <?php if (has_permission('passport_transactions_view') && get_module_status($pdo, 'enable_passport_transactions')): ?>
@@ -2483,6 +2474,10 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
             <!-- نظام السفر -->
             <div class="sidebar-section-label">إدارة العمليات</div>
             <?php if (has_permission('view_passports')): ?>
+                <a href="customer_profiles.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'customer_profiles.php' || basename($_SERVER['PHP_SELF']) == 'customer_profile.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
+                    <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-users"></i></span>
+                    ملفات العملاء
+                </a>
                 <a href="passports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'passports.php' ? 'active' : ''; ?>">
                     <span class="menu-icon"><i class="fas fa-passport"></i></span>
                     المعاملات / الجوازات

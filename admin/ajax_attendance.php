@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // تسجيل القيد المالي (خصم من الراتب)
                     if ($emp['account_id'] && $adj_account_id && $deduction > 0) {
-                        php_create_voucher_and_post(
+                        \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                             $pdo, 'payment', $emp['branch_id'] ?: 1, 'employee', $employee_id,
                             $deduction, $currency_id, $adj_account_id, $emp['account_id'],
                             "خصم تأخير دخول (فترة: " . $current_shift['shift_name'] . ") - موظف: " . $emp['full_name'],
@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $bonus = $overtime_minutes * $minute_rate * 1.5;
 
                 if ($emp['account_id'] && $adj_account_id && $bonus > 0) {
-                    php_create_voucher_and_post(
+                    \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                         $pdo, 'receipt', $emp['branch_id'] ?: 1, 'employee', $employee_id,
                         $bonus, $currency_id, $adj_account_id, $emp['account_id'],
                         "إضافي عمل (فترة: " . $current_shift['shift_name'] . ") - موظف: " . $emp['full_name'],
@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $deduction = $early_leave_minutes * $minute_rate;
 
                 if ($emp['account_id'] && $adj_account_id && $deduction > 0) {
-                    php_create_voucher_and_post(
+                    \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                         $pdo, 'payment', $emp['branch_id'] ?: 1, 'employee', $employee_id,
                         $deduction, $currency_id, $adj_account_id, $emp['account_id'],
                         "خصم خروج مبكر (فترة: " . $current_shift['shift_name'] . ") - موظف: " . $emp['full_name'],

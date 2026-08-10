@@ -315,7 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
 
         // 1. إنشاء فاتورة البيع (إذا لم تكن موجودة)
         if (!$sales_invoice) {
-            $sales_invoice_id = php_create_invoice_and_post(
+            $sales_invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
                 $pdo,
                 'sales',
                 $branch_id,
@@ -344,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
             $supplier_account_id = $stmt_sup_acc->fetchColumn();
 
             if ($supplier_account_id) {
-                $purchase_invoice_id = php_create_invoice_and_post(
+                $purchase_invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
                     $pdo,
                     'purchase',
                     $branch_id,

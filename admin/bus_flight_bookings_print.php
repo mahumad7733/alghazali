@@ -176,6 +176,7 @@ if ($phone_1) $site_addresses .= ($site_addresses ? ' - ' : '') . 'هاتف: ' .
 if ($phone_2) $site_addresses .= ' - ' . $phone_2;
 
 $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
+$printed_at = date('Y-m-d H:i:s');
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -211,6 +212,18 @@ $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
       margin: 0 auto
     }
 
+    .ticket.theme-dark,
+    body.theme-dark .ticket {
+      background: #111827;
+      color: #e5e7eb;
+      border-color: #64748b;
+    }
+
+    .ticket.theme-dark .inner,
+    body.theme-dark .ticket .inner {
+      border-color: #94a3b8;
+    }
+
     .inner {
       border: 1.5px solid #000;
       height: 100%;
@@ -233,15 +246,43 @@ $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
       vertical-align: middle
     }
 
+    .theme-dark td,
+    body.theme-dark .ticket td {
+      border-color: #64748b;
+    }
+
     .lbl {
       color: #555;
       font-weight: 600;
       white-space: nowrap
     }
 
+    .theme-dark .lbl,
+    body.theme-dark .ticket .lbl {
+      color: #cbd5e1;
+    }
+
     .val {
       font-weight: 800;
       color: #000
+    }
+
+    .theme-dark .val,
+    body.theme-dark .ticket .val {
+      color: #f8fafc;
+    }
+
+    .theme-dark .terms,
+    .theme-dark .address,
+    body.theme-dark .ticket .terms,
+    body.theme-dark .ticket .address {
+      border-color: #64748b;
+    }
+
+    .theme-dark .arrow path,
+    body.theme-dark .ticket .arrow path {
+      fill: #e5e7eb;
+      stroke: #0f172a;
     }
 
     .header td {
@@ -346,6 +387,27 @@ $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
       padding: 0 3px 2px
     }
 
+    .qr-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      transform: translateY(-4px);
+    }
+
+    .print-meta {
+      font-size: 6.5px;
+      line-height: 1.35;
+      text-align: center;
+      color: #374151;
+      white-space: nowrap;
+    }
+
+    .theme-dark .print-meta,
+    body.theme-dark .ticket .print-meta {
+      color: #cbd5e1;
+    }
+
     .price {
       font-weight: 900;
       font-size: 10px;
@@ -434,7 +496,7 @@ $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
     <button onclick="window.close()" class="btn-close">✕ إغلاق النافذة</button>
   </div>
 
-  <div class="ticket">
+  <div class="ticket <?php echo ($user_theme ?? 'light') === 'dark' ? 'theme-dark' : ''; ?>">
     <div class="inner">
       <div class="main">
 
@@ -571,7 +633,10 @@ $current_user = htmlspecialchars($_SESSION['username'] ?? 'النظام');
           </div>
 
           <div class="left-bottom">
-            <img src="<?php echo $qr_url; ?>" alt="QR" class="qr-img">
+            <div class="qr-stack">
+              <img src="<?php echo $qr_url; ?>" alt="QR" class="qr-img">
+              <div class="print-meta">طبع بواسطة: <?php echo $current_user; ?><br><?php echo htmlspecialchars($printed_at); ?></div>
+            </div>
             <div class="price"><?php echo $currency_before_price . $sale_price; ?><br><?php echo ($currency_symbol ? $currency_symbol : $currency_name); ?></div>
           </div>
         </div>

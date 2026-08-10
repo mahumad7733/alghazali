@@ -472,3 +472,124 @@ background-color: #1e2d45 !important;
 border-color: #2d3f5c !important;
 color: var(--text-color) !important;
 }
+
+/* =====================================================
+   تحسين تجربة الشاشات الصغيرة - أزرار الحفظ والفوتر
+   ===================================================== */
+
+.modal-dialog-scrollable .modal-content {
+    max-height: calc(100vh - 1rem);
+}
+
+.modal-footer {
+    position: relative;
+    z-index: 5;
+}
+
+.modal-footer .btn {
+    min-height: 42px;
+    transition: transform .12s ease;
+}
+.modal-footer .btn:active {
+    transform: scale(.97);
+}
+
+@media (max-width: 991.98px) {
+    .modal-footer {
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+    .modal-footer > .btn {
+        flex: 1 1 auto;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .modal-dialog {
+        margin: .35rem;
+    }
+    .modal-footer {
+        padding: .75rem !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .modal-footer {
+        position: sticky !important;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1075;
+        padding: .75rem 1rem !important;
+        margin: 0 -1px -1px !important;
+        border-top: 1px solid var(--bs-border-color, var(--border-color)) !important;
+        background: rgba(255, 255, 255, .98) !important;
+        backdrop-filter: saturate(1.1) blur(8px);
+        -webkit-backdrop-filter: saturate(1.1) blur(8px);
+        box-shadow: 0 -8px 22px rgba(15, 23, 42, .08), 0 -2px 6px rgba(15, 23, 42, .04);
+        border-bottom-left-radius: var(--bs-modal-inner-border-radius, .5rem);
+        border-bottom-right-radius: var(--bs-modal-inner-border-radius, .5rem);
+    }
+    .modal-footer .btn {
+        min-height: 48px !important;
+        padding: .65rem 1.15rem !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        border-radius: .75rem !important;
+        white-space: nowrap;
+    }
+    .modal-footer .btn-primary {
+        box-shadow: 0 6px 16px rgba(var(--primary-rgb), .28);
+    }
+    body.theme-dark .modal-footer,
+    body.dark-mode .modal-footer {
+        background: rgba(30, 41, 59, .98) !important;
+        border-top-color: rgba(148, 163, 184, .18) !important;
+    }
+    body.theme-dark .modal-footer .btn,
+    body.dark-mode .modal-footer .btn {
+        --bs-btn-focus-shadow-rgb: 59, 130, 246;
+    }
+    .modal-dialog-scrollable .modal-body {
+        padding-bottom: .5rem;
+    }
+}
+
+@media (max-width: 399.98px) {
+    .modal-footer {
+        padding: .6rem .75rem !important;
+    }
+    .modal-footer .btn {
+        min-height: 50px !important;
+        padding: .7rem .9rem !important;
+        font-size: 1rem !important;
+        letter-spacing: .01em;
+    }
+}
+
+/* أزرار الحفظ خارج المودالات */
+form > .btn[type="submit"].btn-primary,
+.card-footer .btn.btn-primary,
+.d-flex > .btn.btn-primary[onclick*="submit"],
+div[class*="d-flex"] > .btn.btn-primary:last-child {
+    touch-action: manipulation;
+}
+
+@media (max-width: 575.98px) {
+    .card-footer,
+    form .d-flex.justify-content-end:has(> .btn-primary:last-child),
+    .card-body > .d-flex:has(> .btn-primary:last-child) {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        background: inherit;
+        padding-top: .85rem;
+        padding-bottom: .85rem;
+        margin-bottom: -1rem;
+    }
+    .card-footer .btn,
+    form .d-flex.justify-content-end > .btn,
+    .card-body > .d-flex > .btn {
+        min-height: 48px;
+    }
+}

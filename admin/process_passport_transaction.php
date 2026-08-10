@@ -3,6 +3,7 @@ require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
 require_once '../core/Finance/FinancePostingAdapter.php';
+require_once '../includes/customer_profile.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
@@ -160,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         `transaction_number`, `full_name`, `phone_number`, `place_of_birth`, `date_of_birth`, 
                         `id_type`, `id_number`, `from_city_id`, `to_city_id`, `travel_date`, `transaction_type_id`, `transaction_type`, 
                         `card_transaction_number`, `card_transaction_date`, `card_number`, `card_issue_date`, 
-                        `passport_transaction_number`, `passport_transaction_date`, `passport_number`, `passport_issue_date`, 
+                        `passport_transaction_number`, `passport_transaction_date`, `passport_number`, `passport_issue_date`, `passport_expiry_date`,
                         `delivery_receiver_name`, `operation_date`, `customer_id`, `agent_id`,
                         `description`, `notes`, `status_id`, `workflow_id`, `created_by`, `branch_id`,
                         `service_id`
@@ -173,13 +174,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $transaction_number, $full_name, $phone_number, $place_of_birth, $date_of_birth,
                     $id_type, $id_number, $from_city_id, $to_city_id, $travel_date, $transaction_type_id, $transaction_type,
                     $card_transaction_number, $card_transaction_date, $card_number, $card_issue_date,
-                    $passport_transaction_number, $passport_transaction_date, $passport_number, $passport_issue_date,
+                    $passport_transaction_number, $passport_transaction_date, $passport_number, $passport_issue_date, $_POST['passport_expiry_date'] ?? null,
                     $delivery_receiver_name, $operation_date, $customer_id, $agent_id,
                     $description, $notes, $status_id, $workflow_id, $created_by, $branch_id,
                     $service_id
                 ]);
 
                 $transaction_id = $pdo->lastInsertId();
+
+                customer_profile_sync_service($pdo, 'passport_transactions', (int)$transaction_id, [
+                    'passport_id' => $_POST['passport_id'] ?? null,
+                    'full_name' => $full_name,
+                    'phone_number' => $phone_number,
+                    'passport_number' => $passport_number,
+                    'date_of_birth' => $date_of_birth,
+                    'id_type' => $id_type,
+                    'id_number' => $id_number,
+                    'place_of_birth' => $place_of_birth,
+                    'passport_issue_date' => $passport_issue_date,
+                    'passport_expiry_date' => $_POST['passport_expiry_date'] ?? null,
+                    'branch_id' => $branch_id,
+                    'created_by' => $created_by,
+                ], [
+                    'service_type' => 'passport_transaction',
+                    'service_number' => $transaction_number,
+                    'service_date' => $operation_date,
+                    'amount' => $sale_price,
+                    'currency_id' => $sale_currency_id,
+                    'status' => 'new',
+                    'branch_id' => $branch_id,
+                    'created_by' => $created_by,
+                ]);
                 
                 // استخدام المحرك المالي الموحد
                 require_once '../includes/ServiceFinancialEngine.php';

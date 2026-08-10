@@ -14,7 +14,7 @@ Branch: `refactor-finance-service`
 | 5 | Backward-compatible facade | Complete | Facade, exact public surface compatibility, and application caller acceptance |
 | 6 | Service-by-responsibility migration | Complete for isolated verification | `PHASE6_SERVICE_MIGRATION_REPORT_20260807.md` |
 | 7 | Integration and safety acceptance | Complete for isolated verification | `PHASE7_INTEGRATION_TEST_REPORT_20260807.md` |
-| 8 | Performance comparison | Partial | Microbenchmark complete; real SQL/query/memory/page metrics remain |
+| 8 | Performance comparison | Complete for isolated verification | Benchmark, integration timing, read-only EXPLAIN/index review; production-scale load remains environment-gated |
 | 9 | Issue tracking and rollback documentation | Complete | `PHASE9_ERROR_MANAGEMENT_REPORT_20260807.md` |
 | 10 | Final refactoring documentation | Complete | Final and phase reports updated |
 | 11 | Developer and support handoff | Complete | Developer and support guides updated |

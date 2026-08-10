@@ -3,6 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/customer_profile.php';
 require_once '../includes/accounting_functions.php';
 require_once '../includes/ServiceFinancialEngine.php';
 
@@ -476,6 +477,21 @@ if ($method === 'POST') {
             ]);
 
             $passport_id = $pdo->lastInsertId();
+
+            if (customer_profile_has_column($pdo, 'customer_service_history', 'passport_id')) {
+                customer_profile_record_service($pdo, [
+                    'passport_id' => (int)$passport_id,
+                    'service_type' => 'hajj',
+                    'service_id' => (int)$passport_id,
+                    'service_number' => 'HJ-' . $passport_id,
+                    'service_date' => $_POST['invoice_date'] ?? date('Y-m-d'),
+                    'amount' => $_POST['total_amount'] ?? null,
+                    'currency_id' => $_POST['sale_currency_id'] ?? $_POST['currency_id'] ?? null,
+                    'status' => 'new',
+                    'branch_id' => $selected_branch_id,
+                    'created_by' => $_SESSION['admin_id'] ?? null,
+                ]);
+            }
 
             // Handle Financial Engine
             $service_id = $_POST['service_id'] ?? null;

@@ -1775,7 +1775,7 @@ function post_booking_to_financials($booking_id, $user_id)
 
         $description = "فاتورة " . ($booking['service_type'] == 'bus' ? 'باص' : 'طيران') . " رقم: " . $booking['booking_number'] . " للمسافر: " . $booking['traveler_name'];
 
-        $invoice_id = php_create_invoice_and_post(
+        $invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
             $pdo,
             'sales',
             $booking['branch_id'],
@@ -1801,7 +1801,7 @@ function post_booking_to_financials($booking_id, $user_id)
                 $table = ($party_type == 'agent') ? 'agents' : 'customers';
                 $party_account_id = $pdo->query("SELECT account_id FROM $table WHERE id = $party_id")->fetchColumn();
 
-                php_create_voucher_and_post(
+                \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                     $pdo,
                     'receipt',
                     $booking['branch_id'],
@@ -1846,7 +1846,7 @@ function post_passport_to_financials($passport_id, $user_id)
 
         $description = "فاتورة " . ($trx['transaction_type'] == 'umrah' ? 'عمرة' : 'تأشيرة عمل') . " رقم: " . $trx['passport_number'] . " للمسافر: " . $trx['full_name'];
 
-        $invoice_id = php_create_invoice_and_post(
+        $invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
             $pdo,
             'sales',
             $trx['branch_id'],
@@ -1870,7 +1870,7 @@ function post_passport_to_financials($passport_id, $user_id)
                 $table = ($party_type == 'agent') ? 'agents' : 'customers';
                 $party_account_id = $pdo->query("SELECT account_id FROM $table WHERE id = $party_id")->fetchColumn();
 
-                php_create_voucher_and_post(
+                \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                     $pdo,
                     'receipt',
                     $trx['branch_id'],
@@ -1915,7 +1915,7 @@ function post_passport_transaction_to_financials($transaction_id, $user_id)
 
         $description = "فاتورة معاملة جوازات رقم: " . $trx['transaction_number'] . " للمسافر: " . $trx['full_name'];
 
-        $invoice_id = php_create_invoice_and_post(
+        $invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
             $pdo,
             'sales',
             $trx['branch_id'],
@@ -1939,7 +1939,7 @@ function post_passport_transaction_to_financials($transaction_id, $user_id)
                 $table = ($party_type == 'agent') ? 'agents' : 'customers';
                 $party_account_id = $pdo->query("SELECT account_id FROM $table WHERE id = $party_id")->fetchColumn();
 
-                php_create_voucher_and_post(
+                \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                     $pdo,
                     'receipt',
                     $trx['branch_id'],
@@ -1987,7 +1987,7 @@ function post_family_visit_to_financials($request_id, $user_id)
 
         $description = "فاتورة زيارة عائلية رقم: " . $req['document_no'] . " للمسافر: " . $req['owner_name'];
 
-        $invoice_id = php_create_invoice_and_post(
+        $invoice_id = \Core\Finance\FinancePostingAdapter::createInvoiceAndPost(
             $pdo,
             'sales',
             $req['branch_id'],
@@ -2011,7 +2011,7 @@ function post_family_visit_to_financials($request_id, $user_id)
                 $table = ($party_type == 'agent') ? 'agents' : 'customers';
                 $party_account_id = $pdo->query("SELECT account_id FROM $table WHERE id = $party_id")->fetchColumn();
 
-                php_create_voucher_and_post(
+                \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
                     $pdo,
                     'receipt',
                     $req['branch_id'],
@@ -2297,8 +2297,9 @@ function get_all_workflow_fields()
 
 /**
  * جلب الحقول بناءً على نوع المعاملة (للمودالات والواجهات)
+ * مع دعم الحقول المهاجرة التي قد تكون موجودة في الخطوات ولكنها غير مرتبطة بالمجموعات
  */
-function get_workflow_fields_by_type($transaction_type)
+function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
 {
     global $pdo;
 
@@ -2318,19 +2319,88 @@ function get_workflow_fields_by_type($transaction_type)
     $placeholders = implode(',', array_fill(0, count($mapped_types), '?'));
 
     try {
-        $stmt = $pdo->prepare("
-            SELECT f.field_key, f.field_label
+        $sql = "
+            SELECT DISTINCT f.field_key, f.field_label
             FROM workflow_fields f
             JOIN workflow_field_group_mappings gm ON f.id = gm.field_id
             JOIN workflow_field_groups g ON gm.group_id = g.id
             WHERE f.is_active = 1 AND g.group_key IN ($placeholders)
-            GROUP BY f.field_key
-            ORDER BY f.sort_order, f.field_label
-        ");
-        $stmt->execute($mapped_types);
-        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        ";
+
+        $params = $mapped_types;
+
+        if (!empty($extra_keys) && is_array($extra_keys)) {
+            $clean_keys = [];
+            foreach ($extra_keys as $ek) {
+                $ek = trim((string)$ek);
+                if ($ek !== '') $clean_keys[] = $ek;
+            }
+            $clean_keys = array_unique($clean_keys);
+            if (!empty($clean_keys)) {
+                $extra_placeholders = implode(',', array_fill(0, count($clean_keys), '?'));
+                $sql .= " UNION
+                    SELECT DISTINCT f2.field_key, f2.field_label
+                    FROM workflow_fields f2
+                    WHERE f2.is_active = 1 AND f2.field_key IN ($extra_placeholders)";
+                $params = array_merge($params, $clean_keys);
+            }
+        }
+
+        $sql .= " ORDER BY field_label";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        if (!empty($extra_keys) && is_array($extra_keys)) {
+            $all_fields = get_all_workflow_fields();
+            foreach ($extra_keys as $ek) {
+                $ek = trim((string)$ek);
+                if ($ek !== '' && !isset($result[$ek]) && isset($all_fields[$ek])) {
+                    $result[$ek] = $all_fields[$ek];
+                }
+            }
+        }
+
+        if (empty($result)) {
+            error_log("get_workflow_fields_by_type($transaction_type): no fields matched for groups [" . implode(',', $mapped_types) . "]");
+        }
+        return $result;
     } catch (PDOException $e) {
-        return get_all_workflow_fields();
+        error_log("get_workflow_fields_by_type($transaction_type) PDO error: " . $e->getMessage());
+        $fallback = get_all_workflow_fields();
+        $whitelist_keys = [];
+        foreach ($mapped_types as $gk) {
+            if ($gk === 'general') {
+                $whitelist_keys = array_merge($whitelist_keys, ['batch_no', 'reject_reason', 'attachments_count']);
+            } elseif ($gk === 'umrah' || $gk === 'hajj') {
+                $whitelist_keys = array_merge($whitelist_keys, ['umrah_visa_no', 'mahram_name', 'mahram_relation', 'package_type', 'hotel_makkah', 'hotel_madinah', 'flight_number_outbound', 'flight_date_outbound', 'flight_number_inbound', 'flight_date_inbound']);
+            } elseif ($gk === 'work_visa') {
+                $whitelist_keys = array_merge($whitelist_keys, ['work_permit_no', 'iqama_no', 'profession', 'employer_name', 'contract_start_date', 'contract_end_date', 'sponsor_transfer_date']);
+            } elseif ($gk === 'passport' || $gk === 'passport_transactions') {
+                $whitelist_keys = array_merge($whitelist_keys, ['passport_no', 'passport_issue_date', 'passport_expiry_date', 'passport_issue_place', 'delivery_date_embassy', 'receipt_date_office', 'mofa_number', 'border_number']);
+            } elseif ($gk === 'family_visit' || $gk === 'visa') {
+                $whitelist_keys = array_merge($whitelist_keys, ['visa_no', 'visa_number', 'visa_issue_date', 'visa_expiry_date', 'sponsor_name', 'visitor_name', 'relation', 'duration_days', 'embassy_exit_date']);
+            } elseif ($gk === 'booking' || $gk === 'bus_flight_bookings') {
+                $whitelist_keys = array_merge($whitelist_keys, ['booking_ref', 'ticket_no', 'ticket_issue_date', 'departure_date', 'arrival_date', 'airline', 'pnr', 'seat_no', 'transport_delivery_date', 'arrival_office_date', 'embassy_exit_date']);
+            }
+        }
+        $whitelist_keys = array_unique($whitelist_keys);
+
+        if (!empty($extra_keys) && is_array($extra_keys)) {
+            foreach ($extra_keys as $ek) {
+                $ek = trim((string)$ek);
+                if ($ek !== '') $whitelist_keys[] = $ek;
+            }
+            $whitelist_keys = array_unique($whitelist_keys);
+        }
+
+        if (empty($whitelist_keys)) return $fallback;
+        $filtered = [];
+        foreach ($whitelist_keys as $k) {
+            if (isset($fallback[$k])) $filtered[$k] = $fallback[$k];
+        }
+        return empty($filtered) ? $fallback : $filtered;
     }
 }
 /**

@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/customer_profile.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['admin_id'])) {
@@ -115,6 +116,22 @@ if ($action === 'add') {
         $stmt->execute($values);
         
         $request_id = $pdo->lastInsertId();
+
+        customer_profile_sync_service($pdo, 'family_visit_requests', (int)$request_id, [
+            'passport_id' => $_POST['passport_id'] ?? null,
+            'full_name' => $_POST['owner_name'] ?? null,
+            'phone_no' => $_POST['phone_no'] ?? null,
+            'id_number' => $_POST['owner_id_no'] ?? null,
+            'branch_id' => $branch_id,
+            'created_by' => $_SESSION['admin_id'] ?? null,
+        ], [
+            'service_type' => 'family_visit',
+            'service_number' => $_POST['document_no'] ?? null,
+            'service_date' => $_POST['issue_date'] ?? date('Y-m-d'),
+            'status' => 'new',
+            'branch_id' => $branch_id,
+            'created_by' => $_SESSION['admin_id'] ?? null,
+        ]);
 
         // 3. Insert Individuals
         $total_sale = 0;

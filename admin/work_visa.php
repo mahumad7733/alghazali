@@ -37,6 +37,71 @@ require_once 'header.php';
         background-color: var(--card-bg) !important;
     }
 
+    #addModal .modal-dialog,
+    #editModal .modal-dialog {
+        height: calc(100vh - 1rem);
+    }
+
+    #addModal .modal-content,
+    #editModal .modal-content {
+        height: 100%;
+        display: flex;
+    }
+
+    #addModal .modal-content>form,
+    #editModal .modal-content>form {
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    #addModal .modal-body,
+    #editModal .modal-body {
+        max-height: none !important;
+        overflow-y: auto !important;
+        flex: 1 1 auto;
+    }
+
+    #addModal .modal-footer,
+    #editModal .modal-footer {
+        flex-shrink: 0;
+        background: var(--card-bg);
+        border-top: 1px solid var(--card-border) !important;
+        position: relative;
+        z-index: 2;
+    }
+
+    #addModal .modal-dialog,
+    #editModal .modal-dialog {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        margin-top: .5rem;
+        margin-bottom: .5rem;
+    }
+
+    #addModal .modal-content,
+    #editModal .modal-content {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        overflow: hidden;
+    }
+
+    #addModal .modal-content>form,
+    #editModal .modal-content>form {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        min-height: 0;
+    }
+
+    #addModal .modal-body,
+    #editModal .modal-body {
+        max-height: calc(100vh - 170px) !important;
+        min-height: 0;
+        overflow-y: auto !important;
+    }
+
     .fw-bold {
         font-weight: 700 !important;
         color: var(--text-bold) !important;
@@ -819,40 +884,40 @@ $passports = $stmt->fetchAll();
             </div>
 
             <form method="GET" class="toolbar-form d-flex flex-wrap gap-2 align-items-center flex-grow-1 justify-content-end">
-            <?php if (has_permission('view_all_passports')): ?>
-                <select name="agent_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
-                    <option value="">كل الوكلاء</option>
-                    <?php foreach ($agents as $ag): ?>
-                        <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
+                <?php if (has_permission('view_all_passports')): ?>
+                    <select name="agent_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
+                        <option value="">كل الوكلاء</option>
+                        <?php foreach ($agents as $ag): ?>
+                            <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="branch_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
+                        <option value="">كل الفروع</option>
+                        <?php foreach ($branches as $br): ?>
+                            <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php endif; ?>
+
+                <select name="status_filter" class="form-select rounded-pill" style="width: 180px;" onchange="this.form.submit()">
+                    <option value="">كل الحالات</option>
+                    <?php foreach ($wf_steps ?: [] as $step): ?>
+                        <option value="<?php echo $step['status_id']; ?>" <?php echo (string)$status_filter === (string)$step['status_id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($step['step_name']); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
-                <select name="branch_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
-                    <option value="">كل الفروع</option>
-                    <?php foreach ($branches as $br): ?>
-                        <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
-                    <?php endforeach; ?>
-                </select>
-            <?php endif; ?>
 
-            <select name="status_filter" class="form-select rounded-pill" style="width: 180px;" onchange="this.form.submit()">
-                <option value="">كل الحالات</option>
-                <?php foreach ($wf_steps ?: [] as $step): ?>
-                    <option value="<?php echo $step['status_id']; ?>" <?php echo (string)$status_filter === (string)$step['status_id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($step['step_name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+                <div class="input-group" style="width: 250px;">
+                    <span class="input-group-text bg-white border-0 shadow-sm rounded-start-pill"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث سريع...">
+                </div>
 
-            <div class="input-group" style="width: 250px;">
-                <span class="input-group-text bg-white border-0 shadow-sm rounded-start-pill"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث سريع...">
-            </div>
-
-            <?php if (has_permission('work_visa_create')): ?>
-                <button type="button" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addModal">
-                    <i class="fas fa-plus-circle me-2"></i> إضافة
-                </button>
-            <?php endif; ?>
+                <?php if (has_permission('work_visa_create')): ?>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addModal">
+                        <i class="fas fa-plus-circle me-2"></i> إضافة
+                    </button>
+                <?php endif; ?>
             </form>
         </div>
     </div>
@@ -863,8 +928,8 @@ $passports = $stmt->fetchAll();
         $error_msg = $_GET['msg'] ?? '';
 
         $display_msg = 'غير معروف';
-        if ($error_code === 'duplicate_passport') $display_msg = 'رقم الجواز مكرر ومسجل مسبقاً في النظام.';
-        elseif ($error_code === 'duplicate_own') $display_msg = 'رقم الجواز مسجل مسبقاً ضمن معاملاتك.';
+        if ($error_code === 'duplicate_passport') $display_msg = 'رقم الهوية مكرر ومسجل مسبقاً في النظام.';
+        elseif ($error_code === 'duplicate_own') $display_msg = 'رقم الهوية مسجل مسبقاً ضمن معاملاتك.';
         elseif ($error_code === 'no_permission') $display_msg = 'ليس لديك صلاحية للقيام بهذا الإجراء.';
         elseif ($error_code === 'not_found') $display_msg = 'السجل المطلوب غير موجود.';
         elseif ($error_code === 'db_error') $display_msg = 'خطأ في قاعدة البيانات: ' . $error_msg;
@@ -905,7 +970,7 @@ $passports = $stmt->fetchAll();
                                 <th>الحساب والبيع</th>
                             <?php endif; ?>
                             <?php if (has_permission('work_visa_view_passport_no') || has_permission('work_visa_view_workflow') || has_permission('work_visa_view_history') || has_permission('request_document_confirmation')): ?>
-                                <th>رقم الجواز / الحالة</th>
+                                <th>رقم الهوية / الحالة</th>
                             <?php endif; ?>
                             <?php if (has_permission('work_visa_view_attachments') || has_permission('work_visa_view_profession')): ?>
                                 <th>المرفقات / المهنة</th>
@@ -1109,26 +1174,26 @@ $passports = $stmt->fetchAll();
                                                 <div class="financial-action-menu" id="post-<?php echo $p['id']; ?>">
                                                     <div class="financial-action-menu-title">خيارات الترحيل</div>
                                                     <button class="financial-action-menu-item post-option <?php echo (($salesStatus === 'draft') && ($purchaseStatus === 'draft')) ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if (($salesStatus === 'draft') && ($purchaseStatus === 'draft')): ?>
-                                                                onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'all')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if (($salesStatus === 'draft') && ($purchaseStatus === 'draft')): ?>
+                                                        onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'all')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-layer-group"></i>
                                                         <span>ترحيل الكل</span>
                                                     </button>
                                                     <button class="financial-action-menu-item post-option <?php echo ($hasSalesInvoice && $salesStatus === 'draft') ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if ($hasSalesInvoice && $salesStatus === 'draft'): ?>
-                                                                onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'sales')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if ($hasSalesInvoice && $salesStatus === 'draft'): ?>
+                                                        onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'sales')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-arrow-up-right-from-square"></i>
                                                         <span>ترحيل البيع</span>
                                                     </button>
                                                     <button class="financial-action-menu-item post-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'draft') ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if ($hasPurchaseInvoice && $purchaseStatus === 'draft'): ?>
-                                                                onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'purchase')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if ($hasPurchaseInvoice && $purchaseStatus === 'draft'): ?>
+                                                        onclick="WorkVisa.postFinance(<?php echo $p['id']; ?>, 'purchase')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-cart-plus"></i>
                                                         <span>ترحيل الشراء</span>
                                                     </button>
@@ -1146,26 +1211,26 @@ $passports = $stmt->fetchAll();
                                                 <div class="financial-action-menu" id="unpost-<?php echo $p['id']; ?>">
                                                     <div class="financial-action-menu-title">خيارات إلغاء الترحيل</div>
                                                     <button class="financial-action-menu-item unpost-option <?php echo (($salesStatus === 'posted') && ($purchaseStatus === 'posted')) ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if (($salesStatus === 'posted') && ($purchaseStatus === 'posted')): ?>
-                                                                onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'all')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if (($salesStatus === 'posted') && ($purchaseStatus === 'posted')): ?>
+                                                        onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'all')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-layer-group"></i>
                                                         <span>إلغاء ترحيل الكل</span>
                                                     </button>
                                                     <button class="financial-action-menu-item unpost-option <?php echo ($hasSalesInvoice && $salesStatus === 'posted') ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if ($hasSalesInvoice && $salesStatus === 'posted'): ?>
-                                                                onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'sales')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if ($hasSalesInvoice && $salesStatus === 'posted'): ?>
+                                                        onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'sales')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-arrow-rotate-left"></i>
                                                         <span>إلغاء ترحيل البيع</span>
                                                     </button>
                                                     <button class="financial-action-menu-item unpost-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'posted') ? '' : 'disabled'; ?>"
-                                                            type="button"
-                                                            <?php if ($hasPurchaseInvoice && $purchaseStatus === 'posted'): ?>
-                                                                onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'purchase')"
-                                                            <?php endif; ?>>
+                                                        type="button"
+                                                        <?php if ($hasPurchaseInvoice && $purchaseStatus === 'posted'): ?>
+                                                        onclick="WorkVisa.unpostFinance(<?php echo $p['id']; ?>, 'purchase')"
+                                                        <?php endif; ?>>
                                                         <i class="fas fa-clock-rotate-left"></i>
                                                         <span>إلغاء ترحيل الشراء</span>
                                                     </button>
@@ -1190,31 +1255,31 @@ $passports = $stmt->fetchAll();
                                                     <?php endif; ?>
                                                     <?php if (has_permission('work_visa_delete')): ?>
                                                         <button class="financial-action-menu-item delete-option <?php echo ($hasSalesInvoice || $hasPurchaseInvoice) ? '' : 'disabled'; ?>"
-                                                                type="button"
-                                                                <?php if ($hasSalesInvoice || $hasPurchaseInvoice): ?>
-                                                                    onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'all')"
-                                                                <?php endif; ?>>
+                                                            type="button"
+                                                            <?php if ($hasSalesInvoice || $hasPurchaseInvoice): ?>
+                                                            onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'all')"
+                                                            <?php endif; ?>>
                                                             <i class="fas fa-trash-can"></i>
                                                             <span>حذف الكل</span>
                                                         </button>
                                                         <button class="financial-action-menu-item delete-option <?php echo $hasSalesInvoice ? '' : 'disabled'; ?>"
-                                                                type="button"
-                                                                <?php if ($hasSalesInvoice): ?>
-                                                                    onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'sales')"
-                                                                <?php endif; ?>>
+                                                            type="button"
+                                                            <?php if ($hasSalesInvoice): ?>
+                                                            onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'sales')"
+                                                            <?php endif; ?>>
                                                             <i class="fas fa-file-invoice-dollar"></i>
                                                             <span>حذف البيع فقط</span>
                                                         </button>
                                                         <button class="financial-action-menu-item delete-option <?php echo $hasPurchaseInvoice ? '' : 'disabled'; ?>"
-                                                                type="button"
-                                                                <?php if ($hasPurchaseInvoice): ?>
-                                                                    onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'purchase')"
-                                                                <?php endif; ?>>
+                                                            type="button"
+                                                            <?php if ($hasPurchaseInvoice): ?>
+                                                            onclick="WorkVisa.deleteFinance(<?php echo $p['id']; ?>, 'purchase')"
+                                                            <?php endif; ?>>
                                                             <i class="fas fa-file-invoice"></i>
                                                             <span>حذف الشراء فقط</span>
                                                         </button>
                                                         <a href="passports.php?delete_id=<?php echo $p['id']; ?>&redirect=work_visa.php"
-                                                           class="financial-action-menu-item delete-option delete-passport-record">
+                                                            class="financial-action-menu-item delete-option delete-passport-record">
                                                             <i class="fas fa-trash"></i>
                                                             <span>حذف المعاملة</span>
                                                         </a>
@@ -1237,7 +1302,7 @@ $passports = $stmt->fetchAll();
 <div class="modal fade" id="addModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form method="POST" enctype="multipart/form-data" action="passports.php?add_passport=1" id="workVisaAddForm">
+            <form method="POST" enctype="multipart/form-data" action="passports.php?add_passport=1" id="workVisaAddForm" data-customer-profile-form="1">
                 <input type="hidden" name="transaction_type" value="work_visa">
                 <input type="hidden" name="redirect" value="work_visa.php">
                 <input type="hidden" name="confirm_duplicate" id="add_confirm_duplicate" value="0">
@@ -1266,7 +1331,7 @@ $passports = $stmt->fetchAll();
                             <input type="text" name="full_name_en" id="add_full_name_en" class="form-control form-control-sm rounded-3 font-monospace">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold small text-primary">رقم الجواز</label>
+                            <label class="form-label fw-bold small text-primary">رقم الهوية</label>
                             <input type="text" name="passport_number" id="add_passport_number" class="form-control form-control-sm rounded-3" required>
                         </div>
 
@@ -1449,7 +1514,7 @@ $passports = $stmt->fetchAll();
                             <input type="text" name="full_name_en" id="edit_full_name_en" class="form-control form-control-sm rounded-3 font-monospace">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold small text-primary">رقم الجواز</label>
+                            <label class="form-label fw-bold small text-primary">رقم الهوية</label>
                             <input type="text" name="passport_number" id="edit_passport_number" class="form-control form-control-sm rounded-3" required>
                         </div>
 
@@ -1913,7 +1978,7 @@ $passports = $stmt->fetchAll();
 
             let text = `معاملة تأشيرة عمل للأخ ${name || '---'}`;
             if (passport) {
-                text += ` - رقم الجواز ${passport}`;
+                text += ` - رقم الهوية ${passport}`;
             }
             return text;
         },
@@ -1957,7 +2022,9 @@ $passports = $stmt->fetchAll();
             const autoValue = `${yyyy}-${mm}-${dd}`;
             expiryInput.value = autoValue;
             expiryInput.dataset.lastAutoValue = autoValue;
-            expiryInput.dispatchEvent(new Event('change', { bubbles: true }));
+            expiryInput.dispatchEvent(new Event('change', {
+                bubbles: true
+            }));
         },
 
         async checkDuplicateBeforeSubmit() {
@@ -1988,7 +2055,7 @@ $passports = $stmt->fetchAll();
                 }
 
                 const reasons = [];
-                if (data.duplicate_by_passport) reasons.push('رقم الجواز مكرر');
+                if (data.duplicate_by_passport) reasons.push('رقم الهوية مكرر');
                 if (data.duplicate_by_name) reasons.push('الشخص مسجل مسبقاً');
                 const examples = (data.matches || []).slice(0, 3).map(item => {
                     const scope = item.agent_name || item.branch_name || '';
@@ -2009,7 +2076,7 @@ $passports = $stmt->fetchAll();
                         <div class="text-end">
                             ${data.scope_hint ? `<div class="small text-muted mb-2">${this.escapeHtml(data.scope_hint)}</div>` : ''}
                             ${examplesHtml ? `<ul class="small text-end pe-3 mb-3">${examplesHtml}</ul>` : ''}
-                            <div class="fw-bold">هل تريد إنشاء فاتورة أو معاملة أخرى لنفس رقم الجواز أو نفس الشخص؟</div>
+                            <div class="fw-bold">هل تريد إنشاء فاتورة أو معاملة أخرى لنفس رقم الهوية أو نفس الشخص؟</div>
                         </div>
                     `
                 });
@@ -2190,10 +2257,14 @@ $passports = $stmt->fetchAll();
                     if (profitInput && data.profit_account_name) profitInput.value = data.profit_account_name;
 
                     [saleCurrencySelect, costCurrencySelect].forEach((el) => {
-                        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+                        if (el) el.dispatchEvent(new Event('change', {
+                            bubbles: true
+                        }));
                     });
                     [saleInput, purchaseInput].forEach((el) => {
-                        if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
+                        if (el) el.dispatchEvent(new Event('input', {
+                            bubbles: true
+                        }));
                     });
                 }
             } catch (err) {
@@ -2287,11 +2358,11 @@ $passports = $stmt->fetchAll();
             container.style.display = 'block';
             list.innerHTML = matched.map(req => {
                 const reqGender = (req.gender || 'both').toLowerCase();
-                const genderBadge = reqGender === 'male'
-                    ? '<span class="badge bg-primary-subtle text-primary border">للذكر</span>'
-                    : (reqGender === 'female'
-                        ? '<span class="badge bg-danger-subtle text-danger border">للأنثى</span>'
-                        : '<span class="badge bg-secondary-subtle text-secondary border">عام</span>');
+                const genderBadge = reqGender === 'male' ?
+                    '<span class="badge bg-primary-subtle text-primary border">للذكر</span>' :
+                    (reqGender === 'female' ?
+                        '<span class="badge bg-danger-subtle text-danger border">للأنثى</span>' :
+                        '<span class="badge bg-secondary-subtle text-secondary border">عام</span>');
                 return `<div class="d-inline-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill border shadow-sm"><span class="small fw-bold">${req.requirement_name}</span>${genderBadge}</div>`;
             }).join('');
         },
@@ -2341,9 +2412,9 @@ $passports = $stmt->fetchAll();
                 if (nationalityInput?.value) {
                     const isAllowed = allowedNationalities.map(v => v.trim().toLowerCase()).includes(nationalityInput.value.trim().toLowerCase());
                     if (nationalityRule) {
-                        nationalityRule.innerHTML = isAllowed
-                            ? `<i class="fas fa-check-circle me-1"></i> الجنسية مطابقة للقواعد.`
-                            : `<i class="fas fa-times-circle me-1"></i> الجنسية الحالية غير مسموح بها لهذه المهنة.`;
+                        nationalityRule.innerHTML = isAllowed ?
+                            `<i class="fas fa-check-circle me-1"></i> الجنسية مطابقة للقواعد.` :
+                            `<i class="fas fa-times-circle me-1"></i> الجنسية الحالية غير مسموح بها لهذه المهنة.`;
                         nationalityRule.className = `extra-small mt-1 fw-bold ${isAllowed ? 'text-success' : 'text-danger'}`;
                     }
                     if (!isAllowed) {
@@ -2569,7 +2640,7 @@ $passports = $stmt->fetchAll();
                             <div class="card border-0 bg-light rounded-4 p-4 h-100 border border-secondary-subtle">
                                 <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">بيانات المعاملة</h6>
                                 <div class="mb-3"><small class="text-muted fw-bold d-block mb-1">اسم صاحب الجواز:</small> <div class="fw-bold fs-6 text-dark">${data.full_name}</div></div>
-                                <div class="mb-3"><small class="text-muted fw-bold d-block mb-1">رقم الجواز:</small> <div class="fw-bold fs-6 text-primary font-monospace">${data.passport_number}</div></div>
+                                <div class="mb-3"><small class="text-muted fw-bold d-block mb-1">رقم الهوية:</small> <div class="fw-bold fs-6 text-primary font-monospace">${data.passport_number}</div></div>
                                 <div class="mb-3"><small class="text-muted fw-bold d-block mb-1">المهنة:</small> <div class="fw-bold text-success">${data.profession_name}</div></div>
                                 <div class="mb-3"><small class="text-muted fw-bold d-block mb-1">الجهة المرسلة:</small> <div class="fw-bold text-dark">${data.agent_name || data.branch_name}</div></div>
                             </div>
@@ -2805,7 +2876,7 @@ $passports = $stmt->fetchAll();
                                 <div class="row g-3">
                                     <div class="col-md-3"><span class="text-muted small">الاسم الكامل:</span> <div class="fw-bold">${data.full_name}</div></div>
                                     <div class="col-md-3"><span class="text-muted small">English Name:</span> <div class="fw-bold font-monospace">${data.full_name_en || '---'}</div></div>
-                                    <div class="col-md-3"><span class="text-muted small">رقم الجواز:</span> <div class="fw-bold text-primary">${data.passport_number}</div></div>
+                                    <div class="col-md-3"><span class="text-muted small">رقم الهوية:</span> <div class="fw-bold text-primary">${data.passport_number}</div></div>
                                     <div class="col-md-3"><span class="text-muted small">الجنسية:</span> <div class="fw-bold">${data.nationality || '---'}</div></div>
                                     <div class="col-md-3"><span class="text-muted small">الجنس (Sex):</span> <div class="fw-bold">${data.gender === 'Male' ? 'ذكر' : (data.gender === 'Female' ? 'أنثى' : '---')}</div></div>
                                     <div class="col-md-3"><span class="text-muted small">المهنة:</span> <div class="fw-bold text-success">${data.profession_name || '---'}</div></div>
@@ -2840,28 +2911,36 @@ $passports = $stmt->fetchAll();
                                             'letter_image': 'خطاب التنازل',
                                             'print_image': 'برنت الجوازات'
                                         };
-                                        return `
-                                            <div class="col-md-2">
-                                                <div class="card border rounded-4 p-2 text-center bg-white h-100 shadow-sm">
-                                                    <img src="../assets/uploads/${data[key]}"
-                                                         class="img-fluid rounded-3 mb-2 shadow-sm"
-                                                         style="max-height: 100px; min-height: 100px; object-fit: contain; background: #f8f9fa;">
-                                                    <div class="fw-bold extra-small text-dark mb-2">${labels[key] || 'عرض الملف'}</div>
-                                                    <div class="d-flex gap-1 mt-auto">
-                                                        <a href="../assets/uploads/${data[key]}"
-                                                           target="_blank"
-                                                           class="btn btn-xs btn-light border flex-grow-1 extra-small rounded-pill p-1">
-                                                            <i class="fas fa-eye"></i>
-                                                        </a>
-                                                        <a href="../assets/uploads/${data[key]}"
-                                                           download
-                                                           class="btn btn-xs btn-primary flex-grow-1 extra-small rounded-pill p-1">
-                                                            <i class="fas fa-download"></i>
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        `;
+                                        return ` <
+                div class = "col-md-2" >
+                <
+                div class = "card border rounded-4 p-2 text-center bg-white h-100 shadow-sm" >
+                <
+                img src = "../assets/uploads/${data[key]}"
+            class = "img-fluid rounded-3 mb-2 shadow-sm"
+            style = "max-height: 100px; min-height: 100px; object-fit: contain; background: #f8f9fa;" >
+                <
+                div class = "fw-bold extra-small text-dark mb-2" > $ {
+                    labels[key] || 'عرض الملف'
+                } < /div> <
+            div class = "d-flex gap-1 mt-auto" >
+            <
+            a href = "../assets/uploads/${data[key]}"
+            target = "_blank"
+            class = "btn btn-xs btn-light border flex-grow-1 extra-small rounded-pill p-1" >
+            <
+            i class = "fas fa-eye" > < /i> < /
+            a > <
+                a href = "../assets/uploads/${data[key]}"
+            download
+            class = "btn btn-xs btn-primary flex-grow-1 extra-small rounded-pill p-1" >
+            <
+            i class = "fas fa-download" > < /i> < /
+            a > <
+                /div> < /
+            div > <
+                /div>
+            `;
                                     }).join('')}
                                 </div>
                             </div>
@@ -3332,12 +3411,12 @@ $passports = $stmt->fetchAll();
         },
 
         async deleteFinance(id, scope = 'all') {
-            const scopeLabel = scope === 'sales'
-                ? 'فاتورة البيع فقط'
-                : (scope === 'purchase' ? 'فاتورة الشراء فقط' : 'فاتورتي البيع والشراء');
-            const confirmMessage = scope === 'all'
-                ? `هل أنت متأكد من حذف ${scopeLabel} من هذه المعاملة؟\n\nلن يتم حذف أصل معاملة فيز العمل، وسيتم حذف الربط المالي فقط.`
-                : `هل أنت متأكد من حذف ${scopeLabel} من هذه المعاملة؟`;
+            const scopeLabel = scope === 'sales' ?
+                'فاتورة البيع فقط' :
+                (scope === 'purchase' ? 'فاتورة الشراء فقط' : 'فاتورتي البيع والشراء');
+            const confirmMessage = scope === 'all' ?
+                `هل أنت متأكد من حذف ${scopeLabel} من هذه المعاملة؟\n\nلن يتم حذف أصل معاملة فيز العمل، وسيتم حذف الربط المالي فقط.` :
+                `هل أنت متأكد من حذف ${scopeLabel} من هذه المعاملة؟`;
 
             const confirmed = await this.confirmDialog({
                 title: 'تأكيد الحذف المالي',
@@ -3422,7 +3501,9 @@ $passports = $stmt->fetchAll();
 
                     const deliveryType = document.getElementById('edit_delivery_type');
                     if (deliveryType) {
-                        deliveryType.dispatchEvent(new Event('change', { bubbles: true }));
+                        deliveryType.dispatchEvent(new Event('change', {
+                            bubbles: true
+                        }));
                     }
 
                     setTimeout(() => {
@@ -3435,19 +3516,25 @@ $passports = $stmt->fetchAll();
                                 accountSelect.append(new Option(optionText, data.sales_invoice.account_id, true, true));
                             }
                             accountSelect.value = String(data.sales_invoice.account_id);
-                            accountSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            accountSelect.dispatchEvent(new Event('change', {
+                                bubbles: true
+                            }));
                         }
 
                         if (supplierSelect && data.purchase_invoice?.supplier_id) {
                             supplierSelect.value = String(data.purchase_invoice.supplier_id);
-                            supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            supplierSelect.dispatchEvent(new Event('change', {
+                                bubbles: true
+                            }));
                         }
                     }, 350);
 
                     ['edit_sale_currency_id', 'edit_main_currency_id', 'edit_total_amount', 'edit_cost_amount', 'edit_received_amount', 'edit_record_purchase'].forEach((fid) => {
                         const el = document.getElementById(fid);
                         if (el) {
-                            el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+                            el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', {
+                                bubbles: true
+                            }));
                         }
                     });
 
@@ -3873,7 +3960,7 @@ $passports = $stmt->fetchAll();
                     ocr_raw_text: text
                 };
 
-                // 1. معالجة رقم الجواز (أول 9 خانات من السطر الثاني)
+                // 1. معالجة رقم الهوية (أول 9 خانات من السطر الثاني)
                 let pNum = l2.substring(0, 9).replace(/</g, '').trim();
                 // الجواز اليمني لا يحتوي على حروف
                 if (result.nationality_code === 'YEM' || result.country_code === 'YEM') {

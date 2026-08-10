@@ -37,7 +37,7 @@ try {
             'description' => 'إظهار حقل مبلغ الخصم في نموذج العمرة'
         ]
     ];
-    
+
     foreach ($permissions as $perm) {
         $stmt = $pdo->prepare("SELECT id FROM unified_permissions WHERE permission_code = ?");
         $stmt->execute([$perm['permission_code']]);
@@ -203,14 +203,14 @@ if ($has_new_columns) {
     LEFT JOIN workflows w ON p.workflow_id = w.id
     LEFT JOIN workflow_steps ws ON (ws.workflow_id = p.workflow_id AND ws.status_id = p.status_id)
     LEFT JOIN invoices inv ON (
-        inv.id = p.sales_invoice_id 
-        OR inv.id = p.invoice_id 
+        inv.id = p.sales_invoice_id
+        OR inv.id = p.invoice_id
         OR (inv.source_type IN ($umrah_invoice_source_types_sql) AND inv.source_id = p.id AND inv.invoice_category = 'sales')
     )
     LEFT JOIN currencies c_sale ON inv.currency_id = c_sale.id
     LEFT JOIN unified_accounts ua_inv ON inv.account_id = ua_inv.id
     LEFT JOIN invoices pur ON (
-        pur.id = p.purchase_invoice_id 
+        pur.id = p.purchase_invoice_id
         OR (pur.source_type IN ($umrah_invoice_source_types_sql) AND pur.source_id = p.id AND pur.invoice_category = 'purchase')
     )
     LEFT JOIN currencies c_pur ON pur.currency_id = c_pur.id
@@ -337,8 +337,8 @@ $umrah_service_prices = [];
 if ($umrah_service_id) {
     $price_stmt = $pdo->prepare("
         SELECT sp.*, c.currency_name, c.currency_symbol, c.exchange_rate, c.exchange_rate_buy, c.exchange_rate_sell
-        FROM service_prices sp 
-        LEFT JOIN currencies c ON sp.currency_id = c.id 
+        FROM service_prices sp
+        LEFT JOIN currencies c ON sp.currency_id = c.id
         WHERE sp.service_id = ? AND sp.status = 'active'
         ORDER BY (sp.customer_id IS NULL AND sp.supplier_id IS NULL AND sp.branch_id IS NULL AND sp.agent_id IS NULL) DESC
     ");
@@ -397,13 +397,14 @@ $agents_accounts = $pdo->query("
 ")->fetchAll();
 $branches_accounts = $pdo->query("SELECT id, branch_name as account_name FROM branches WHERE deleted_at IS NULL AND status = 'active' ORDER BY branch_name ASC")->fetchAll();
 $suppliers_accounts = $pdo->query("SELECT id, supplier_name, account_id FROM suppliers WHERE deleted_at IS NULL ORDER BY supplier_name ASC")->fetchAll();
-function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null) {
+function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null)
+{
     // جلب معرف الحساب الأب
     $stmt_parent = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_code = ?");
     $stmt_parent->execute([$parent_account_code]);
     $parent_id = $stmt_parent->fetchColumn();
     if (!$parent_id) return [];
-    
+
     // جلب الحسابات تحت هذا الأب مع ربطها بالكيانات
     $sql = "SELECT ua.id, ua.account_code, ua.account_name_ar,
                    c.id as customer_id,
@@ -500,6 +501,17 @@ require_once 'header.php';
         </div>
     </div>
 
+    <div class="card border-0 shadow-sm rounded-4 mb-4 umrah-app-nav">
+        <div class="card-body d-flex flex-wrap align-items-center gap-2 p-3">
+            <span class="fw-bold text-primary me-2"><i class="fas fa-layer-group me-1"></i>إدارة الوحدة</span>
+            <a href="#umrahTransactions" class="btn btn-sm btn-primary rounded-pill px-3"><i class="fas fa-users me-1"></i>المعتمرون</a>
+            <a href="umrah_hosts.php" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="fas fa-house-user me-1"></i>المستضيفون</a>
+            <a href="umrah_guarantors.php" class="btn btn-sm btn-outline-warning rounded-pill px-3"><i class="fas fa-user-shield me-1"></i>الضامنون</a>
+            <a href="#umrahReports" class="btn btn-sm btn-outline-success rounded-pill px-3"><i class="fas fa-chart-line me-1"></i>التقارير والبطاقات</a>
+            <a href="#umrahWorkflow" class="btn btn-sm btn-outline-secondary rounded-pill px-3"><i class="fas fa-diagram-project me-1"></i>سير العمل</a>
+        </div>
+    </div>
+
     <!-- تنبيهات النجاح والخطأ -->
     <?php
     $page_alerts = [];
@@ -564,14 +576,41 @@ require_once 'header.php';
     </div>
 
     <!-- جدول المعاملات -->
+    <div id="umrahReports" class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                <div class="text-muted small">المستضيفون المسجلون</div>
+                <div class="fs-3 fw-bold text-info"><?= count($saved_hosts) ?></div><a href="umrah_hosts.php" class="small text-decoration-none">فتح الإدارة</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                <div class="text-muted small">الضامنون المسجلون</div>
+                <div class="fs-3 fw-bold text-warning"><?= count($saved_guarantors) ?></div><a href="umrah_guarantors.php" class="small text-decoration-none">فتح الإدارة</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                <div class="text-muted small">المعاملات المعروضة</div>
+                <div class="fs-3 fw-bold text-primary"><?= count($passports) ?></div><span class="small text-muted">حسب الصلاحيات والفلاتر</span>
+            </div>
+        </div>
+        <div class="col-md-3" id="umrahWorkflow">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                <div class="text-muted small">مسارات سير العمل</div>
+                <div class="fs-3 fw-bold text-success"><?= count($umrah_workflows) ?></div><span class="small text-muted">يمكن فتح المرحلة من زر الإجراء</span>
+            </div>
+        </div>
+    </div>
+
     <div id="umrah_transition_form" class="d-none mb-4">
         <!-- سيتم ملؤه ديناميكياً عند الضغط على انتقال -->
     </div>
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div id="umrahTransactions" class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-primary"></i> قائمة المعاملات</h6>
             <div class="d-flex gap-2">
-                <input type="text" id="umrahSearch" class="form-control form-control-sm rounded-pill px-3" placeholder="بحث باسم المعتمر أو رقم الجواز...">
+                <input type="text" id="umrahSearch" class="form-control form-control-sm rounded-pill px-3" placeholder="بحث باسم المعتمر أو رقم الهوية...">
                 <select id="statusFilter" class="form-select form-select-sm rounded-pill px-3" style="width: 150px;">
                     <option value="">كل الحالات</option>
                     <?php foreach ($statuses as $s): ?>
@@ -776,8 +815,8 @@ require_once 'header.php';
                                         <div class="payment-box small">
                                             <div class="payment-box-title text-success">البيع</div>
                                             <div class="d-flex flex-wrap gap-1 mb-1">
-                                            <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
-                                            <?php echo $invoice_badges[$p['sales_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                                <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                                <?php echo $invoice_badges[$p['sales_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
                                             </div>
                                             <?php if ($p['sales_invoice_id']): ?>
                                                 <div class="mini-label">المتبقي</div>
@@ -794,8 +833,8 @@ require_once 'header.php';
                                         <div class="payment-box small">
                                             <div class="payment-box-title text-primary">الشراء</div>
                                             <div class="d-flex flex-wrap gap-1 mb-1">
-                                            <?php echo !empty($p['purchase_invoice_id']) ? ($pay_badges[$purPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
-                                            <?php echo !empty($p['purchase_invoice_id']) ? ($invoice_badges[$p['purchase_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
+                                                <?php echo !empty($p['purchase_invoice_id']) ? ($pay_badges[$purPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
+                                                <?php echo !empty($p['purchase_invoice_id']) ? ($invoice_badges[$p['purchase_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
                                             </div>
                                             <?php if ($p['purchase_invoice_id']): ?>
                                                 <div class="mini-label">المتبقي</div>
@@ -932,7 +971,9 @@ require_once 'header.php';
 
                                                     <?php if (has_permission('umrah_delete') && !$is_any_posted): ?>
                                                         <?php if ($p['sales_invoice_id'] || $p['purchase_invoice_id']): ?>
-                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li>
+                                                                <hr class="dropdown-divider">
+                                                            </li>
                                                         <?php endif; ?>
                                                         <li><a class="dropdown-item py-2 small text-danger fw-bold delete-umrah" href="javascript:void(0);" data-id="<?php echo $p['id']; ?>"><i class="fas fa-user-times me-2"></i>حذف المعاملة بالكامل</a></li>
                                                     <?php endif; ?>
@@ -1017,7 +1058,7 @@ require_once 'header.php';
 <div class="modal fade" id="addUmrahModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <form id="addUmrahForm" method="POST" enctype="multipart/form-data">
+            <form id="addUmrahForm" method="POST" enctype="multipart/form-data" data-customer-profile-form="1">
                 <?php echo csrf_input(); ?>
                 <input type="hidden" name="action" value="add_umrah">
                 <div class="modal-header">
@@ -1056,7 +1097,7 @@ require_once 'header.php';
                                             </div>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">رقم الجواز</label>
+                                            <label class="form-label">رقم الهوية</label>
                                             <input type="text" name="passport_number" id="ocr_passport" class="form-control font-monospace" required>
                                         </div>
                                         <div class="col-md-4">
@@ -1575,7 +1616,7 @@ require_once 'header.php';
         justify-content: center;
         flex-shrink: 0;
         font-size: 1.05rem;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
     }
 
     .umrah-page-alert-content {
@@ -1713,7 +1754,8 @@ require_once 'header.php';
         color: var(--text-muted) !important;
     }
 
-    .card, .form-section-card {
+    .card,
+    .form-section-card {
         background-color: var(--card-bg) !important;
         border-color: var(--card-border) !important;
     }
@@ -1723,13 +1765,15 @@ require_once 'header.php';
         font-weight: 700;
     }
 
-    .form-control, .form-select {
+    .form-control,
+    .form-select {
         background-color: var(--bg-light) !important;
         border-color: var(--card-border) !important;
         color: var(--text-main) !important;
     }
 
-    .form-control:focus, .form-select:focus {
+    .form-control:focus,
+    .form-select:focus {
         border-color: #3b82f6;
         box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
     }
@@ -1755,6 +1799,7 @@ require_once 'header.php';
     body.theme-dark .bg-light {
         background-color: var(--bg-light) !important;
     }
+
     body.theme-dark #addUmrahModal .modal-content {
         background-color: #1a2234;
         border: 1px solid #2d3748;
@@ -1861,7 +1906,7 @@ require_once 'header.php';
 
     body.theme-dark .umrah-page-alert,
     body.dark-mode .umrah-page-alert {
-        box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28), inset 0 1px 0 rgba(255,255,255,0.03);
+        box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
     body.theme-dark .umrah-page-alert .btn-close,
@@ -2029,39 +2074,43 @@ require_once 'header.php';
     const umrahBranchId = <?php echo json_encode($currentUser['branch_id']); ?>;
     const umrahAgentId = <?php echo json_encode($currentUser['agent_id'] ?? 'null'); ?>;
     const umrahMinPassportValidityMonths = <?php echo json_encode((int)($umrah_settings['min_passport_validity_months'] ?? 6)); ?>;
-    
+
     // Validate passport expiry date (works for both add and edit forms)
     function validatePassportExpiry(expiryInputId, errorDivId) {
         const expiryInput = document.getElementById(expiryInputId);
         const errorDiv = document.getElementById(errorDivId);
-        
+
         if (!expiryInput || !errorDiv) return;
-        
+
         const expiryDate = new Date(expiryInput.value);
         const today = new Date();
-        
+
         // Clear time part for accurate comparison
         today.setHours(0, 0, 0, 0);
         expiryDate.setHours(0, 0, 0, 0);
-        
+
         // Calculate minimum allowed expiry date
         const minExpiryDate = new Date(today);
         minExpiryDate.setMonth(minExpiryDate.getMonth() + umrahMinPassportValidityMonths);
-        
+
         if (!expiryInput.value) {
             errorDiv.textContent = '';
             return;
         }
-        
+
         if (expiryDate < minExpiryDate) {
             // Format dates for display (dd/mm/yyyy)
-            const minExpiryStr = minExpiryDate.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const minExpiryStr = minExpiryDate.toLocaleDateString('ar-EG', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
             errorDiv.textContent = 'صلاحية الجواز لا يمكن أن تكون أقل من ' + umrahMinPassportValidityMonths + ' أشهر. التاريخ الأدنى المطلوب هو: ' + minExpiryStr;
         } else {
             errorDiv.textContent = '';
         }
     }
-    
+
     // Attach event listeners to both add and edit inputs
     function attachPassportExpiryListeners() {
         // Add form
@@ -2070,7 +2119,7 @@ require_once 'header.php';
             addExpiryInput.addEventListener('change', () => validatePassportExpiry('ocr_expiry', 'passport_expiry_error'));
             addExpiryInput.addEventListener('input', () => validatePassportExpiry('ocr_expiry', 'passport_expiry_error'));
         }
-        
+
         // Edit form
         const editExpiryInput = document.getElementById('edit_ocr_expiry');
         if (editExpiryInput) {
@@ -2078,90 +2127,93 @@ require_once 'header.php';
             editExpiryInput.addEventListener('input', () => validatePassportExpiry('edit_ocr_expiry', 'edit_passport_expiry_error'));
         }
     }
-    
+
     // Attach event listeners on initial load
     document.addEventListener('DOMContentLoaded', function() {
         attachPassportExpiryListeners();
         // Run validation on initial load for the add form!
         validatePassportExpiry('ocr_expiry', 'passport_expiry_error');
     });
-    
+
     // Function to find the best matching service price
     function findUmrahServicePrice(customerId = null, supplierId = null) {
         let bestMatch = null;
-        
+
         for (let price of umrahServicePrices) {
             let matchScore = 0;
             let valid = true;
-            
+
             // Check customer
             if (price.customer_id !== null && customerId !== price.customer_id) {
                 valid = false;
             } else if (price.customer_id !== null && customerId === price.customer_id) {
                 matchScore += 100; // Highest priority
             }
-            
+
             // Check supplier
             if (price.supplier_id !== null && supplierId !== price.supplier_id) {
                 valid = false;
             } else if (price.supplier_id !== null && supplierId === price.supplier_id) {
                 matchScore += 90;
             }
-            
+
             // Check branch
             if (price.branch_id !== null && umrahBranchId !== price.branch_id) {
                 valid = false;
             } else if (price.branch_id !== null && umrahBranchId === price.branch_id) {
                 matchScore += 80;
             }
-            
+
             // Check agent
             if (price.agent_id !== null && umrahAgentId !== price.agent_id) {
                 valid = false;
             } else if (price.agent_id !== null && umrahAgentId === price.agent_id) {
                 matchScore += 70;
             }
-            
+
             // Check if global (all null)
             if (price.customer_id === null && price.supplier_id === null && price.branch_id === null && price.agent_id === null) {
                 matchScore += 10;
             }
-            
+
             if (valid) {
                 if (!bestMatch || matchScore > bestMatch.score) {
-                    bestMatch = { ...price, score: matchScore };
+                    bestMatch = {
+                        ...price,
+                        score: matchScore
+                    };
                 }
             }
         }
-        
+
         return bestMatch;
     }
-    
+
     // Function to update the form fields with the selected service price
     function updateUmrahFormFields(price) {
         const salePriceInput = document.querySelector('input[name="total_amount"]');
         const costPriceInput = document.querySelector('input[name="cost_amount"]');
         const currencySelect = document.querySelector('select[name="currency_id"]');
-        
+
         if (price) {
             if (salePriceInput) salePriceInput.value = price.default_sale_price;
             if (costPriceInput) costPriceInput.value = (price.agent_price || price.branch_price || 0);
             if (currencySelect) currencySelect.value = price.currency_id;
-            
+
             // Trigger input events to update any related calculations
             if (salePriceInput) salePriceInput.dispatchEvent(new Event('input'));
             if (costPriceInput) costPriceInput.dispatchEvent(new Event('input'));
             if (currencySelect) currencySelect.dispatchEvent(new Event('change'));
         }
     }
-    
+
     // Event listeners for customer and supplier selects
     function setupUmrahServicePriceListeners() {
         // Find elements
         let supplierSelect = document.querySelector('select[name="supplier_id"]');
         let deliveryTypeSelect = document.getElementById('delivery_type');
         let accountSelect = document.getElementById('account_select');
-        
+
         // Function to get current customer ID from form
         function getCurrentCustomerId() {
             if (!deliveryTypeSelect || deliveryTypeSelect.value !== 'credit') return null;
@@ -2171,7 +2223,7 @@ require_once 'header.php';
             const customerId = selectedOption.dataset.customerId;
             return customerId ? parseInt(customerId) : null;
         }
-        
+
         // Function to update prices
         function updatePrices() {
             const customerId = getCurrentCustomerId();
@@ -2179,26 +2231,26 @@ require_once 'header.php';
             const price = findUmrahServicePrice(customerId, supplierId);
             updateUmrahFormFields(price);
         }
-        
+
         // Listen to supplier change
         if (supplierSelect) {
             supplierSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Listen to delivery type change
         if (deliveryTypeSelect) {
             deliveryTypeSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Listen to account change
         if (accountSelect) {
             accountSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Initialize with default price
         updatePrices();
     }
-    
+
     // Wait for DOM content loaded and initialize
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(setupUmrahServicePriceListeners, 500); // Give time for other scripts to load
@@ -2527,7 +2579,7 @@ require_once 'header.php';
                 nationality_code: l2.substring(10, 13).replace(/</g, '')
             };
 
-            // 1. معالجة رقم الجواز
+            // 1. معالجة رقم الهوية
             let passportNum = l2.substring(0, 9).replace(/</g, '').trim();
             if (data.nationality_code === 'YEM' || data.country_code === 'YEM') {
                 passportNum = passportNum.replace(/[^0-9]/g, '');
@@ -2587,7 +2639,15 @@ require_once 'header.php';
 
 
     $(document).ready(function() {
-        async function showPageDialog({ title, text, html, icon = 'info', confirmText = 'حسناً', cancelText = 'إلغاء', showCancel = false }) {
+        async function showPageDialog({
+            title,
+            text,
+            html,
+            icon = 'info',
+            confirmText = 'حسناً',
+            cancelText = 'إلغاء',
+            showCancel = false
+        }) {
             const isDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
 
             if (window.Swal && typeof window.Swal.fire === 'function') {
@@ -2608,14 +2668,24 @@ require_once 'header.php';
             }
 
             if (showCancel) {
-                return { isConfirmed: window.confirm(text || title || '') };
+                return {
+                    isConfirmed: window.confirm(text || title || '')
+                };
             }
 
             window.alert(text || title || '');
-            return { isConfirmed: true };
+            return {
+                isConfirmed: true
+            };
         }
 
-        async function confirmDialog({ title, text, icon, confirmText, cancelText }) {
+        async function confirmDialog({
+            title,
+            text,
+            icon,
+            confirmText,
+            cancelText
+        }) {
             const res = await showPageDialog({
                 title,
                 text,
@@ -3055,6 +3125,7 @@ require_once 'header.php';
                 type: 'POST',
                 data: {
                     action: 'process_umrah_transition',
+                    csrf_token: CSRF_TOKEN,
                     passport_id: passportIds,
                     to_step_id: toStepId,
                     notes: notes,
@@ -3079,9 +3150,9 @@ require_once 'header.php';
                 },
                 error: function(xhr, status, error) {
                     console.error('AJAX Error:', xhr.responseText);
-                    const detailsClass = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode')
-                        ? 'text-start extra-small p-3 border rounded-3'
-                        : 'text-start extra-small bg-light p-3 border rounded-3';
+                    const detailsClass = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode') ?
+                        'text-start extra-small p-3 border rounded-3' :
+                        'text-start extra-small bg-light p-3 border rounded-3';
                     showPageDialog({
                         title: 'خطأ في الخادم',
                         html: `<div class="${detailsClass}" style="max-height:220px; overflow:auto; background:${document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode') ? '#111827' : '#f8fafc'}; border-color:${document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode') ? '#334155' : '#cbd5e1'};">
@@ -3170,7 +3241,15 @@ require_once 'header.php';
                     return res.text();
                 })
                 .then(html => {
-                    document.getElementById('viewModalContent').innerHTML = html;
+                    const content = document.getElementById('viewModalContent');
+                    content.innerHTML = html;
+                    const workflowScript = content.querySelector('#umrahWfInlineScript');
+                    if (workflowScript) {
+                        const executableScript = document.createElement('script');
+                        executableScript.textContent = workflowScript.textContent;
+                        document.body.appendChild(executableScript);
+                        workflowScript.remove();
+                    }
                     const tabEl = document.querySelector(`#viewModalContent #${tab}-tab`);
                     if (tabEl) {
                         bootstrap.Tab.getOrCreateInstance(tabEl).show();
@@ -3651,6 +3730,118 @@ require_once 'header.php';
         $('#branch_id').on('change', fetchPricing);
         fetchPricing();
     });
+
+    window.UmrahWorkflow = window.UmrahWorkflow || {};
+    (function(UW) {
+        UW.CSRF = CSRF_TOKEN;
+        UW.pending = UW.pending || {};
+        UW.prepareTransition = function(toStepId, toStepName, requireNote, requireReason, requireApproval, transitionId) {
+            UW.pending = {
+                toStepId: Number(toStepId),
+                toStepName: String(toStepName || ''),
+                requireNote: !!requireNote,
+                requireReason: !!requireReason,
+                requireApproval: !!requireApproval,
+                transitionId: Number(transitionId || 0)
+            };
+            const box = document.getElementById('umrahWfTransitionBox');
+            const target = document.getElementById('umrahWfTargetName');
+            const requiredNote = document.getElementById('umrahWfNotesRequired');
+            const fieldsBox = document.getElementById('umrahWfTransitionFields');
+            if (box) box.classList.remove('d-none');
+            if (target) target.textContent = UW.pending.toStepName;
+            if (requiredNote) requiredNote.classList.toggle('d-none', !(requireNote || requireReason));
+            if (!fieldsBox) return;
+            fieldsBox.innerHTML = '<div class="col-12 small text-muted">جاري تحميل حقول المرحلة التالية...</div>';
+            fetch('ajax_umrah.php?action=get_step_fields&step_id=' + UW.pending.toStepId).then(response => response.json()).then(data => {
+                const fields = Array.isArray(data.fields) ? data.fields : [];
+                fieldsBox.innerHTML = '';
+                if (!fields.length) {
+                    fieldsBox.innerHTML = '<div class="col-12 small text-success">لا توجد حقول إضافية لهذه المرحلة.</div>';
+                    return;
+                }
+                fields.forEach(field => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'col-md-6';
+                    const label = document.createElement('label');
+                    label.className = 'form-label small fw-bold mb-1';
+                    label.textContent = String(field.label || field.key) + (field.is_required ? ' *' : '');
+                    const input = field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
+                    if (input.tagName === 'TEXTAREA') input.rows = 2;
+                    else input.type = ['date', 'datetime', 'number'].includes(field.type) ? field.type : 'text';
+                    input.className = 'form-control form-control-sm rounded-3 wf-tr-field';
+                    input.dataset.field = field.key;
+                    input.required = !!field.is_required;
+                    wrapper.append(label, input);
+                    fieldsBox.appendChild(wrapper);
+                });
+            }).catch(error => {
+                fieldsBox.innerHTML = '<div class="col-12 small text-danger">تعذر تحميل الحقول: ' + error.message + '</div>';
+            });
+        };
+        UW.collectStepFields = function(scopeId) {
+            const scope = document.getElementById(scopeId) || document;
+            const values = {};
+            scope.querySelectorAll('.wf-field, .wf-tr-field').forEach(input => {
+                if (input.dataset.field) values[input.dataset.field] = input.type === 'checkbox' ? (input.checked ? 1 : 0) : input.value;
+            });
+            return values;
+        };
+        UW.cancelTransition = function() {
+            const box = document.getElementById('umrahWfTransitionBox');
+            if (box) box.classList.add('d-none');
+        };
+        UW.confirmTransition = function(mainId) {
+            const notes = document.getElementById('umrahWfNotes');
+            const noteValue = notes ? notes.value.trim() : '';
+            if ((UW.pending.requireNote || UW.pending.requireReason) && !noteValue) {
+                Swal.fire('مطلوب', 'يرجى كتابة الملاحظات المطلوبة قبل الانتقال.', 'warning');
+                return;
+            }
+            const extra = UW.collectStepFields('umrahWfTransitionBox');
+            Swal.fire({
+                title: 'تأكيد الانتقال',
+                text: 'هل تريد نقل المعاملة إلى: ' + UW.pending.toStepName + '؟',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'نعم، انقل الآن',
+                cancelButtonText: 'إلغاء'
+            }).then(result => {
+                if (result.isConfirmed) UW._doSubmit([Number(mainId)], UW.pending.toStepId, noteValue, extra);
+            });
+        };
+        UW._doSubmit = function(ids, stepId, notes, extra) {
+            const form = new FormData();
+            form.append('action', 'process_umrah_transition');
+            form.append('csrf_token', UW.CSRF);
+            form.append('to_step_id', String(stepId));
+            form.append('notes', notes || '');
+            ids.forEach(id => form.append('passport_id[]', String(id)));
+            Object.keys(extra || {}).forEach(key => form.append('extra_data[' + key + ']', extra[key]));
+            fetch('ajax_umrah.php', {
+                method: 'POST',
+                body: form
+            }).then(response => response.json()).then(result => {
+                if (result.status === 'success') Swal.fire('تم بنجاح', result.message, 'success').then(() => location.reload());
+                else Swal.fire('خطأ', result.message || 'تعذر تنفيذ الانتقال', 'error');
+            }).catch(error => Swal.fire('خطأ', error.message, 'error'));
+        };
+        UW.saveStepFields = function(mainId, currentStepId) {
+            UW._doSubmit([Number(mainId)], Number(currentStepId), 'حفظ حقول المرحلة', UW.collectStepFields('umrahWfRoot'));
+        };
+        UW.manualTransition = function(id, stepId, stepName) {
+            Swal.fire({
+                title: 'تغيير المرحلة يدوياً',
+                text: 'هل تريد نقل المعاملة إلى: ' + stepName + '؟',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'نعم، انقل الآن',
+                cancelButtonText: 'إلغاء'
+            }).then(result => {
+                if (result.isConfirmed) UW._doSubmit([Number(id)], Number(stepId), 'تغيير يدوي لمرحلة سير العمل بواسطة الإدارة', {});
+            });
+        };
+    })(window.UmrahWorkflow);
 </script>
 </body>
 

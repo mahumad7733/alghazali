@@ -14,9 +14,13 @@ if (!isset($_SESSION['admin_id'])) {
 
 $type = 'hajj';
 $page_title = 'نظام إدارة الحج المتكامل';
-$permission_prefix = 'umrah';
+$permission_prefix = 'hajj';
+$can_view_hajj = has_permission('hajj_view') || has_permission('umrah_view');
+$can_create_hajj = has_permission('hajj_create') || has_permission('umrah_create');
+$can_edit_hajj = has_permission('hajj_edit') || has_permission('umrah_edit');
+$can_delete_hajj = has_permission('hajj_delete') || has_permission('umrah_delete');
 
-if (!has_permission($permission_prefix . '_view')) {
+if (!$can_view_hajj) {
     header('Location: index.php?error=no_permission');
     exit();
 }
@@ -149,14 +153,14 @@ if ($has_new_columns) {
     LEFT JOIN workflows w ON p.workflow_id = w.id
     LEFT JOIN workflow_steps ws ON (ws.workflow_id = p.workflow_id AND ws.status_id = p.status_id)
     LEFT JOIN invoices inv ON (
-        inv.id = p.sales_invoice_id 
-        OR inv.id = p.invoice_id 
+        inv.id = p.sales_invoice_id
+        OR inv.id = p.invoice_id
         OR (inv.source_type IN ($hajj_invoice_source_types_sql) AND inv.source_id = p.id AND inv.invoice_category = 'sales')
     )
     LEFT JOIN currencies c ON inv.currency_id = c.id
     LEFT JOIN unified_accounts ua_inv ON inv.account_id = ua_inv.id
     LEFT JOIN invoices pur ON (
-        pur.id = p.purchase_invoice_id 
+        pur.id = p.purchase_invoice_id
         OR (pur.source_type IN ($hajj_invoice_source_types_sql) AND pur.source_id = p.id AND pur.invoice_category = 'purchase')
     )
     LEFT JOIN suppliers sup ON (inv.supplier_id = sup.id OR pur.supplier_id = sup.id)
@@ -287,8 +291,8 @@ $hajj_service_prices = [];
 if ($hajj_service_id) {
     $price_stmt = $pdo->prepare("
         SELECT sp.*, c.currency_name, c.currency_symbol, c.exchange_rate, c.exchange_rate_buy, c.exchange_rate_sell
-        FROM service_prices sp 
-        LEFT JOIN currencies c ON sp.currency_id = c.id 
+        FROM service_prices sp
+        LEFT JOIN currencies c ON sp.currency_id = c.id
         WHERE sp.service_id = ? AND sp.status = 'active'
         ORDER BY (sp.customer_id IS NULL AND sp.supplier_id IS NULL AND sp.branch_id IS NULL AND sp.agent_id IS NULL) DESC
     ");
@@ -338,13 +342,14 @@ $agents_accounts = $pdo->query("
 ")->fetchAll();
 $branches_accounts = $pdo->query("SELECT id, branch_name as account_name FROM branches WHERE deleted_at IS NULL AND status = 'active' ORDER BY branch_name ASC")->fetchAll();
 $suppliers_accounts = $pdo->query("SELECT id, supplier_name, account_id FROM suppliers WHERE deleted_at IS NULL ORDER BY supplier_name ASC")->fetchAll();
-function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null) {
+function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null)
+{
     // جلب معرف الحساب الأب
     $stmt_parent = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_code = ?");
     $stmt_parent->execute([$parent_account_code]);
     $parent_id = $stmt_parent->fetchColumn();
     if (!$parent_id) return [];
-    
+
     // جلب الحسابات تحت هذا الأب مع ربطها بالكيانات
     $sql = "SELECT ua.id, ua.account_code, ua.account_name_ar,
                    c.id as customer_id,
@@ -394,9 +399,9 @@ $user_details = $stmt_user_details->fetch();
 $is_super_user = in_array($user_details['user_type'], ['admin', 'developer']) || in_array($user_details['role'], ['admin', 'developer']) || has_permission('view_all_transactions');
 
 $pricing_context = get_current_user_pricing_context($pdo);
-$can_edit_purchase_price = has_permission('umrah_edit_purchase_price') || can_edit_service_purchase_price($pricing_context);
+$can_edit_purchase_price = has_permission('hajj_edit_purchase_price') || has_permission('umrah_edit_purchase_price') || can_edit_service_purchase_price($pricing_context);
 $can_edit_currency = can_edit_service_currency($pricing_context);
-$can_edit_sale_price = has_permission('umrah_show_sale_price') || can_edit_service_sale_price($pricing_context);
+$can_edit_sale_price = has_permission('hajj_show_sale_price') || has_permission('umrah_show_sale_price') || can_edit_service_sale_price($pricing_context);
 
 $agents = [];
 $branches = [];
@@ -431,7 +436,7 @@ require_once 'header.php';
                     <i class="fas fa-times-circle me-1"></i> عرض الكل
                 </a>
             <?php endif; ?>
-            <?php if (has_permission($permission_prefix . '_create')): ?>
+            <?php if ($can_create_hajj): ?>
                 <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addHajjModal">
                     <i class="fas fa-plus-circle me-1"></i> إضافة حاج جديد
                 </button>
@@ -487,7 +492,7 @@ require_once 'header.php';
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-primary"></i> قائمة المعاملات</h6>
             <div class="d-flex gap-2">
-                <input type="text" id="umrahSearch" class="form-control form-control-sm rounded-pill px-3" placeholder="بحث باسم الحاج أو رقم الجواز...">
+                <input type="text" id="umrahSearch" class="form-control form-control-sm rounded-pill px-3" placeholder="بحث باسم الحاج أو رقم الهوية...">
                 <select id="statusFilter" class="form-select form-select-sm rounded-pill px-3" style="width: 150px;">
                     <option value="">كل الحالات</option>
                     <?php foreach ($statuses as $s): ?>
@@ -691,15 +696,15 @@ require_once 'header.php';
                                         <div class="payment-box small">
                                             <div class="payment-box-title text-success">البيع</div>
                                             <div class="d-flex flex-wrap gap-1">
-                                            <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
-                                            <?php echo $invoice_badges[$p['sales_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                                <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                                <?php echo $invoice_badges[$p['sales_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
                                             </div>
                                         </div>
                                         <div class="payment-box small">
                                             <div class="payment-box-title text-primary">الشراء</div>
                                             <div class="d-flex flex-wrap gap-1">
-                                            <?php echo !empty($p['purchase_invoice_id']) ? ($pay_badges[$purPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
-                                            <?php echo !empty($p['purchase_invoice_id']) ? ($invoice_badges[$p['purchase_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
+                                                <?php echo !empty($p['purchase_invoice_id']) ? ($pay_badges[$purPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
+                                                <?php echo !empty($p['purchase_invoice_id']) ? ($invoice_badges[$p['purchase_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -816,9 +821,11 @@ require_once 'header.php';
                                                         </li>
                                                     <?php endif; ?>
 
-                                                    <?php if (has_permission('umrah_delete') && !$is_any_posted): ?>
+                                                    <?php if ($can_delete_hajj && !$is_any_posted): ?>
                                                         <?php if ($p['sales_invoice_id'] || $p['purchase_invoice_id']): ?>
-                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li>
+                                                                <hr class="dropdown-divider">
+                                                            </li>
                                                         <?php endif; ?>
                                                         <li><a class="dropdown-item py-2 small text-danger fw-bold delete-umrah" href="javascript:void(0);" data-id="<?php echo $p['id']; ?>"><i class="fas fa-user-times me-2"></i>حذف المعاملة بالكامل</a></li>
                                                     <?php endif; ?>
@@ -826,7 +833,7 @@ require_once 'header.php';
                                             </div>
                                         <?php endif; ?>
 
-                                        <?php if (has_permission('umrah_edit') && !$is_any_posted): ?>
+                                        <?php if ($can_edit_hajj && !$is_any_posted): ?>
                                             <button class="btn btn-sm btn-warning text-dark shadow-sm edit-umrah" data-id="<?php echo $p['id']; ?>" title="تعديل"><i class="fas fa-edit"></i></button>
                                         <?php endif; ?>
 
@@ -903,7 +910,7 @@ require_once 'header.php';
 <div class="modal fade" id="addHajjModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <form id="addHajjForm" method="POST" enctype="multipart/form-data">
+            <form id="addHajjForm" method="POST" enctype="multipart/form-data" data-customer-profile-form="1">
                 <?php echo csrf_input(); ?>
                 <input type="hidden" name="action" value="add_hajj">
                 <div class="modal-header">
@@ -942,7 +949,7 @@ require_once 'header.php';
                                             </div>
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">رقم الجواز</label>
+                                            <label class="form-label">رقم الهوية</label>
                                             <input type="text" name="passport_number" id="ocr_passport" class="form-control font-monospace" required>
                                         </div>
                                         <div class="col-md-6">
@@ -1106,14 +1113,27 @@ require_once 'header.php';
         display: flex;
         flex-direction: column;
     }
-    
+
+    #addHajjModal .modal-content>form {
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
     #addHajjModal .modal-body {
         flex-grow: 1;
+        min-height: 0;
         overflow-y: auto;
     }
-    
+
     #addHajjModal .modal-footer {
         flex-shrink: 0;
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        background: var(--light-bg, #fff) !important;
     }
 
     #addHajjModal .modal-header {
@@ -1418,7 +1438,8 @@ require_once 'header.php';
         color: var(--text-muted) !important;
     }
 
-    .card, .form-section-card {
+    .card,
+    .form-section-card {
         background-color: var(--card-bg) !important;
         border-color: var(--card-border) !important;
     }
@@ -1428,13 +1449,15 @@ require_once 'header.php';
         font-weight: 700;
     }
 
-    .form-control, .form-select {
+    .form-control,
+    .form-select {
         background-color: var(--bg-light) !important;
         border-color: var(--card-border) !important;
         color: var(--text-main) !important;
     }
 
-    .form-control:focus, .form-select:focus {
+    .form-control:focus,
+    .form-select:focus {
         border-color: #3b82f6;
         box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
     }
@@ -1460,6 +1483,7 @@ require_once 'header.php';
     body.theme-dark .bg-light {
         background-color: var(--bg-light) !important;
     }
+
     body.theme-dark #addHajjModal .modal-content {
         background-color: #1a2234;
         border: 1px solid #2d3748;
@@ -1661,83 +1685,86 @@ require_once 'header.php';
     const umrahServicePrices = <?php echo json_encode($hajj_service_prices); ?>;
     const umrahBranchId = <?php echo json_encode($currentUser['branch_id']); ?>;
     const umrahAgentId = <?php echo json_encode($currentUser['agent_id'] ?? 'null'); ?>;
-    
+
     // Function to find the best matching service price
     function findUmrahServicePrice(customerId = null, supplierId = null) {
         let bestMatch = null;
-        
+
         for (let price of umrahServicePrices) {
             let matchScore = 0;
             let valid = true;
-            
+
             // Check customer
             if (price.customer_id !== null && customerId !== price.customer_id) {
                 valid = false;
             } else if (price.customer_id !== null && customerId === price.customer_id) {
                 matchScore += 100; // Highest priority
             }
-            
+
             // Check supplier
             if (price.supplier_id !== null && supplierId !== price.supplier_id) {
                 valid = false;
             } else if (price.supplier_id !== null && supplierId === price.supplier_id) {
                 matchScore += 90;
             }
-            
+
             // Check branch
             if (price.branch_id !== null && umrahBranchId !== price.branch_id) {
                 valid = false;
             } else if (price.branch_id !== null && umrahBranchId === price.branch_id) {
                 matchScore += 80;
             }
-            
+
             // Check agent
             if (price.agent_id !== null && umrahAgentId !== price.agent_id) {
                 valid = false;
             } else if (price.agent_id !== null && umrahAgentId === price.agent_id) {
                 matchScore += 70;
             }
-            
+
             // Check if global (all null)
             if (price.customer_id === null && price.supplier_id === null && price.branch_id === null && price.agent_id === null) {
                 matchScore += 10;
             }
-            
+
             if (valid) {
                 if (!bestMatch || matchScore > bestMatch.score) {
-                    bestMatch = { ...price, score: matchScore };
+                    bestMatch = {
+                        ...price,
+                        score: matchScore
+                    };
                 }
             }
         }
-        
+
         return bestMatch;
     }
-    
+
     // Function to update the form fields with the selected service price
     function updateUmrahFormFields(price) {
         const salePriceInput = document.querySelector('input[name="total_amount"]');
         const costPriceInput = document.querySelector('input[name="cost_amount"]');
         const currencySelect = document.querySelector('select[name="currency_id"]');
-        
+
         if (price) {
             if (salePriceInput) salePriceInput.value = price.default_sale_price;
             if (costPriceInput) costPriceInput.value = (price.agent_price || price.branch_price || 0);
             if (currencySelect) currencySelect.value = price.currency_id;
-            
+
             // Trigger input events to update any related calculations
             if (salePriceInput) salePriceInput.dispatchEvent(new Event('input'));
             if (costPriceInput) costPriceInput.dispatchEvent(new Event('input'));
             if (currencySelect) currencySelect.dispatchEvent(new Event('change'));
         }
     }
-    
+
     // Event listeners for customer and supplier selects
     function setupUmrahServicePriceListeners() {
         // Find elements
         let supplierSelect = document.querySelector('select[name="supplier_id"]');
         let deliveryTypeSelect = document.getElementById('delivery_type');
         let accountSelect = document.getElementById('account_select');
-        
+
         // Function to get current customer ID from form
         function getCurrentCustomerId() {
             if (!deliveryTypeSelect || deliveryTypeSelect.value !== 'credit') return null;
@@ -1747,7 +1774,7 @@ require_once 'header.php';
             const customerId = selectedOption.dataset.customerId;
             return customerId ? parseInt(customerId) : null;
         }
-        
+
         // Function to update prices
         function updatePrices() {
             const customerId = getCurrentCustomerId();
@@ -1755,26 +1782,26 @@ require_once 'header.php';
             const price = findUmrahServicePrice(customerId, supplierId);
             updateUmrahFormFields(price);
         }
-        
+
         // Listen to supplier change
         if (supplierSelect) {
             supplierSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Listen to delivery type change
         if (deliveryTypeSelect) {
             deliveryTypeSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Listen to account change
         if (accountSelect) {
             accountSelect.addEventListener('change', updatePrices);
         }
-        
+
         // Initialize with default price
         updatePrices();
     }
-    
+
     // Wait for DOM content loaded and initialize
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(setupUmrahServicePriceListeners, 500); // Give time for other scripts to load
@@ -2103,7 +2130,7 @@ require_once 'header.php';
                 nationality_code: l2.substring(10, 13).replace(/</g, '')
             };
 
-            // 1. معالجة رقم الجواز
+            // 1. معالجة رقم الهوية
             let passportNum = l2.substring(0, 9).replace(/</g, '').trim();
             if (data.nationality_code === 'YEM' || data.country_code === 'YEM') {
                 passportNum = passportNum.replace(/[^0-9]/g, '');

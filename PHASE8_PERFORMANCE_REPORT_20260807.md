@@ -9,10 +9,21 @@ Command: `php tools/finance_performance_benchmark.php` with 1,000 in-memory norm
 
 | Operation | Legacy | Facade |
 |---|---:|---:|
-| Payload normalization (ms) | 4.120 | 3.887 |
+| Payload normalization (ms) | 2.118 | 2.297 |
 
-The latest run is approximately 6% faster for the Facade in this microbenchmark. Results vary between runs, so this is directional evidence only.
+Results vary between runs; this microbenchmark is directional evidence only and is not used as a production capacity claim.
+
+## Isolated integration and SQL review
+
+- Full accounting integration was run three times against `alghazali_refactor_test`.
+- Wall-clock durations: `380.04 ms`, `255.19 ms`, and `253.60 ms`; average `296.28 ms`.
+- The integration suite remained `29/29` successful during the performance runs.
+- Read-only `EXPLAIN` review confirmed indexed access for fiscal-period lookup, payment allocation lookup, and unified-account lookup.
+- Index inventory was captured for `fiscal_periods`, `customers`, `invoices`, `payment_allocations`, `financial_transactions`, and `unified_accounts`.
+- No production database, data, stored procedure, trigger, or migration was touched.
 
 ## Status
 
-The measurement tool and repeatable result are complete. Full performance acceptance remains pending because this benchmark does not measure SQL query count, database transaction duration, memory under real financial operations, or page load time. Those measurements require a controlled test dataset and production-like traffic profile.
+**Phase 8 isolated evidence: complete.** The repeatable benchmark, integration timing, and read-only query-plan review are documented.
+
+**Production-scale performance acceptance: pending.** SQL query-count tracing, peak memory under real PHP requests, browser page-load timing, lock contention, and representative production traffic still require an approved staging/load-test environment. This is an environment gate, not a reason to modify production data.

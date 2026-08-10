@@ -271,6 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_booking'])) {
 
             $creationResult = $bookingCreatorService->createBooking([
                 'traveler_name' => $traveler_name,
+                'passport_id' => (int)($_POST['passport_id'] ?? 0),
                 'mobile_number' => $mobile_number,
                 'date_of_birth' => $date_of_birth,
                 'place_of_birth' => $place_of_birth,
@@ -780,6 +781,7 @@ $query = "
         -- حساب الربح بناءً على فرق البيع والتكلفة المخزنة في فاتورة البيع
         (IFNULL(inv.total_amount, 0) - IFNULL(inv.discount, 0) - IFNULL(inv.cost_amount, 0)) AS profit,
         b.customer_id,
+        b.passport_id,
         b.agent_id,
         b.account_id,
         inv.delivery_type,
@@ -1377,6 +1379,7 @@ if (isset($_SESSION['flash_message'])) {
                     <thead class="bg-light">
                         <tr>
                             <th class="px-4 py-3 border-0 text-secondary small text-uppercase fw-bold">رقم الفاتورة</th>
+                            <th class="border-0 text-secondary small text-uppercase fw-bold">اسم المسافر</th>
                             <th class="border-0 text-secondary small text-uppercase fw-bold">التاريخ</th>
                             <th class="border-0 text-secondary small text-uppercase fw-bold">خط السير</th>
                             <th class="border-0 text-secondary small text-uppercase fw-bold">المورد والشراء</th>
@@ -1389,7 +1392,7 @@ if (isset($_SESSION['flash_message'])) {
                     <tbody>
                         <?php if (empty($bookings)): ?>
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">لا توجد حجوزات لعرضها حالياً.</td>
+                                <td colspan="9" class="text-center py-4 text-muted">لا توجد حجوزات لعرضها حالياً.</td>
                             </tr>
                         <?php else: ?>
                             <?php
@@ -1429,6 +1432,24 @@ if (isset($_SESSION['flash_message'])) {
                                             </div>
                                         <?php else: ?>
                                             <span class="text-muted small">---</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <!-- اسم المسافر -->
+                                    <td class="small">
+                                        <?php $travelerName = trim((string)($booking['traveler_name'] ?? '')); ?>
+                                        <?php if ($travelerName !== ''): ?>
+                                            <?php if (!empty($booking['passport_id'])): ?>
+                                                <a href="customer_profile.php?passport_id=<?php echo (int)$booking['passport_id']; ?>" class="fw-bold text-decoration-none text-primary">
+                                                    <?php echo htmlspecialchars($travelerName); ?>
+                                                </a>
+                                            <?php else: ?>
+                                                <span class="fw-bold"><?php echo htmlspecialchars($travelerName); ?></span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($booking['mobile_number'])): ?>
+                                                <div class="text-muted small"><?php echo htmlspecialchars($booking['mobile_number']); ?></div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">---</span>
                                         <?php endif; ?>
                                     </td>
                                     <!-- التاريخ -->
@@ -1891,7 +1912,7 @@ if (isset($_SESSION['flash_message'])) {
 <div class="modal fade" id="addBookingModal">
     <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-centered booking-form-dialog">
         <div class="modal-content border-0 shadow-lg rounded-4 booking-form-content">
-            <form method="POST" action="<?php echo h($bookingPageUrl); ?>">
+            <form method="POST" action="<?php echo h($bookingPageUrl); ?>" data-customer-profile-form="1">
                 <?php echo csrf_input(); ?>
                 <input type="hidden" name="source_type" value="<?php echo h($pageBookingModule->getFinanceSourceType()); ?>">
                 <div class="modal-header bg-primary text-white border-0 py-3">

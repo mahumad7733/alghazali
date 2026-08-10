@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../FinanceService.php';
+require_once __DIR__ . '/../../includes/customer_profile.php';
 
 class BookingCreatorService
 {
@@ -36,23 +37,40 @@ class BookingCreatorService
                 $branchId = $this->pdo->query("SELECT id FROM branches LIMIT 1")->fetchColumn() ?: null;
             }
 
-            $stmt = $this->pdo->prepare("
-                INSERT INTO bus_flight_bookings (
-                    booking_number, traveler_name, mobile_number, date_of_birth, place_of_birth, gender, nationality_id,
+            $passportId = null;
+            if (customer_profile_has_column($this->pdo, 'bus_flight_bookings', 'passport_id')) {
+                $passportId = customer_profile_find_or_create($this->pdo, [
+                    'passport_id' => $bookingData['passport_id'] ?? null,
+                    'full_name' => $bookingData['traveler_name'],
+                    'phone_number' => $bookingData['mobile_number'],
+                    'date_of_birth' => $bookingData['date_of_birth'],
+                    'gender' => $bookingData['gender'],
+                    'id_type' => $bookingData['id_type'],
+                    'id_number' => $bookingData['id_number'],
+                    'id_issue_place' => $bookingData['id_issue_place'],
+                    'id_issue_date' => $bookingData['id_issue_date'],
+                    'branch_id' => $branchId,
+                    'created_by' => $this->userId,
+                ]);
+            }
+
+            $columns = "booking_number, traveler_name, mobile_number, date_of_birth, place_of_birth, gender, nationality_id,
                     id_type, id_number, id_issue_place, id_issue_date, booking_date, service_type,
                     bus_type, trip_type, from_city_id, to_city_id, departure_date, return_date,
                     supplier_type, supplier_id, customer_id, account_id, notes, created_by,
-                    status_id, description, branch_id, agent_id, operation_date
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?
-                )
+                    status_id, description, branch_id, agent_id, operation_date";
+            $values = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+            if ($passportId !== null) {
+                $columns .= ', passport_id';
+                $values .= ', ?';
+            }
+            $stmt = $this->pdo->prepare("
+                INSERT INTO bus_flight_bookings (
+                    {$columns}
+                ) VALUES ({$values})
             ");
 
-            $stmt->execute([
+            $insertValues = [
                 $bookingNumber,
                 $bookingData['traveler_name'],
                 $bookingData['mobile_number'],
@@ -83,9 +101,28 @@ class BookingCreatorService
                 $branchId,
                 $bookingData['agent_id'],
                 $bookingData['operation_date'],
-            ]);
+            ];
+            if ($passportId !== null) {
+                $insertValues[] = $passportId;
+            }
+            $stmt->execute($insertValues);
 
             $bookingId = (int)$this->pdo->lastInsertId();
+
+            if ($passportId !== null) {
+                customer_profile_record_service($this->pdo, [
+                    'passport_id' => $passportId,
+                    'service_type' => $bookingData['service_type'] === 'bus' ? 'bus_booking' : 'flight_booking',
+                    'service_id' => $bookingId,
+                    'service_number' => $bookingNumber,
+                    'service_date' => $bookingData['operation_date'],
+                    'amount' => $financeData['sale_price'] ?? null,
+                    'currency_id' => $financeData['sale_currency_id'] ?? null,
+                    'status' => 'new',
+                    'branch_id' => $branchId,
+                    'created_by' => $this->userId,
+                ]);
+            }
 
             $financeResults = $this->financeService->processServiceOperation([
                 'source_type' => $this->bookingModule->getFinanceSourceType(),

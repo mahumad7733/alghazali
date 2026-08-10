@@ -77,7 +77,7 @@ try {
                     <?php foreach ($wf_steps as $step): ?>
                         <div class="accordion-item">
                             <h2 class="accordion-header">
-                                <button class="accordion-button collapsed py-3" type="button" data-bs-toggle="collapse" data-bs-target="#step_<?= $step['id'] ?>">
+                                <button class="accordion-button collapsed py-3 workflow-step-fields-header" type="button" data-bs-toggle="collapse" data-bs-target="#step_<?= $step['id'] ?>" id="step_<?= $step['id'] ?>_header">
                                     <span class="badge rounded-circle bg-light text-dark me-2"><?= $step['sort_order'] ?></span>
                                     <span class="fw-bold"><?= htmlspecialchars($step['step_name']) ?></span>
                                     <small class="text-muted ms-2">(<?= $step['step_key'] ?>)</small>
@@ -196,6 +196,25 @@ try {
 </style>
 
 <script>
+    (function() {
+        const hash = (window.location.hash || '').replace(/^#/, '');
+        if (hash && hash.startsWith('step_')) {
+            const header = document.getElementById(hash + '_header');
+            if (header) {
+                window.setTimeout(function() {
+                    header.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                    header.classList.add('bg-primary-subtle');
+                    try {
+                        header.click();
+                    } catch (e) {}
+                }, 120);
+            }
+        }
+    })();
+
     function toggleField(stepId, fieldId, action, btn) {
         const formData = new FormData();
         formData.append('ajax_action', action);

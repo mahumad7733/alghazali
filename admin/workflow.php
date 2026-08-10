@@ -58,7 +58,7 @@ if (isset($_POST['add_step'])) {
             $stmt_check = $pdo->prepare("SELECT id FROM statuses WHERE status_name = ?");
             $stmt_check->execute([$display_status_name]);
             $status_id = $stmt_check->fetchColumn();
-            
+
             if ($status_id === false) {
                 $stmt_add_status = $pdo->prepare("INSERT INTO statuses (status_name, status_color) VALUES (?, ?)");
                 $stmt_add_status->execute([$display_status_name, $color]);
@@ -71,7 +71,7 @@ if (isset($_POST['add_step'])) {
 
             $stmt = $pdo->prepare("INSERT INTO workflow_steps (workflow_id, status_id, step_name, step_key, sort_order, color, is_initial, is_final, is_editable, require_note, require_reason, show_fields, show_checklist) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$workflow_id, $status_id, $step_name, $step_key, $sort_order, $color, $is_initial, $is_final, $is_editable, $require_note, $require_reason, $show_fields, $show_checklist]);
-            
+
             // تحديث الحالة الافتراضية لسير العمل إذا كانت هذه هي الحالة الأولية
             if ($is_initial) {
                 $step_id = $pdo->lastInsertId();
@@ -164,7 +164,7 @@ if (isset($_POST['update_step'])) {
             $stmt_check = $pdo->prepare("SELECT id FROM statuses WHERE status_name = ?");
             $stmt_check->execute([$display_status_name]);
             $status_id = $stmt_check->fetchColumn();
-            
+
             if ($status_id === false) {
                 $stmt_add_status = $pdo->prepare("INSERT INTO statuses (status_name, status_color) VALUES (?, ?)");
                 $stmt_add_status->execute([$display_status_name, $color]);
@@ -176,7 +176,7 @@ if (isset($_POST['update_step'])) {
                 $stmt_wf = $pdo->prepare("SELECT workflow_id FROM workflow_steps WHERE id = ?");
                 $stmt_wf->execute([$step_id]);
                 $workflow_id = $stmt_wf->fetchColumn();
-                
+
                 $pdo->prepare("UPDATE workflow_steps SET is_initial = 0 WHERE workflow_id = ?")->execute([$workflow_id]);
                 $pdo->prepare("UPDATE workflows SET default_status_id = ? WHERE id = ?")->execute([$step_id, $workflow_id]);
             }
@@ -225,9 +225,9 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
             <p class="text-muted small mb-0">إدارة مراحل المعاملات وقواعد الانتقال بين الحالات</p>
         </div>
         <?php if (has_permission('create_workflow')): ?>
-        <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addWorkflowModal">
-            <i class="fas fa-plus-circle me-2"></i> إنشاء سير عمل جديد
-        </button>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addWorkflowModal">
+                <i class="fas fa-plus-circle me-2"></i> إنشاء سير عمل جديد
+            </button>
         <?php endif; ?>
     </div>
 
@@ -264,9 +264,9 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                             <h5 class="fw-bold mb-1 text-primary"><?php echo htmlspecialchars($wf['name']); ?></h5>
                             <div class="d-flex gap-2">
                                 <span class="badge bg-light text-dark border small">
-                                    <?php 
+                                    <?php
                                     if ($wf['transaction_type'] === 'all') echo 'جميع المعاملات';
-                                    else echo htmlspecialchars($wf['service_name'] ?: $wf['transaction_type']); 
+                                    else echo htmlspecialchars($wf['service_name'] ?: $wf['transaction_type']);
                                     ?>
                                 </span>
                                 <?php if ($wf['branch_name']): ?>
@@ -276,18 +276,18 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                         </div>
                         <div class="btn-group shadow-sm rounded-pill overflow-hidden">
                             <?php if (has_permission('edit_workflow')): ?>
-                            <button class="btn btn-success btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addStepModal<?php echo $wf['id']; ?>">
-                                <i class="fas fa-plus me-1"></i> إضافة مرحلة
-                            </button>
-                            <button class="btn btn-info btn-sm text-white px-3" data-bs-toggle="modal" data-bs-target="#addTransitionModal<?php echo $wf['id']; ?>">
-                                <i class="fas fa-random me-1"></i> إضافة انتقال
-                            </button>
+                                <button class="btn btn-success btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addStepModal<?php echo $wf['id']; ?>">
+                                    <i class="fas fa-plus me-1"></i> إضافة مرحلة
+                                </button>
+                                <button class="btn btn-info btn-sm text-white px-3" data-bs-toggle="modal" data-bs-target="#addTransitionModal<?php echo $wf['id']; ?>">
+                                    <i class="fas fa-random me-1"></i> إضافة انتقال
+                                </button>
                             <?php endif; ?>
                         </div>
                     </div>
                     <div class="card-body px-4 pb-4">
                         <p class="text-muted small mb-4"><?php echo htmlspecialchars($wf['description']); ?></p>
-                        
+
                         <div class="row g-4">
                             <!-- الخطوات -->
                             <div class="col-lg-7">
@@ -328,7 +328,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                                         </div>
                                                         <div class="d-flex flex-wrap gap-1 mt-1">
                                                             <small class="text-muted border-end pe-1 me-1"><?php echo $step['step_key']; ?></small>
-                                                            <?php 
+                                                            <?php
                                                             if (!empty($step['show_fields'])) {
                                                                 $fields_map = get_all_workflow_fields();
                                                                 $active_fields = explode(',', $step['show_fields']);
@@ -350,21 +350,23 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                                     </td>
                                                     <td class="text-center">
                                                         <?php if (has_permission('edit_workflow')): ?>
-                                                        <div class="btn-group shadow-sm rounded-pill overflow-hidden">
-                                                            <button class="btn btn-sm btn-light text-primary border-0" data-bs-toggle="modal" data-bs-target="#editStepModal<?php echo $step['id']; ?>">
-                                                                <i class="fas fa-edit"></i>
-                                                            </button>
-                                                            <a href="workflow.php?delete_step=<?php echo $step['id']; ?>" class="btn btn-sm btn-light text-danger border-0" onclick="return confirm('هل أنت متأكد من حذف هذه المرحلة؟')">
-                                                                <i class="fas fa-trash-alt"></i>
-                                                            </a>
-                                                        </div>
+                                                            <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                                                                <button class="btn btn-sm btn-light text-primary border-0" data-bs-toggle="modal" data-bs-target="#editStepModal<?php echo $step['id']; ?>">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
+                                                                <a href="workflow.php?delete_step=<?php echo $step['id']; ?>" class="btn btn-sm btn-light text-danger border-0" onclick="return confirm('هل أنت متأكد من حذف هذه المرحلة؟')">
+                                                                    <i class="fas fa-trash-alt"></i>
+                                                                </a>
+                                                            </div>
                                                         <?php endif; ?>
                                                     </td>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
                                             <?php if (empty($wf_steps)): ?>
-                                                <tr><td colspan="5" class="text-center py-4 text-muted">لا توجد مراحل مضافة لهذا المسار</td></tr>
+                                                <tr>
+                                                    <td colspan="5" class="text-center py-4 text-muted">لا توجد مراحل مضافة لهذا المسار</td>
+                                                </tr>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -381,8 +383,8 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                     <?php
                                     $trans_stmt = $pdo->prepare("
                                         SELECT wt.*, ws1.step_name as from_name, ws2.step_name as to_name, r.display_name as role_name, u.full_name as user_name
-                                        FROM workflow_transitions wt 
-                                        JOIN workflow_steps ws1 ON wt.from_step_id = ws1.id 
+                                        FROM workflow_transitions wt
+                                        JOIN workflow_steps ws1 ON wt.from_step_id = ws1.id
                                         JOIN workflow_steps ws2 ON wt.to_step_id = ws2.id
                                         LEFT JOIN roles r ON wt.role_id = r.id
                                         LEFT JOIN users u ON wt.allow_by_user_id = u.id
@@ -402,46 +404,46 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                                     </div>
                                                     <div class="small">
                                                         <span class="text-muted"><i class="fas fa-user-shield me-1"></i> الصلاحية:</span>
-                                                        <span class="fw-bold"><?php 
-                                                            if ($trans['role_name'] && $trans['user_name']) echo htmlspecialchars($trans['role_name'] . ' + ' . $trans['user_name']);
-                                                            else if ($trans['role_name']) echo htmlspecialchars($trans['role_name']);
-                                                            else if ($trans['user_name']) echo htmlspecialchars($trans['user_name']);
-                                                            else echo 'الجميع';
-                                                        ?></span>
+                                                        <span class="fw-bold"><?php
+                                                                                if ($trans['role_name'] && $trans['user_name']) echo htmlspecialchars($trans['role_name'] . ' + ' . $trans['user_name']);
+                                                                                else if ($trans['role_name']) echo htmlspecialchars($trans['role_name']);
+                                                                                else if ($trans['user_name']) echo htmlspecialchars($trans['user_name']);
+                                                                                else echo 'الجميع';
+                                                                                ?></span>
                                                         <?php if ($trans['auto_action']): ?>
                                                             <div class="mt-1 text-success">
-                                                                <i class="fas fa-magic me-1"></i> إجراء تلقائي: 
-                                                                <?php 
-                                                                    $actions = [
-                                                                        'financial_posting' => 'ترحيل مالي (إنشاء قيود)',
-                                                                        'supplier_credit_posting' => 'تسجيل سعر الشراء كأجل للمورد',
-                                                                        'close_transaction' => 'إغلاق نهائي للمعاملة',
-                                                                        'create_log' => 'تسجيل ملاحظة تلقائية',
-                                                                        'create_sales_invoice' => 'إنشاء فاتورة بيع تلقائياً',
-                                                                        'create_purchase_invoice' => 'إنشاء فاتورة شراء تلقائياً',
-                                                                        'create_both_invoices' => 'إنشاء فاتورتي بيع وشراء معاً',
-                                                                        'post_revenue_entry' => 'ترحيل قيد الإيراد',
-                                                                        'post_cost_entry' => 'ترحيل قيد التكلفة',
-                                                                        'reverse_invoices' => 'عكس الفواتير (إلغاء)',
-                                                                        'update_payment_status' => 'تحديث حالة الدفع للفاتورة',
-                                                                        'send_invoice_notification' => 'إرسال إشعار الفاتورة',
-                                                                        'auto_currency_conversion' => 'تحويل العملة تلقائياً'
-                                                                    ];
-                                                                    echo $actions[$trans['auto_action']] ?? $trans['auto_action'];
+                                                                <i class="fas fa-magic me-1"></i> إجراء تلقائي:
+                                                                <?php
+                                                                $actions = [
+                                                                    'financial_posting' => 'ترحيل مالي (إنشاء قيود)',
+                                                                    'supplier_credit_posting' => 'تسجيل سعر الشراء كأجل للمورد',
+                                                                    'close_transaction' => 'إغلاق نهائي للمعاملة',
+                                                                    'create_log' => 'تسجيل ملاحظة تلقائية',
+                                                                    'create_sales_invoice' => 'إنشاء فاتورة بيع تلقائياً',
+                                                                    'create_purchase_invoice' => 'إنشاء فاتورة شراء تلقائياً',
+                                                                    'create_both_invoices' => 'إنشاء فاتورتي بيع وشراء معاً',
+                                                                    'post_revenue_entry' => 'ترحيل قيد الإيراد',
+                                                                    'post_cost_entry' => 'ترحيل قيد التكلفة',
+                                                                    'reverse_invoices' => 'عكس الفواتير (إلغاء)',
+                                                                    'update_payment_status' => 'تحديث حالة الدفع للفاتورة',
+                                                                    'send_invoice_notification' => 'إرسال إشعار الفاتورة',
+                                                                    'auto_currency_conversion' => 'تحويل العملة تلقائياً'
+                                                                ];
+                                                                echo $actions[$trans['auto_action']] ?? $trans['auto_action'];
                                                                 ?>
                                                             </div>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
                                                 <?php if (has_permission('edit_workflow')): ?>
-                                                <div class="ms-2 d-flex gap-1">
-                                                    <button class="btn btn-sm btn-light text-primary rounded-circle shadow-sm" style="width: 28px; height: 28px; padding: 0; line-height: 28px;" data-bs-toggle="modal" data-bs-target="#editTransitionModal<?php echo $trans['id']; ?>">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    <a href="workflow.php?delete_trans=<?php echo $trans['id']; ?>" class="btn btn-sm btn-light text-danger rounded-circle shadow-sm" style="width: 28px; height: 28px; padding: 0; line-height: 28px;" onclick="return confirm('هل أنت متأكد من حذف هذا الانتقال؟')">
-                                                        <i class="fas fa-times"></i>
-                                                    </a>
-                                                </div>
+                                                    <div class="ms-2 d-flex gap-1">
+                                                        <button class="btn btn-sm btn-light text-primary rounded-circle shadow-sm" style="width: 28px; height: 28px; padding: 0; line-height: 28px;" data-bs-toggle="modal" data-bs-target="#editTransitionModal<?php echo $trans['id']; ?>">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <a href="workflow.php?delete_trans=<?php echo $trans['id']; ?>" class="btn btn-sm btn-light text-danger rounded-circle shadow-sm" style="width: 28px; height: 28px; padding: 0; line-height: 28px;" onclick="return confirm('هل أنت متأكد من حذف هذا الانتقال؟')">
+                                                            <i class="fas fa-times"></i>
+                                                        </a>
+                                                    </div>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -487,9 +489,11 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                             <label class="form-label fw-bold">اللون</label>
                                             <input type="color" name="color" class="form-control form-control-color w-100 rounded-pill" value="#6c757d">
                                         </div>
-                                        
-                                        <div class="col-12"><hr class="my-2"></div>
-                                        
+
+                                        <div class="col-12">
+                                            <hr class="my-2">
+                                        </div>
+
                                         <div class="col-md-4">
                                             <div class="form-switch-container">
                                                 <div class="form-switch">
@@ -540,23 +544,31 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                         </div>
 
                                         <div class="col-12 mt-3">
-                                            <label class="form-label fw-bold text-primary"><i class="fas fa-eye me-1"></i> الحقول التي تظهر في هذه المرحلة</label>
-                                            <div class="row g-2 bg-light p-3 rounded-4 border">
-                                            <?php 
-                                            $available_fields = get_workflow_fields_by_type($wf['transaction_type']);
-                                            if (empty($available_fields)): ?>
-                                                <div class="col-12 text-center text-muted small">لا توجد حقول مرتبطة بهذا النوع</div>
-                                            <?php else: ?>
-                                                <?php foreach($available_fields as $key => $label): ?>
-                                                    <div class="col-md-4">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= $key ?>" id="field_<?= $key ?>_<?= $wf['id'] ?>">
-                                                            <label class="form-check-label small" for="field_<?= $key ?>_<?= $wf['id'] ?>"><?= $label ?></label>
+                                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                                <label class="form-label fw-bold text-primary mb-0"><i class="fas fa-eye me-1"></i> الحقول التي تظهر في هذه المرحلة</label>
+                                                <?php if (has_permission('edit_workflow')): ?>
+                                                    <a href="workflow_step_fields.php" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 border d-inline-flex align-items-center gap-1 btn-open-step-fields">
+                                                        <i class="fas fa-th-list"></i>
+                                                        <span>إدارة الحقول المتقدمة (عرض / تعديل / إلزامي)</span>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="row g-2 bg-light p-3 rounded-4 border step-fields-grid" data-transaction-type="<?= htmlspecialchars((string)($wf['transaction_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                                <?php
+                                                $available_fields = get_workflow_fields_by_type($wf['transaction_type']);
+                                                if (empty($available_fields)): ?>
+                                                    <div class="col-12 text-center text-muted small">لا توجد حقول مرتبطة بهذا النوع</div>
+                                                <?php else: ?>
+                                                    <?php foreach ($available_fields as $key => $label): ?>
+                                                        <div class="col-md-4">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>">
+                                                                <label class="form-check-label small" for="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -600,7 +612,9 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        <div class="col-12"><hr class="my-2"></div>
+                                        <div class="col-12">
+                                            <hr class="my-2">
+                                        </div>
                                         <div class="col-12">
                                             <label class="form-label fw-bold">من يحق له هذا الانتقال؟ (الأدوار)</label>
                                             <select name="role_id[]" class="form-select rounded-4" multiple size="4">
@@ -720,7 +734,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
     $steps_stmt = $pdo->prepare("SELECT ws.*, s.status_name FROM workflow_steps ws LEFT JOIN statuses s ON ws.status_id = s.id WHERE ws.workflow_id = ? ORDER BY ws.sort_order");
     $steps_stmt->execute([$wf['id']]);
     $wf_steps = $steps_stmt->fetchAll();
-    
+
     foreach ($wf_steps as $step): ?>
         <div class="modal fade" id="editStepModal<?php echo $step['id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-lg text-start">
@@ -753,9 +767,11 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                     <label class="form-label fw-bold">اللون</label>
                                     <input type="color" name="color" class="form-control form-control-color w-100 rounded-pill" value="<?php echo $step['color']; ?>">
                                 </div>
-                                
-                                <div class="col-12"><hr class="my-2"></div>
-                                
+
+                                <div class="col-12">
+                                    <hr class="my-2">
+                                </div>
+
                                 <div class="col-md-4">
                                     <div class="form-switch-container">
                                         <div class="form-switch">
@@ -806,19 +822,27 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                 </div>
 
                                 <div class="col-12 mt-3">
-                                    <label class="form-label fw-bold text-primary"><i class="fas fa-eye me-1"></i> الحقول التي تظهر في هذه المرحلة</label>
-                                    <div class="row g-2 bg-light p-3 rounded-4 border">
-                                        <?php 
+                                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                        <label class="form-label fw-bold text-primary mb-0"><i class="fas fa-eye me-1"></i> الحقول التي تظهر في هذه المرحلة</label>
+                                        <?php if (has_permission('edit_workflow')): ?>
+                                            <a href="workflow_step_fields.php#step_<?= (int)$step['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 border d-inline-flex align-items-center gap-1 btn-open-step-fields btn-open-step-fields-edit">
+                                                <i class="fas fa-th-list"></i>
+                                                <span>إدارة الحقول المتقدمة (عرض / تعديل / إلزامي)</span>
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="row g-2 bg-light p-3 rounded-4 border step-fields-grid" data-transaction-type="<?= htmlspecialchars((string)($wf['transaction_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-step-id="<?= (int)$step['id'] ?>">
+                                        <?php
                                         $selected_fields = !empty($step['show_fields']) ? explode(',', $step['show_fields']) : [];
-                                        $available_fields = get_workflow_fields_by_type($wf['transaction_type']);
+                                        $available_fields = get_workflow_fields_by_type($wf['transaction_type'], $selected_fields);
                                         if (empty($available_fields)): ?>
                                             <div class="col-12 text-center text-muted small">لا توجد حقول مرتبطة بهذا النوع</div>
                                         <?php else: ?>
-                                            <?php foreach($available_fields as $key => $label): ?>
+                                            <?php foreach ($available_fields as $key => $label): ?>
                                                 <div class="col-md-4">
                                                     <div class="form-check">
-                                                        <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= $key ?>" id="edit_field_<?= $key ?>_<?= $step['id'] ?>" <?= in_array($key, $selected_fields) ? 'checked' : '' ?>>
-                                                        <label class="form-check-label small" for="edit_field_<?= $key ?>_<?= $step['id'] ?>"><?= $label ?></label>
+                                                        <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>" <?= in_array($key, $selected_fields) ? 'checked' : '' ?>>
+                                                        <label class="form-check-label small" for="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
                                                     </div>
                                                 </div>
                                             <?php endforeach; ?>
@@ -841,7 +865,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
     $trans_stmt = $pdo->prepare("SELECT * FROM workflow_transitions WHERE workflow_id = ?");
     $trans_stmt->execute([$wf['id']]);
     $wf_trans = $trans_stmt->fetchAll();
-    
+
     foreach ($wf_trans as $trans): ?>
         <div class="modal fade" id="editTransitionModal<?php echo $trans['id']; ?>" tabindex="-1">
             <div class="modal-dialog text-start">
@@ -870,11 +894,13 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-12"><hr class="my-2"></div>
+                                <div class="col-12">
+                                    <hr class="my-2">
+                                </div>
                                 <div class="col-12">
                                     <label class="form-label fw-bold">من يحق له هذا الانتقال؟ (الأدوار)</label>
                                     <select name="role_id[]" class="form-select rounded-4" multiple size="4">
-                                        <?php 
+                                        <?php
                                         $selected_roles = !empty($trans['role_id']) ? explode(',', $trans['role_id']) : [];
                                         foreach ($roles as $r): ?>
                                             <option value="<?php echo $r['id']; ?>" <?php echo in_array($r['id'], $selected_roles) ? 'selected' : ''; ?>><?php echo htmlspecialchars($r['display_name']); ?></option>
@@ -921,30 +947,145 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
 <?php endforeach; ?>
 
 <style>
-.card { transition: all 0.3s ease; }
-.card:hover { transform: translateY(-5px); }
-.badge { font-weight: 500; }
-.list-group-item-action:hover { background-color: #f8f9fa; }
+    .card {
+        transition: all 0.3s ease;
+    }
 
-/* تحسين وضوح الخطوط في نوافذ التعديل */
-.modal-content { color: #000000 !important; }
-.modal-body label.form-label, 
-.modal-body .form-check-label {
-    color: #000000 !important;
-    font-weight: 800 !important; 
-    font-size: 0.95rem;
-}
-.modal-body .form-control, 
-.modal-body .form-select {
-    border: 2px solid #ced4da !important; 
-    color: #000000 !important;
-    font-weight: 600 !important;
-}
-.modal-body .bg-light {
-    background-color: #f0f2f5 !important; 
-    border: 1px solid #dee2e6 !important;
-}
-.modal-header .modal-title { font-weight: 900 !important; }
+    .card:hover {
+        transform: translateY(-5px);
+    }
+
+    .badge {
+        font-weight: 500;
+    }
+
+    .list-group-item-action:hover {
+        background-color: #f8f9fa;
+    }
+
+    /* تحسين وضوح الخطوط في نوافذ التعديل */
+    .modal-content {
+        color: #000000 !important;
+    }
+
+    .modal-body label.form-label,
+    .modal-body .form-check-label {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        font-size: 0.95rem;
+    }
+
+    .modal-body .form-control,
+    .modal-body .form-select {
+        border: 2px solid #ced4da !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+    }
+
+    .modal-body .bg-light {
+        background-color: #f0f2f5 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+
+    .modal-header .modal-title {
+        font-weight: 900 !important;
+    }
+
+    .btn-open-step-fields {
+        min-height: 32px;
+        z-index: 5;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-open-step-fields:hover,
+    .btn-open-step-fields:focus {
+        background-color: #0d6efd !important;
+        color: #ffffff !important;
+        border-color: #0d6efd !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(13, 110, 253, 0.25);
+    }
+
+    .btn-open-step-fields:active {
+        transform: translateY(0);
+    }
+
+    .step-fields-grid {
+        max-height: 320px;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+    }
 </style>
+
+<script>
+    (function() {
+        function safeOpenLink(href, target) {
+            try {
+                if (target === '_blank') {
+                    var w = window.open(href, '_blank', 'noopener,noreferrer');
+                    if (!w || w.closed || typeof w.closed === 'undefined') {
+                        window.location.href = href;
+                    }
+                } else {
+                    window.location.href = href;
+                }
+            } catch (e) {
+                window.location.href = href;
+            }
+        }
+
+        function bindWorkflowFieldButtons(root) {
+            var scope = root || document;
+            var buttons = scope.querySelectorAll('.btn-open-step-fields');
+            buttons.forEach(function(btn) {
+                if (btn.dataset.wfBound === '1') return;
+                btn.dataset.wfBound = '1';
+
+                var handler = function(ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    var originalHref = btn.getAttribute('href') || 'workflow_step_fields.php';
+                    var target = btn.getAttribute('target') || '_self';
+                    safeOpenLink(originalHref, target);
+                    return false;
+                };
+
+                btn.addEventListener('click', handler, true);
+                btn.addEventListener('mousedown', function(ev) {
+                    if (ev.button === 1) {
+                        ev.preventDefault();
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            bindWorkflowFieldButtons(document);
+
+            if (window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
+                document.addEventListener('shown.bs.modal', function(ev) {
+                    if (ev && ev.target && ev.target.classList && ev.target.classList.contains('modal')) {
+                        setTimeout(function() {
+                            bindWorkflowFieldButtons(ev.target);
+                        }, 50);
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(ev) {
+                var btn = ev.target.closest('.btn-open-step-fields');
+                if (btn) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    var originalHref = btn.getAttribute('href') || 'workflow_step_fields.php';
+                    var target = btn.getAttribute('target') || '_self';
+                    safeOpenLink(originalHref, target);
+                    return false;
+                }
+            }, true);
+        });
+    })();
+</script>
 
 <?php require_once 'footer.php'; ?>

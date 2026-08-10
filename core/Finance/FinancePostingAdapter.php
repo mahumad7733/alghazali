@@ -127,6 +127,52 @@ final class FinancePostingAdapter
         }
     }
 
+    public static function createInvoiceAndPost(PDO $pdo, ...$arguments): int
+    {
+        self::loadLegacyFunctions();
+        $startedHere = !$pdo->inTransaction();
+        if ($startedHere) {
+            $pdo->beginTransaction();
+        }
+        try {
+            $invoiceId = (int)php_create_invoice_and_post($pdo, ...$arguments);
+            $userId = (int)($arguments[12] ?? ($_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 0));
+            (new self())->audit($pdo, $userId, 'create_and_post_invoice', 'invoice', $invoiceId);
+            if ($startedHere) {
+                $pdo->commit();
+            }
+            return $invoiceId;
+        } catch (\Throwable $exception) {
+            if ($startedHere && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    public static function createVoucherAndPost(PDO $pdo, ...$arguments): int
+    {
+        self::loadLegacyFunctions();
+        $startedHere = !$pdo->inTransaction();
+        if ($startedHere) {
+            $pdo->beginTransaction();
+        }
+        try {
+            $voucherId = (int)php_create_voucher_and_post($pdo, ...$arguments);
+            $userId = (int)($_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 0);
+            (new self())->audit($pdo, $userId, 'create_and_post_voucher', 'financial_transaction', $voucherId);
+            if ($startedHere) {
+                $pdo->commit();
+            }
+            return $voucherId;
+        } catch (\Throwable $exception) {
+            if ($startedHere && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
     public static function deleteFinancialTransactionAndReverse(PDO $pdo, int $transactionId, ?int $userId = null): void
     {
         self::loadLegacyFunctions();

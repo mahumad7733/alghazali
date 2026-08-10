@@ -19,9 +19,9 @@ if (!has_permission($permission_prefix . '_view')) {
 
 // جلب بيانات المستخدم الحالي
 $stmt_user = $pdo->prepare("
-    SELECT u.*, r.name as role_name 
-    FROM users u 
-    LEFT JOIN roles r ON u.role_id = r.id 
+    SELECT u.*, r.name as role_name
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
     WHERE u.id = ?
 ");
 $stmt_user->execute([$_SESSION['admin_id']]);
@@ -69,7 +69,7 @@ $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
 // الاستعلام الرئيسي للطلبات
 $requests_stmt = $pdo->prepare("
-    SELECT r.*, s.status_name, s.status_color, 
+    SELECT r.*, s.status_name, s.status_color,
            ag.agent_name, br.branch_name,
            (SELECT COUNT(*) FROM family_visit_individuals WHERE request_id = r.id) as individuals_count,
            sale_inv.net_amount as total_price,
@@ -245,17 +245,17 @@ $agents_entities = $pdo->query("
 ")->fetchAll();
 
 $cashboxes_entities = $pdo->query("
-    SELECT id as account_id, account_name_ar as name, account_code 
-    FROM unified_accounts 
-    WHERE account_code LIKE '101%' AND account_code != '101' AND account_status = 'active' 
+    SELECT id as account_id, account_name_ar as name, account_code
+    FROM unified_accounts
+    WHERE account_code LIKE '101%' AND account_code != '101' AND account_status = 'active'
     ORDER BY account_name_ar ASC
 ")->fetchAll();
 $cash_accounts = $cashboxes_entities;
 
 $banks_entities = $pdo->query("
-    SELECT id as account_id, account_name_ar as name, account_code 
-    FROM unified_accounts 
-    WHERE account_code LIKE '102%' AND account_code != '102' AND account_status = 'active' 
+    SELECT id as account_id, account_name_ar as name, account_code
+    FROM unified_accounts
+    WHERE account_code LIKE '102%' AND account_code != '102' AND account_status = 'active'
     ORDER BY account_name_ar ASC
 ")->fetchAll();
 $bank_accounts = $banks_entities;
@@ -265,12 +265,18 @@ $branches_accounts = $pdo->query("SELECT id, branch_name as account_name FROM br
 // جلب إحصائيات الحالات للزيارة العائلية
 $stats_on_clauses = ["s.id = r.status_id"];
 $stats_params = [];
-if (!empty($agent_filter)) { $stats_on_clauses[] = "r.agent_id = ?"; $stats_params[] = $agent_filter; }
-if (!empty($branch_filter)) { $stats_on_clauses[] = "r.branch_id = ?"; $stats_params[] = $branch_filter; }
+if (!empty($agent_filter)) {
+    $stats_on_clauses[] = "r.agent_id = ?";
+    $stats_params[] = $agent_filter;
+}
+if (!empty($branch_filter)) {
+    $stats_on_clauses[] = "r.branch_id = ?";
+    $stats_params[] = $branch_filter;
+}
 $stats_on_sql = implode(" AND ", $stats_on_clauses);
 
 $status_stats_stmt = $pdo->prepare("
-    SELECT 
+    SELECT
         s.id, s.status_name, s.status_color,
         COUNT(r.id) as total,
         COUNT(CASE WHEN DATE(r.created_at) = CURDATE() THEN 1 END) as today,
@@ -289,6 +295,66 @@ require_once 'header.php';
 ?>
 
 <style>
+    #addRequestModal .modal-dialog {
+        height: calc(100vh - 1rem);
+    }
+
+    #addRequestModal .modal-content {
+        height: 100%;
+        display: flex;
+    }
+
+    #addRequestModal .modal-content>form {
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    #addRequestModal .modal-body {
+        max-height: none !important;
+        overflow-y: auto !important;
+        flex: 1 1 auto;
+    }
+
+    #addRequestModal .modal-footer {
+        flex-shrink: 0;
+        background: var(--card-bg, #fff);
+        border-top: 1px solid var(--card-border, rgba(0, 0, 0, .1)) !important;
+        position: relative;
+        z-index: 2;
+    }
+
+    body.theme-dark #addRequestModal .modal-footer {
+        background: #111827;
+    }
+
+    #addRequestModal .modal-dialog {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        margin-top: .5rem;
+        margin-bottom: .5rem;
+    }
+
+    #addRequestModal .modal-content {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        overflow: hidden;
+    }
+
+    #addRequestModal .modal-content>form {
+        height: auto !important;
+        max-height: calc(100vh - 1rem);
+        min-height: 0;
+    }
+
+    #addRequestModal .modal-body {
+        max-height: calc(100vh - 170px) !important;
+        min-height: 0;
+        overflow-y: auto !important;
+    }
+
     @media (max-width: 768px) {
         .page-header-actions {
             flex-direction: column !important;
@@ -296,40 +362,51 @@ require_once 'header.php';
             width: 100%;
             gap: 0.75rem !important;
         }
+
         .header-controls {
             flex-direction: column !important;
             width: 100%;
             gap: 0.75rem !important;
         }
-        .header-controls form, .header-controls .input-group, .header-controls button {
+
+        .header-controls form,
+        .header-controls .input-group,
+        .header-controls button {
             width: 100% !important;
         }
+
         .mini-card {
             min-width: 150px !important;
             padding: 12px !important;
         }
+
         .stat-value {
             font-size: 1.3rem !important;
         }
+
         .stat-label {
             font-size: 0.85rem !important;
         }
+
         .table-responsive {
             border: 0;
         }
+
         .table thead {
             display: none;
         }
+
         .table tbody tr {
             display: flex;
             flex-direction: column;
             margin-bottom: 1.25rem;
             background: #fff;
             border-radius: 16px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             padding: 1rem;
             border: 1px solid #f0f0f0;
         }
+
         .table tbody td {
             display: flex;
             justify-content: space-between;
@@ -340,11 +417,13 @@ require_once 'header.php';
             text-align: left;
             width: 100%;
         }
+
         .table tbody td:last-child {
             border-bottom: 0;
             padding-top: 12px;
             justify-content: center;
         }
+
         .table tbody td::before {
             content: attr(data-label);
             font-weight: 700;
@@ -353,20 +432,24 @@ require_once 'header.php';
             font-size: 0.9rem;
             flex-shrink: 0;
         }
+
         /* Improve finance mini cards on mobile */
         .finance-mini-card {
             padding: 12px !important;
             border-radius: 12px !important;
         }
+
         /* Improve individual entry form on mobile */
-        #addRequestModal .modal-body .row > div {
+        #addRequestModal .modal-body .row>div {
             width: 100% !important;
             flex: 0 0 100% !important;
             max-width: 100% !important;
         }
+
         #addRequestModal .modal-dialog {
             margin: 0.5rem !important;
         }
+
         /* Improve buttons on mobile */
         .btn-sm {
             padding: 0.5rem 1rem !important;
@@ -377,22 +460,22 @@ require_once 'header.php';
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 page-header-actions">
         <h3 class="fw-bold mb-0"><i class="fas fa-users me-2 text-info"></i> <?php echo $page_title; ?></h3>
-        
+
         <div class="d-flex gap-2 align-items-center header-controls">
             <form method="GET" class="d-flex gap-2 align-items-center">
                 <?php if ($is_super_user || $can_view_all): ?>
-                <select name="agent_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
-                    <option value="">كل الوكلاء</option>
-                    <?php foreach($agents as $ag): ?>
-                        <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <select name="branch_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
-                    <option value="">كل الفروع</option>
-                    <?php foreach($branches as $br): ?>
-                        <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
-                    <?php endforeach; ?>
-                </select>
+                    <select name="agent_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
+                        <option value="">كل الوكلاء</option>
+                        <?php foreach ($agents as $ag): ?>
+                            <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="branch_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
+                        <option value="">كل الفروع</option>
+                        <?php foreach ($branches as $br): ?>
+                            <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 <?php endif; ?>
             </form>
 
@@ -400,11 +483,11 @@ require_once 'header.php';
                 <span class="input-group-text bg-white border-0 shadow-sm rounded-start-pill"><i class="fas fa-search text-muted"></i></span>
                 <input type="text" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث سريع...">
             </div>
-            
+
             <?php if (has_permission($permission_prefix . '_create')): ?>
-            <button type="button" class="btn btn-info text-white rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addRequestModal">
-                <i class="fas fa-plus-circle me-2"></i> طلب جديد
-            </button>
+                <button type="button" class="btn btn-info text-white rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addRequestModal">
+                    <i class="fas fa-plus-circle me-2"></i> طلب جديد
+                </button>
             <?php endif; ?>
         </div>
     </div>
@@ -412,14 +495,16 @@ require_once 'header.php';
     <?php if (!empty($_SESSION['success'])): ?>
         <div class="alert alert-success alert-dismissible fade show rounded-4 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-check-circle me-2"></i>
-            <?php echo htmlspecialchars((string)$_SESSION['success']); unset($_SESSION['success']); ?>
+            <?php echo htmlspecialchars((string)$_SESSION['success']);
+            unset($_SESSION['success']); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
     <?php if (!empty($_SESSION['error'])): ?>
         <div class="alert alert-danger alert-dismissible fade show rounded-4 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-exclamation-circle me-2"></i>
-            <?php echo htmlspecialchars((string)$_SESSION['error']); unset($_SESSION['error']); ?>
+            <?php echo htmlspecialchars((string)$_SESSION['error']);
+            unset($_SESSION['error']); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
@@ -439,29 +524,29 @@ require_once 'header.php';
             </div>
         </div>
 
-        <?php foreach($status_stats as $stat): 
+        <?php foreach ($status_stats as $stat):
             $isActive = isset($_GET['status_filter']) && $_GET['status_filter'] == $stat['id'];
         ?>
-        <div class="col-auto">
-            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 mini-card transition-all <?php echo $isActive ? 'ring-2 ring-primary shadow-lg' : ''; ?>"
-                 style="min-width: 180px; border-top: 4px solid <?php echo $stat['status_color']; ?> !important;">
-                <div class="stat-label text-truncate"><?php echo $stat['status_name']; ?></div>
-                <div class="stat-value mb-2" style="color: <?php echo $stat['status_color']; ?>;"><?php echo $stat['total']; ?></div>
-                
-                <div class="d-flex justify-content-between align-items-center mt-auto">
-                    <div class="sub-stat">اليوم: <span class="sub-stat-value"><?php echo $stat['today']; ?></span></div>
-                    <?php 
-                    $diff = $stat['this_month'] - $stat['last_month'];
-                    if ($diff != 0):
-                        $color = $diff > 0 ? 'text-success' : 'text-danger';
-                        $icon = $diff > 0 ? 'fa-caret-up' : 'fa-caret-down';
-                    ?>
-                    <div class="sub-stat <?php echo $color; ?>"><i class="fas <?php echo $icon; ?>"></i> <?php echo abs($diff); ?></div>
-                    <?php endif; ?>
+            <div class="col-auto">
+                <div class="card border-0 shadow-sm rounded-4 p-3 h-100 mini-card transition-all <?php echo $isActive ? 'ring-2 ring-primary shadow-lg' : ''; ?>"
+                    style="min-width: 180px; border-top: 4px solid <?php echo $stat['status_color']; ?> !important;">
+                    <div class="stat-label text-truncate"><?php echo $stat['status_name']; ?></div>
+                    <div class="stat-value mb-2" style="color: <?php echo $stat['status_color']; ?>;"><?php echo $stat['total']; ?></div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-auto">
+                        <div class="sub-stat">اليوم: <span class="sub-stat-value"><?php echo $stat['today']; ?></span></div>
+                        <?php
+                        $diff = $stat['this_month'] - $stat['last_month'];
+                        if ($diff != 0):
+                            $color = $diff > 0 ? 'text-success' : 'text-danger';
+                            $icon = $diff > 0 ? 'fa-caret-up' : 'fa-caret-down';
+                        ?>
+                            <div class="sub-stat <?php echo $color; ?>"><i class="fas <?php echo $icon; ?>"></i> <?php echo abs($diff); ?></div>
+                        <?php endif; ?>
+                    </div>
+                    <a href="family_visit.php?status_filter=<?php echo $stat['id']; ?><?php echo !empty($agent_filter) ? '&agent_filter=' . $agent_filter : ''; ?><?php echo !empty($branch_filter) ? '&branch_filter=' . $branch_filter : ''; ?>" class="stretched-link"></a>
                 </div>
-                <a href="family_visit.php?status_filter=<?php echo $stat['id']; ?><?php echo !empty($agent_filter) ? '&agent_filter='.$agent_filter : ''; ?><?php echo !empty($branch_filter) ? '&branch_filter='.$branch_filter : ''; ?>" class="stretched-link"></a>
             </div>
-        </div>
         <?php endforeach; ?>
     </div>
 
@@ -482,251 +567,251 @@ require_once 'header.php';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach($requests as $r): ?>
-                        <tr>
-                            <td data-label="رقم المستند" class="px-4 fw-bold text-primary fv-raise">
-                                <div><?php echo h($r['document_no']); ?></div>
-                                <div class="x-small text-muted mt-1"><?php echo date('Y-m-d', strtotime($r['created_at'])); ?></div>
-                            </td>
-                            <td data-label="صاحب الطلب" class="fv-raise">
-                                <div class="fw-bold"><?php echo h($r['owner_name']); ?></div>
-                                <small class="text-muted"><?php echo htmlspecialchars($r['owner_id_no']); ?></small>
-                                <div class="x-small text-muted mt-1"><?php echo htmlspecialchars($r['agent_name'] ?: ($r['branch_name'] ?: 'بدون جهة')); ?></div>
-                            </td>
-                            <td data-label="الأفراد" class="fv-raise">
-                                <span class="badge bg-info bg-opacity-10 text-info px-3"><?php echo $r['individuals_count']; ?> أفراد</span>
-                                <?php
-                                $indStatuses = $individualStatusByRequest[(int)$r['id']] ?? [];
-                                if (!empty($indStatuses)):
-                                ?>
-                                    <div class="mt-2 d-flex flex-wrap gap-1">
-                                        <?php foreach ($indStatuses as $st): ?>
-                                            <span class="badge rounded-pill" style="background-color: <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>20; color: <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>; border: 1px solid <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>;">
-                                                <?php echo htmlspecialchars((string)($st['status_name'] ?? '---')); ?>
-                                                <span class="ms-1"><?php echo (int)($st['cnt'] ?? 0); ?></span>
-                                            </span>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </td>
-                            <?php $currencyMark = trim((string)($r['currency_symbol'] ?: ($r['currency_name'] ?: ''))); ?>
-                            <td data-label="المورد والشراء" class="small fv-raise">
-                                <div class="finance-mini-card">
-                                    <div class="mini-label">المورد</div>
-                                    <div class="mini-name clamp-2"><?php echo htmlspecialchars($r['purchase_invoice_id'] ? ($r['purchase_supplier_name'] ?: 'المورد غير محدد') : 'لا توجد فاتورة شراء'); ?></div>
-                                    <div class="mini-label">الشراء</div>
-                                    <div class="mini-amount" style="color:#dc2626;">
-                                        <?php
-                                        $purchaseAmount = $r['purchase_invoice_id']
-                                            ? (float)($r['purchase_total_amount'] ?? 0)
-                                            : (float)($r['total_cost'] ?? 0);
-                                        echo number_format($purchaseAmount, 2);
-                                        echo $currencyMark !== '' ? ' ' . htmlspecialchars($currencyMark) : '';
-                                        ?>
-                                    </div>
-                                </div>
-                            </td>
-                            <td data-label="الحساب وإجمالي الفاتورة" class="small fv-raise">
-                                <div class="finance-mini-card">
-                                    <div class="mini-label">الحساب الآخر</div>
-                                    <div class="mini-name clamp-2">
-                                        <?php
-                                        $salesAccountLabel = trim((string)($r['sales_account_code'] ?? ''));
-                                        $salesAccountName = trim((string)($r['sales_account_name'] ?? ''));
-                                        echo htmlspecialchars($salesAccountName ?: 'الحساب غير محدد');
-                                        ?>
-                                    </div>
-                                    <div class="mini-label">إجمالي الفاتورة</div>
-                                    <div class="mini-amount" style="color:#16a34a;">
-                                        <?php
-                                        $saleAmount = (float)($r['total_price'] ?? 0);
-                                        echo number_format($saleAmount, 2);
-                                        echo $currencyMark !== '' ? ' ' . htmlspecialchars($currencyMark) : '';
-                                        ?>
-                                    </div>
-                                </div>
-                            </td>
-                            <td data-label="حالة الدفع والترحيل">
-                                <?php
-                                $pay_badges = [
-                                    'unpaid' => '<span class="badge bg-danger-subtle text-danger rounded-pill">غير مدفوع</span>',
-                                    'partial' => '<span class="badge bg-warning-subtle text-warning rounded-pill">مدفوع جزئياً</span>',
-                                    'partially_paid' => '<span class="badge bg-warning-subtle text-warning rounded-pill">مدفوع جزئياً</span>',
-                                    'paid' => '<span class="badge bg-success-subtle text-success rounded-pill">مدفوع بالكامل</span>',
-                                    'fully_paid' => '<span class="badge bg-success-subtle text-success rounded-pill">مدفوع بالكامل</span>',
-                                    'awaiting_approval' => '<span class="badge bg-info-subtle text-info rounded-pill">بانتظار الاعتماد</span>'
-                                ];
-                                $invoice_badges = [
-                                    'draft' => '<span class="badge bg-secondary-subtle text-secondary rounded-pill">مسودة</span>',
-                                    'posted' => '<span class="badge bg-primary-subtle text-primary rounded-pill">مرحل</span>',
-                                    'cancelled' => '<span class="badge bg-danger-subtle text-danger rounded-pill">ملغي</span>'
-                                ];
-
-                                $saleNet = (float)($r['total_price'] ?? 0);
-                                $salePaid = (float)($r['total_paid'] ?? 0);
-                                $salesPayKey = ($saleNet > 0 && $salePaid >= $saleNet - 0.01)
-                                    ? 'fully_paid'
-                                    : ($salePaid > 0 ? 'partial' : 'unpaid');
-
-                                $purchaseNet = (float)($r['purchase_total_amount'] ?? 0);
-                                $purchasePaid = (float)($r['purchase_paid_amount'] ?? 0);
-                                $purchasePayKey = ($purchaseNet > 0 && $purchasePaid >= $purchaseNet - 0.01)
-                                    ? 'fully_paid'
-                                    : ($purchasePaid > 0 ? 'partial' : 'unpaid');
-                                ?>
-                                <div class="payment-stack">
-                                    <div class="payment-box small">
-                                        <div class="payment-box-title text-success">البيع</div>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
-                                            <?php echo $invoice_badges[$r['sales_invoice_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                        <?php foreach ($requests as $r): ?>
+                            <tr>
+                                <td data-label="رقم المستند" class="px-4 fw-bold text-primary fv-raise">
+                                    <div><?php echo h($r['document_no']); ?></div>
+                                    <div class="x-small text-muted mt-1"><?php echo date('Y-m-d', strtotime($r['created_at'])); ?></div>
+                                </td>
+                                <td data-label="صاحب الطلب" class="fv-raise">
+                                    <div class="fw-bold"><?php echo h($r['owner_name']); ?></div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($r['owner_id_no']); ?></small>
+                                    <div class="x-small text-muted mt-1"><?php echo htmlspecialchars($r['agent_name'] ?: ($r['branch_name'] ?: 'بدون جهة')); ?></div>
+                                </td>
+                                <td data-label="الأفراد" class="fv-raise">
+                                    <span class="badge bg-info bg-opacity-10 text-info px-3"><?php echo $r['individuals_count']; ?> أفراد</span>
+                                    <?php
+                                    $indStatuses = $individualStatusByRequest[(int)$r['id']] ?? [];
+                                    if (!empty($indStatuses)):
+                                    ?>
+                                        <div class="mt-2 d-flex flex-wrap gap-1">
+                                            <?php foreach ($indStatuses as $st): ?>
+                                                <span class="badge rounded-pill" style="background-color: <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>20; color: <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>; border: 1px solid <?php echo htmlspecialchars((string)($st['status_color'] ?? '#6c757d')); ?>;">
+                                                    <?php echo htmlspecialchars((string)($st['status_name'] ?? '---')); ?>
+                                                    <span class="ms-1"><?php echo (int)($st['cnt'] ?? 0); ?></span>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                                <?php $currencyMark = trim((string)($r['currency_symbol'] ?: ($r['currency_name'] ?: ''))); ?>
+                                <td data-label="المورد والشراء" class="small fv-raise">
+                                    <div class="finance-mini-card">
+                                        <div class="mini-label">المورد</div>
+                                        <div class="mini-name clamp-2"><?php echo htmlspecialchars($r['purchase_invoice_id'] ? ($r['purchase_supplier_name'] ?: 'المورد غير محدد') : 'لا توجد فاتورة شراء'); ?></div>
+                                        <div class="mini-label">الشراء</div>
+                                        <div class="mini-amount" style="color:#dc2626;">
+                                            <?php
+                                            $purchaseAmount = $r['purchase_invoice_id']
+                                                ? (float)($r['purchase_total_amount'] ?? 0)
+                                                : (float)($r['total_cost'] ?? 0);
+                                            echo number_format($purchaseAmount, 2);
+                                            echo $currencyMark !== '' ? ' ' . htmlspecialchars($currencyMark) : '';
+                                            ?>
                                         </div>
                                     </div>
-                                    <div class="payment-box small">
-                                        <div class="payment-box-title text-primary">الشراء</div>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            <?php echo !empty($r['purchase_invoice_id']) ? ($pay_badges[$purchasePayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
-                                            <?php echo !empty($r['purchase_invoice_id']) ? ($invoice_badges[$r['purchase_invoice_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
+                                </td>
+                                <td data-label="الحساب وإجمالي الفاتورة" class="small fv-raise">
+                                    <div class="finance-mini-card">
+                                        <div class="mini-label">الحساب الآخر</div>
+                                        <div class="mini-name clamp-2">
+                                            <?php
+                                            $salesAccountLabel = trim((string)($r['sales_account_code'] ?? ''));
+                                            $salesAccountName = trim((string)($r['sales_account_name'] ?? ''));
+                                            echo htmlspecialchars($salesAccountName ?: 'الحساب غير محدد');
+                                            ?>
+                                        </div>
+                                        <div class="mini-label">إجمالي الفاتورة</div>
+                                        <div class="mini-amount" style="color:#16a34a;">
+                                            <?php
+                                            $saleAmount = (float)($r['total_price'] ?? 0);
+                                            echo number_format($saleAmount, 2);
+                                            echo $currencyMark !== '' ? ' ' . htmlspecialchars($currencyMark) : '';
+                                            ?>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td data-label="الإجراءات" class="text-center">
-                                <?php
-                                $salesStatus = $r['sales_invoice_status'] ?? 'draft';
-                                $purchaseStatus = $r['purchase_invoice_status'] ?? (!empty($r['purchase_invoice_id']) ? 'draft' : null);
-                                $hasSalesInvoice = !empty($r['sales_invoice_id']);
-                                $hasPurchaseInvoice = !empty($r['purchase_invoice_id']);
-                                $hasPostedInvoice = ($salesStatus === 'posted') || ($purchaseStatus === 'posted');
-                                $hasDraftInvoice = ($salesStatus === 'draft') || ($purchaseStatus === 'draft');
-                                $canModifyRow = in_array((string)$salesStatus, ['draft', 'cancelled'], true)
-                                    && (empty($r['purchase_invoice_id']) || in_array((string)$purchaseStatus, ['draft', 'cancelled'], true));
-                                $canFinancialPost = $is_super_user || has_permission('family_visit_financial_post') || has_permission('work_visa_financial_post');
-                                ?>
-                                <div class="financial-actions-wrap">
-                                    <button class="btn btn-sm btn-outline-info view-request" data-id="<?php echo $r['id']; ?>" title="عرض"><i class="fas fa-eye"></i></button>
-                                    <?php if ($canModifyRow && !$hasPostedInvoice): ?>
-                                        <div class="financial-action-group">
-                                            <button class="financial-action-btn" type="button" data-action-menu-toggle="manage-<?php echo $r['id']; ?>" title="إدارة الطلب" style="background: rgba(59, 130, 246, 0.12); color: #1d4ed8;">
-                                                <i class="fas fa-gear"></i>
-                                                <span>إدارة</span>
-                                                <i class="fas fa-chevron-down small"></i>
-                                            </button>
-                                            <div class="financial-action-menu" id="manage-<?php echo $r['id']; ?>">
-                                                <div class="financial-action-menu-title">إدارة الطلب</div>
-                                                <button class="financial-action-menu-item manage-option edit-request" type="button" data-id="<?php echo $r['id']; ?>">
-                                                    <i class="fas fa-pen-to-square"></i>
-                                                    <span>تعديل</span>
+                                </td>
+                                <td data-label="حالة الدفع والترحيل">
+                                    <?php
+                                    $pay_badges = [
+                                        'unpaid' => '<span class="badge bg-danger-subtle text-danger rounded-pill">غير مدفوع</span>',
+                                        'partial' => '<span class="badge bg-warning-subtle text-warning rounded-pill">مدفوع جزئياً</span>',
+                                        'partially_paid' => '<span class="badge bg-warning-subtle text-warning rounded-pill">مدفوع جزئياً</span>',
+                                        'paid' => '<span class="badge bg-success-subtle text-success rounded-pill">مدفوع بالكامل</span>',
+                                        'fully_paid' => '<span class="badge bg-success-subtle text-success rounded-pill">مدفوع بالكامل</span>',
+                                        'awaiting_approval' => '<span class="badge bg-info-subtle text-info rounded-pill">بانتظار الاعتماد</span>'
+                                    ];
+                                    $invoice_badges = [
+                                        'draft' => '<span class="badge bg-secondary-subtle text-secondary rounded-pill">مسودة</span>',
+                                        'posted' => '<span class="badge bg-primary-subtle text-primary rounded-pill">مرحل</span>',
+                                        'cancelled' => '<span class="badge bg-danger-subtle text-danger rounded-pill">ملغي</span>'
+                                    ];
+
+                                    $saleNet = (float)($r['total_price'] ?? 0);
+                                    $salePaid = (float)($r['total_paid'] ?? 0);
+                                    $salesPayKey = ($saleNet > 0 && $salePaid >= $saleNet - 0.01)
+                                        ? 'fully_paid'
+                                        : ($salePaid > 0 ? 'partial' : 'unpaid');
+
+                                    $purchaseNet = (float)($r['purchase_total_amount'] ?? 0);
+                                    $purchasePaid = (float)($r['purchase_paid_amount'] ?? 0);
+                                    $purchasePayKey = ($purchaseNet > 0 && $purchasePaid >= $purchaseNet - 0.01)
+                                        ? 'fully_paid'
+                                        : ($purchasePaid > 0 ? 'partial' : 'unpaid');
+                                    ?>
+                                    <div class="payment-stack">
+                                        <div class="payment-box small">
+                                            <div class="payment-box-title text-success">البيع</div>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <?php echo $pay_badges[$salesPayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                                <?php echo $invoice_badges[$r['sales_invoice_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>'; ?>
+                                            </div>
+                                        </div>
+                                        <div class="payment-box small">
+                                            <div class="payment-box-title text-primary">الشراء</div>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <?php echo !empty($r['purchase_invoice_id']) ? ($pay_badges[$purchasePayKey] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : '<span class="badge bg-light text-dark rounded-pill">لا توجد</span>'; ?>
+                                                <?php echo !empty($r['purchase_invoice_id']) ? ($invoice_badges[$r['purchase_invoice_status'] ?? 'draft'] ?? '<span class="badge bg-light text-dark rounded-pill">---</span>') : ''; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td data-label="الإجراءات" class="text-center">
+                                    <?php
+                                    $salesStatus = $r['sales_invoice_status'] ?? 'draft';
+                                    $purchaseStatus = $r['purchase_invoice_status'] ?? (!empty($r['purchase_invoice_id']) ? 'draft' : null);
+                                    $hasSalesInvoice = !empty($r['sales_invoice_id']);
+                                    $hasPurchaseInvoice = !empty($r['purchase_invoice_id']);
+                                    $hasPostedInvoice = ($salesStatus === 'posted') || ($purchaseStatus === 'posted');
+                                    $hasDraftInvoice = ($salesStatus === 'draft') || ($purchaseStatus === 'draft');
+                                    $canModifyRow = in_array((string)$salesStatus, ['draft', 'cancelled'], true)
+                                        && (empty($r['purchase_invoice_id']) || in_array((string)$purchaseStatus, ['draft', 'cancelled'], true));
+                                    $canFinancialPost = $is_super_user || has_permission('family_visit_financial_post') || has_permission('work_visa_financial_post');
+                                    ?>
+                                    <div class="financial-actions-wrap">
+                                        <button class="btn btn-sm btn-outline-info view-request" data-id="<?php echo $r['id']; ?>" title="عرض"><i class="fas fa-eye"></i></button>
+                                        <?php if ($canModifyRow && !$hasPostedInvoice): ?>
+                                            <div class="financial-action-group">
+                                                <button class="financial-action-btn" type="button" data-action-menu-toggle="manage-<?php echo $r['id']; ?>" title="إدارة الطلب" style="background: rgba(59, 130, 246, 0.12); color: #1d4ed8;">
+                                                    <i class="fas fa-gear"></i>
+                                                    <span>إدارة</span>
+                                                    <i class="fas fa-chevron-down small"></i>
                                                 </button>
-                                                <div class="financial-action-menu-title mt-2">حذف الفواتير</div>
-                                                <button class="financial-action-menu-item delete-option <?php echo ($hasSalesInvoice && $salesStatus !== 'posted') ? '' : 'disabled'; ?>"
+                                                <div class="financial-action-menu" id="manage-<?php echo $r['id']; ?>">
+                                                    <div class="financial-action-menu-title">إدارة الطلب</div>
+                                                    <button class="financial-action-menu-item manage-option edit-request" type="button" data-id="<?php echo $r['id']; ?>">
+                                                        <i class="fas fa-pen-to-square"></i>
+                                                        <span>تعديل</span>
+                                                    </button>
+                                                    <div class="financial-action-menu-title mt-2">حذف الفواتير</div>
+                                                    <button class="financial-action-menu-item delete-option <?php echo ($hasSalesInvoice && $salesStatus !== 'posted') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasSalesInvoice && $salesStatus !== 'posted'): ?>
-                                                            onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'sales')"
+                                                        onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'sales')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-file-circle-xmark"></i>
-                                                    <span>حذف فاتورة البيع</span>
-                                                </button>
-                                                <button class="financial-action-menu-item delete-option <?php echo ($hasPurchaseInvoice && $purchaseStatus !== 'posted') ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-file-circle-xmark"></i>
+                                                        <span>حذف فاتورة البيع</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item delete-option <?php echo ($hasPurchaseInvoice && $purchaseStatus !== 'posted') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasPurchaseInvoice && $purchaseStatus !== 'posted'): ?>
-                                                            onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'purchase')"
+                                                        onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'purchase')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-file-circle-xmark"></i>
-                                                    <span>حذف فاتورة الشراء</span>
-                                                </button>
-                                                <button class="financial-action-menu-item delete-option <?php echo (($hasSalesInvoice && $salesStatus !== 'posted') || ($hasPurchaseInvoice && $purchaseStatus !== 'posted')) ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-file-circle-xmark"></i>
+                                                        <span>حذف فاتورة الشراء</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item delete-option <?php echo (($hasSalesInvoice && $salesStatus !== 'posted') || ($hasPurchaseInvoice && $purchaseStatus !== 'posted')) ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if (($hasSalesInvoice && $salesStatus !== 'posted') || ($hasPurchaseInvoice && $purchaseStatus !== 'posted')): ?>
-                                                            onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'all')"
+                                                        onclick="FamilyVisit.cancelInvoices(<?php echo $r['id']; ?>, 'all')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-layer-group"></i>
-                                                    <span>حذف الكل</span>
-                                                </button>
-                                                <a href="?delete_id=<?php echo $r['id']; ?>" class="financial-action-menu-item delete-option delete-family-request">
-                                                    <i class="fas fa-trash"></i>
-                                                    <span>حذف الطلب</span>
-                                                </a>
+                                                        <i class="fas fa-layer-group"></i>
+                                                        <span>حذف الكل</span>
+                                                    </button>
+                                                    <a href="?delete_id=<?php echo $r['id']; ?>" class="financial-action-menu-item delete-option delete-family-request">
+                                                        <i class="fas fa-trash"></i>
+                                                        <span>حذف الطلب</span>
+                                                    </a>
+                                                </div>
                                             </div>
-                                        </div>
-                                    <?php endif; ?>
+                                        <?php endif; ?>
 
-                                    <?php if ($canFinancialPost && $hasDraftInvoice && ($hasSalesInvoice || $hasPurchaseInvoice)): ?>
-                                        <div class="financial-action-group">
-                                            <button class="financial-action-btn fin-post" type="button" data-action-menu-toggle="post-<?php echo $r['id']; ?>" title="خيارات الترحيل">
-                                                <i class="fas fa-file-export"></i>
-                                                <span>الترحيل</span>
-                                                <i class="fas fa-chevron-down small"></i>
-                                            </button>
-                                            <div class="financial-action-menu" id="post-<?php echo $r['id']; ?>">
-                                                <div class="financial-action-menu-title">خيارات الترحيل</div>
-                                                <button class="financial-action-menu-item post-option <?php echo (($salesStatus === 'draft') && ($purchaseStatus === 'draft')) ? '' : 'disabled'; ?>"
+                                        <?php if ($canFinancialPost && $hasDraftInvoice && ($hasSalesInvoice || $hasPurchaseInvoice)): ?>
+                                            <div class="financial-action-group">
+                                                <button class="financial-action-btn fin-post" type="button" data-action-menu-toggle="post-<?php echo $r['id']; ?>" title="خيارات الترحيل">
+                                                    <i class="fas fa-file-export"></i>
+                                                    <span>الترحيل</span>
+                                                    <i class="fas fa-chevron-down small"></i>
+                                                </button>
+                                                <div class="financial-action-menu" id="post-<?php echo $r['id']; ?>">
+                                                    <div class="financial-action-menu-title">خيارات الترحيل</div>
+                                                    <button class="financial-action-menu-item post-option <?php echo (($salesStatus === 'draft') && ($purchaseStatus === 'draft')) ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if (($salesStatus === 'draft') && ($purchaseStatus === 'draft')): ?>
-                                                            onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'all')"
+                                                        onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'all')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-layer-group"></i>
-                                                    <span>ترحيل الكل</span>
-                                                </button>
-                                                <button class="financial-action-menu-item post-option <?php echo ($hasSalesInvoice && $salesStatus === 'draft') ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-layer-group"></i>
+                                                        <span>ترحيل الكل</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item post-option <?php echo ($hasSalesInvoice && $salesStatus === 'draft') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasSalesInvoice && $salesStatus === 'draft'): ?>
-                                                            onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'sales')"
+                                                        onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'sales')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-arrow-up-right-from-square"></i>
-                                                    <span>ترحيل البيع</span>
-                                                </button>
-                                                <button class="financial-action-menu-item post-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'draft') ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-arrow-up-right-from-square"></i>
+                                                        <span>ترحيل البيع</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item post-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'draft') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasPurchaseInvoice && $purchaseStatus === 'draft'): ?>
-                                                            onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'purchase')"
+                                                        onclick="FamilyVisit.postFinance(<?php echo $r['id']; ?>, 'purchase')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-cart-plus"></i>
-                                                    <span>ترحيل الشراء</span>
-                                                </button>
+                                                        <i class="fas fa-cart-plus"></i>
+                                                        <span>ترحيل الشراء</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    <?php endif; ?>
+                                        <?php endif; ?>
 
-                                    <?php if ($canFinancialPost && $hasPostedInvoice && ($hasSalesInvoice || $hasPurchaseInvoice)): ?>
-                                        <div class="financial-action-group">
-                                            <button class="financial-action-btn fin-unpost" type="button" data-action-menu-toggle="unpost-<?php echo $r['id']; ?>" title="خيارات إلغاء الترحيل">
-                                                <i class="fas fa-rotate-left"></i>
-                                                <span>إلغاء الترحيل</span>
-                                                <i class="fas fa-chevron-down small"></i>
-                                            </button>
-                                            <div class="financial-action-menu" id="unpost-<?php echo $r['id']; ?>">
-                                                <div class="financial-action-menu-title">خيارات إلغاء الترحيل</div>
-                                                <button class="financial-action-menu-item unpost-option <?php echo (($salesStatus === 'posted') && ($purchaseStatus === 'posted')) ? '' : 'disabled'; ?>"
+                                        <?php if ($canFinancialPost && $hasPostedInvoice && ($hasSalesInvoice || $hasPurchaseInvoice)): ?>
+                                            <div class="financial-action-group">
+                                                <button class="financial-action-btn fin-unpost" type="button" data-action-menu-toggle="unpost-<?php echo $r['id']; ?>" title="خيارات إلغاء الترحيل">
+                                                    <i class="fas fa-rotate-left"></i>
+                                                    <span>إلغاء الترحيل</span>
+                                                    <i class="fas fa-chevron-down small"></i>
+                                                </button>
+                                                <div class="financial-action-menu" id="unpost-<?php echo $r['id']; ?>">
+                                                    <div class="financial-action-menu-title">خيارات إلغاء الترحيل</div>
+                                                    <button class="financial-action-menu-item unpost-option <?php echo (($salesStatus === 'posted') && ($purchaseStatus === 'posted')) ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if (($salesStatus === 'posted') && ($purchaseStatus === 'posted')): ?>
-                                                            onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'all')"
+                                                        onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'all')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-layer-group"></i>
-                                                    <span>إلغاء ترحيل الكل</span>
-                                                </button>
-                                                <button class="financial-action-menu-item unpost-option <?php echo ($hasSalesInvoice && $salesStatus === 'posted') ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-layer-group"></i>
+                                                        <span>إلغاء ترحيل الكل</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item unpost-option <?php echo ($hasSalesInvoice && $salesStatus === 'posted') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasSalesInvoice && $salesStatus === 'posted'): ?>
-                                                            onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'sales')"
+                                                        onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'sales')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-clock-rotate-left"></i>
-                                                    <span>إلغاء ترحيل البيع</span>
-                                                </button>
-                                                <button class="financial-action-menu-item unpost-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'posted') ? '' : 'disabled'; ?>"
+                                                        <i class="fas fa-clock-rotate-left"></i>
+                                                        <span>إلغاء ترحيل البيع</span>
+                                                    </button>
+                                                    <button class="financial-action-menu-item unpost-option <?php echo ($hasPurchaseInvoice && $purchaseStatus === 'posted') ? '' : 'disabled'; ?>"
                                                         type="button"
                                                         <?php if ($hasPurchaseInvoice && $purchaseStatus === 'posted'): ?>
-                                                            onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'purchase')"
+                                                        onclick="FamilyVisit.unpostFinance(<?php echo $r['id']; ?>, 'purchase')"
                                                         <?php endif; ?>>
-                                                    <i class="fas fa-clock-rotate-left"></i>
-                                                    <span>إلغاء ترحيل الشراء</span>
-                                                </button>
+                                                        <i class="fas fa-clock-rotate-left"></i>
+                                                        <span>إلغاء ترحيل الشراء</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -739,7 +824,7 @@ require_once 'header.php';
 <div class="modal fade" id="addRequestModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form id="addRequestForm" method="POST" enctype="multipart/form-data" action="process_family_visit.php?action=add">
+            <form id="addRequestForm" method="POST" enctype="multipart/form-data" action="process_family_visit.php?action=add" data-customer-profile-form="1">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                 <div class="modal-header bg-info text-white border-0 py-3">
                     <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle me-2"></i> إضافة طلب زيارة عائلية</h5>
@@ -837,8 +922,8 @@ require_once 'header.php';
                     <div class="bg-light p-3 rounded-4 mb-3 border border-2 border-info border-opacity-10 position-relative shadow-sm">
                         <!-- Pricing Info Badge -->
                         <div id="pricing_info_badge" class="position-absolute top-0 start-50 translate-middle-x badge bg-white border text-primary shadow-sm px-3 py-2 d-none" style="margin-top: -10px; z-index: 5;">
-                            <i class="fas fa-tag me-1"></i> التسعيرة: 
-                            <span id="target_purchase_label" class="fw-bold me-2">0.00</span> 
+                            <i class="fas fa-tag me-1"></i> التسعيرة:
+                            <span id="target_purchase_label" class="fw-bold me-2">0.00</span>
                             <span id="target_sale_label" class="fw-bold text-success me-2">0.00</span>
                             <span id="target_currency_label" class="small"></span>
                         </div>
@@ -849,15 +934,15 @@ require_once 'header.php';
                                 <input type="text" id="entry_name" class="form-control form-control-sm rounded-2 border-0 shadow-sm" placeholder="اسم الفرد...">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label x-small fw-bold">رقم الجواز</label>
-                                <input type="text" id="entry_passport" class="form-control form-control-sm rounded-2 border-0 shadow-sm" placeholder="رقم الجواز...">
+                                <label class="form-label x-small fw-bold">رقم الهوية</label>
+                                <input type="text" id="entry_passport" class="form-control form-control-sm rounded-2 border-0 shadow-sm" placeholder="رقم الهوية...">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label x-small fw-bold">الصلة</label>
                                 <select id="entry_relationship" class="form-select form-select-sm rounded-2 border-0 shadow-sm">
                                     <option value="">اختر...</option>
-                                    <?php foreach($relationships as $rel): ?>
-                                    <option value="<?php echo $rel['id']; ?>" data-name="<?php echo $rel['name_ar']; ?>"><?php echo $rel['name_ar']; ?></option>
+                                    <?php foreach ($relationships as $rel): ?>
+                                        <option value="<?php echo $rel['id']; ?>" data-name="<?php echo $rel['name_ar']; ?>"><?php echo $rel['name_ar']; ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -907,13 +992,13 @@ require_once 'header.php';
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="table-responsive mb-3 shadow-sm rounded-3 overflow-hidden">
                         <table class="table table-bordered table-hover align-middle mb-0" id="individualsTable">
                             <thead class="bg-primary text-white x-small">
                                 <tr class="fw-bold">
                                     <th class="border-0">الاسم</th>
-                                    <th class="border-0">رقم الجواز</th>
+                                    <th class="border-0">رقم الهوية</th>
                                     <th class="border-0">الصلة</th>
                                     <th class="border-0">الجنس</th>
                                     <th class="border-0">تاريخ الميلاد</th>
@@ -974,7 +1059,7 @@ require_once 'header.php';
                     $financial_fields_hide_service_accounts = true;
                     include '../includes/financial_fields.php';
                     ?>
-                    
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">ملاحظات عامة</label>
                         <textarea name="notes" class="form-control rounded-3" rows="2"></textarea>
@@ -1055,192 +1140,217 @@ require_once 'header.php';
 </div>
 
 <script>
-const CSRF_TOKEN = <?php echo json_encode(generate_csrf_token()); ?>;
-document.addEventListener('DOMContentLoaded', function() {
-    const dateTypeSelect = document.getElementById('date_type');
-    const issueDateLabel = document.getElementById('issue_date_label');
-    const issueDateHidden = document.getElementById('issue_date');
-    const issueDateGreg = document.getElementById('issue_date_greg');
-    const issueDateHijri = document.getElementById('issue_date_hijri');
-    const issueDateHijriPicker = document.getElementById('issue_date_hijri_picker');
-    const issueDatePreview = document.getElementById('issue_date_preview');
-    const visitRemainingPreview = document.getElementById('visit_remaining_preview');
-    const visitDurationMonths = document.getElementById('visit_duration_months');
-    const visitExpiryHidden = document.getElementById('visit_expiry_date');
-    const visitExpiryPreview = document.getElementById('visit_expiry_preview');
+    const CSRF_TOKEN = <?php echo json_encode(generate_csrf_token()); ?>;
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateTypeSelect = document.getElementById('date_type');
+        const issueDateLabel = document.getElementById('issue_date_label');
+        const issueDateHidden = document.getElementById('issue_date');
+        const issueDateGreg = document.getElementById('issue_date_greg');
+        const issueDateHijri = document.getElementById('issue_date_hijri');
+        const issueDateHijriPicker = document.getElementById('issue_date_hijri_picker');
+        const issueDatePreview = document.getElementById('issue_date_preview');
+        const visitRemainingPreview = document.getElementById('visit_remaining_preview');
+        const visitDurationMonths = document.getElementById('visit_duration_months');
+        const visitExpiryHidden = document.getElementById('visit_expiry_date');
+        const visitExpiryPreview = document.getElementById('visit_expiry_preview');
 
-    const individualsList = document.getElementById('individualsList');
-    const template = document.getElementById('individualRowTemplate');
-    const pushToListBtn = document.getElementById('pushToListBtn');
-    const clearEntryBtn = document.getElementById('clearEntryBtn');
+        const individualsList = document.getElementById('individualsList');
+        const template = document.getElementById('individualRowTemplate');
+        const pushToListBtn = document.getElementById('pushToListBtn');
+        const clearEntryBtn = document.getElementById('clearEntryBtn');
 
-    // حقول الإدخال (Entry Fields)
-    const entryName = document.getElementById('entry_name');
-    const entryPassport = document.getElementById('entry_passport');
-    const entryRelationship = document.getElementById('entry_relationship');
-    const entryGender = document.getElementById('entry_gender');
-    const entryDob = document.getElementById('entry_dob');
-    const entryAge = document.getElementById('entry_age');
-    const entryComingFromCity = document.getElementById('entry_coming_from_city_id');
-    const entryPurchase = document.getElementById('entry_purchase');
-    const entrySale = document.getElementById('entry_sale');
-    const entryReceivedDocuments = document.getElementById('entry_received_documents');
+        // حقول الإدخال (Entry Fields)
+        const entryName = document.getElementById('entry_name');
+        const entryPassport = document.getElementById('entry_passport');
+        const entryRelationship = document.getElementById('entry_relationship');
+        const entryGender = document.getElementById('entry_gender');
+        const entryDob = document.getElementById('entry_dob');
+        const entryAge = document.getElementById('entry_age');
+        const entryComingFromCity = document.getElementById('entry_coming_from_city_id');
+        const entryPurchase = document.getElementById('entry_purchase');
+        const entrySale = document.getElementById('entry_sale');
+        const entryReceivedDocuments = document.getElementById('entry_received_documents');
 
-    function pad2(n) {
-        return String(n).padStart(2, '0');
-    }
-
-    function gregorianToJD(y, m, d) {
-        if (m <= 2) {
-            y -= 1;
-            m += 12;
-        }
-        const a = Math.floor(y / 100);
-        const b = 2 - a + Math.floor(a / 4);
-        return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + b - 1524;
-    }
-
-    function jdToGregorian(jd) {
-        let z = jd;
-        let a = z;
-        const alpha = Math.floor((a - 1867216.25) / 36524.25);
-        a = a + 1 + alpha - Math.floor(alpha / 4);
-        const b = a + 1524;
-        const c = Math.floor((b - 122.1) / 365.25);
-        const d = Math.floor(365.25 * c);
-        const e = Math.floor((b - d) / 30.6001);
-        const day = b - d - Math.floor(30.6001 * e);
-        const month = (e < 14) ? (e - 1) : (e - 13);
-        const year = (month > 2) ? (c - 4716) : (c - 4715);
-        return { year, month, day };
-    }
-
-    function hijriToJD(y, m, d) {
-        return d + Math.ceil(29.5 * (m - 1)) + (y - 1) * 354 + Math.floor((3 + 11 * y) / 30) + 1948439 - 1;
-    }
-
-    function jdToHijri(jd) {
-        const y = Math.floor((30 * (jd - 1948439) + 10646) / 10631);
-        const m = Math.min(12, Math.ceil((jd - (29 + hijriToJD(y, 1, 1))) / 29.5) + 1);
-        const d = jd - hijriToJD(y, m, 1) + 1;
-        return { year: y, month: m, day: d };
-    }
-
-    function parseYmd(value) {
-        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value || '').trim());
-        if (!m) return null;
-        return { y: parseInt(m[1], 10), m: parseInt(m[2], 10), d: parseInt(m[3], 10) };
-    }
-
-    const hijriMonthNames = [
-        'محرم',
-        'صفر',
-        'ربيع الأول',
-        'ربيع الآخر',
-        'جمادى الأولى',
-        'جمادى الآخرة',
-        'رجب',
-        'شعبان',
-        'رمضان',
-        'شوال',
-        'ذو القعدة',
-        'ذو الحجة'
-    ];
-
-    function isHijriLeapYear(y) {
-        return ((11 * y + 14) % 30) < 11;
-    }
-
-    function hijriMonthLength(y, m) {
-        if (m % 2 === 1) {
-            return 30;
-        }
-        if (m !== 12) {
-            return 29;
-        }
-        return isHijriLeapYear(y) ? 30 : 29;
-    }
-
-    function getTodayHijri() {
-        const now = new Date();
-        const jd = gregorianToJD(now.getFullYear(), now.getMonth() + 1, now.getDate());
-        return jdToHijri(jd);
-    }
-
-    function getHijriFromHidden() {
-        const g = parseYmd(issueDateHidden?.value || '');
-        if (!g) return null;
-        const jd = gregorianToJD(g.y, g.m, g.d);
-        return jdToHijri(jd);
-    }
-
-    let hijriPickerState = { y: null, m: null };
-
-    function closeHijriPicker() {
-        if (!issueDateHijriPicker) return;
-        issueDateHijriPicker.classList.add('d-none');
-    }
-
-    function openHijriPicker() {
-        if (!issueDateHijriPicker || !issueDateHijri) return;
-        if (issueDateHijri.classList.contains('d-none')) return;
-
-        const parsed = parseYmd(issueDateHijri.value);
-        const base = parsed ? { year: parsed.y, month: parsed.m, day: parsed.d } : (getHijriFromHidden() || getTodayHijri());
-        hijriPickerState.y = base.year;
-        hijriPickerState.m = base.month;
-        renderHijriPicker(base.day);
-        issueDateHijriPicker.classList.remove('d-none');
-    }
-
-    function renderHijriPicker(selectedDay) {
-        if (!issueDateHijriPicker) return;
-        const y = hijriPickerState.y || getTodayHijri().year;
-        const m = hijriPickerState.m || getTodayHijri().month;
-
-        const jdFirst = hijriToJD(y, m, 1);
-        const gFirst = jdToGregorian(jdFirst);
-        const firstDate = new Date(gFirst.year, gFirst.month - 1, gFirst.day);
-        const firstDowSun0 = firstDate.getDay();
-        const firstIndex = (firstDowSun0 + 1) % 7;
-
-        const daysInMonth = hijriMonthLength(y, m);
-
-        const todayH = getTodayHijri();
-        const parsedSelected = parseYmd(issueDateHijri?.value || '');
-        const selected = parsedSelected ? { y: parsedSelected.y, m: parsedSelected.m, d: parsedSelected.d } : null;
-
-        const startYear = y - 10;
-        const endYear = y + 10;
-
-        const monthOptions = hijriMonthNames.map((name, idx) => {
-            const mm = idx + 1;
-            return `<option value="${mm}" ${mm === m ? 'selected' : ''}>${name}</option>`;
-        }).join('');
-
-        const yearOptions = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i).map(yy => {
-            return `<option value="${yy}" ${yy === y ? 'selected' : ''}>${yy}</option>`;
-        }).join('');
-
-        const week = ['س', 'ح', 'ن', 'ث', 'ر', 'خ', 'ج'].map(w => `<div>${w}</div>`).join('');
-
-        const cells = [];
-        for (let i = 0; i < firstIndex; i++) {
-            cells.push('<button type="button" class="hijri-day is-empty" tabindex="-1"></button>');
-        }
-        for (let d = 1; d <= daysInMonth; d++) {
-            const isToday = (todayH.year === y && todayH.month === m && todayH.day === d);
-            const isSelected = selected ? (selected.y === y && selected.m === m && selected.d === d) : (selectedDay === d);
-            const classes = ['hijri-day'];
-            if (isToday) classes.push('is-today');
-            if (isSelected) classes.push('is-selected');
-            cells.push(`<button type="button" class="${classes.join(' ')}" data-hy="${y}" data-hm="${m}" data-hd="${d}">${d}</button>`);
-        }
-        while (cells.length % 7 !== 0) {
-            cells.push('<button type="button" class="hijri-day is-empty" tabindex="-1"></button>');
+        function pad2(n) {
+            return String(n).padStart(2, '0');
         }
 
-        issueDateHijriPicker.innerHTML = `
+        function gregorianToJD(y, m, d) {
+            if (m <= 2) {
+                y -= 1;
+                m += 12;
+            }
+            const a = Math.floor(y / 100);
+            const b = 2 - a + Math.floor(a / 4);
+            return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + b - 1524;
+        }
+
+        function jdToGregorian(jd) {
+            let z = jd;
+            let a = z;
+            const alpha = Math.floor((a - 1867216.25) / 36524.25);
+            a = a + 1 + alpha - Math.floor(alpha / 4);
+            const b = a + 1524;
+            const c = Math.floor((b - 122.1) / 365.25);
+            const d = Math.floor(365.25 * c);
+            const e = Math.floor((b - d) / 30.6001);
+            const day = b - d - Math.floor(30.6001 * e);
+            const month = (e < 14) ? (e - 1) : (e - 13);
+            const year = (month > 2) ? (c - 4716) : (c - 4715);
+            return {
+                year,
+                month,
+                day
+            };
+        }
+
+        function hijriToJD(y, m, d) {
+            return d + Math.ceil(29.5 * (m - 1)) + (y - 1) * 354 + Math.floor((3 + 11 * y) / 30) + 1948439 - 1;
+        }
+
+        function jdToHijri(jd) {
+            const y = Math.floor((30 * (jd - 1948439) + 10646) / 10631);
+            const m = Math.min(12, Math.ceil((jd - (29 + hijriToJD(y, 1, 1))) / 29.5) + 1);
+            const d = jd - hijriToJD(y, m, 1) + 1;
+            return {
+                year: y,
+                month: m,
+                day: d
+            };
+        }
+
+        function parseYmd(value) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value || '').trim());
+            if (!m) return null;
+            return {
+                y: parseInt(m[1], 10),
+                m: parseInt(m[2], 10),
+                d: parseInt(m[3], 10)
+            };
+        }
+
+        const hijriMonthNames = [
+            'محرم',
+            'صفر',
+            'ربيع الأول',
+            'ربيع الآخر',
+            'جمادى الأولى',
+            'جمادى الآخرة',
+            'رجب',
+            'شعبان',
+            'رمضان',
+            'شوال',
+            'ذو القعدة',
+            'ذو الحجة'
+        ];
+
+        function isHijriLeapYear(y) {
+            return ((11 * y + 14) % 30) < 11;
+        }
+
+        function hijriMonthLength(y, m) {
+            if (m % 2 === 1) {
+                return 30;
+            }
+            if (m !== 12) {
+                return 29;
+            }
+            return isHijriLeapYear(y) ? 30 : 29;
+        }
+
+        function getTodayHijri() {
+            const now = new Date();
+            const jd = gregorianToJD(now.getFullYear(), now.getMonth() + 1, now.getDate());
+            return jdToHijri(jd);
+        }
+
+        function getHijriFromHidden() {
+            const g = parseYmd(issueDateHidden?.value || '');
+            if (!g) return null;
+            const jd = gregorianToJD(g.y, g.m, g.d);
+            return jdToHijri(jd);
+        }
+
+        let hijriPickerState = {
+            y: null,
+            m: null
+        };
+
+        function closeHijriPicker() {
+            if (!issueDateHijriPicker) return;
+            issueDateHijriPicker.classList.add('d-none');
+        }
+
+        function openHijriPicker() {
+            if (!issueDateHijriPicker || !issueDateHijri) return;
+            if (issueDateHijri.classList.contains('d-none')) return;
+
+            const parsed = parseYmd(issueDateHijri.value);
+            const base = parsed ? {
+                year: parsed.y,
+                month: parsed.m,
+                day: parsed.d
+            } : (getHijriFromHidden() || getTodayHijri());
+            hijriPickerState.y = base.year;
+            hijriPickerState.m = base.month;
+            renderHijriPicker(base.day);
+            issueDateHijriPicker.classList.remove('d-none');
+        }
+
+        function renderHijriPicker(selectedDay) {
+            if (!issueDateHijriPicker) return;
+            const y = hijriPickerState.y || getTodayHijri().year;
+            const m = hijriPickerState.m || getTodayHijri().month;
+
+            const jdFirst = hijriToJD(y, m, 1);
+            const gFirst = jdToGregorian(jdFirst);
+            const firstDate = new Date(gFirst.year, gFirst.month - 1, gFirst.day);
+            const firstDowSun0 = firstDate.getDay();
+            const firstIndex = (firstDowSun0 + 1) % 7;
+
+            const daysInMonth = hijriMonthLength(y, m);
+
+            const todayH = getTodayHijri();
+            const parsedSelected = parseYmd(issueDateHijri?.value || '');
+            const selected = parsedSelected ? {
+                y: parsedSelected.y,
+                m: parsedSelected.m,
+                d: parsedSelected.d
+            } : null;
+
+            const startYear = y - 10;
+            const endYear = y + 10;
+
+            const monthOptions = hijriMonthNames.map((name, idx) => {
+                const mm = idx + 1;
+                return `<option value="${mm}" ${mm === m ? 'selected' : ''}>${name}</option>`;
+            }).join('');
+
+            const yearOptions = Array.from({
+                length: endYear - startYear + 1
+            }, (_, i) => startYear + i).map(yy => {
+                return `<option value="${yy}" ${yy === y ? 'selected' : ''}>${yy}</option>`;
+            }).join('');
+
+            const week = ['س', 'ح', 'ن', 'ث', 'ر', 'خ', 'ج'].map(w => `<div>${w}</div>`).join('');
+
+            const cells = [];
+            for (let i = 0; i < firstIndex; i++) {
+                cells.push('<button type="button" class="hijri-day is-empty" tabindex="-1"></button>');
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const isToday = (todayH.year === y && todayH.month === m && todayH.day === d);
+                const isSelected = selected ? (selected.y === y && selected.m === m && selected.d === d) : (selectedDay === d);
+                const classes = ['hijri-day'];
+                if (isToday) classes.push('is-today');
+                if (isSelected) classes.push('is-selected');
+                cells.push(`<button type="button" class="${classes.join(' ')}" data-hy="${y}" data-hm="${m}" data-hd="${d}">${d}</button>`);
+            }
+            while (cells.length % 7 !== 0) {
+                cells.push('<button type="button" class="hijri-day is-empty" tabindex="-1"></button>');
+            }
+
+            issueDateHijriPicker.innerHTML = `
             <div class="hijri-picker-header">
                 <button type="button" class="btn btn-sm btn-light" data-hijri-nav="-1">‹</button>
                 <div class="hijri-picker-selects">
@@ -1252,779 +1362,789 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="hijri-week">${week}</div>
             <div class="hijri-grid">${cells.join('')}</div>
         `;
-    }
-
-    function formatArabicDate(y, m, d) {
-        return `${y}/${pad2(m)}/${pad2(d)}`;
-    }
-
-    function formatGregorianArabic(value) {
-        const g = parseYmd(value);
-        if (!g) return '---';
-        return formatArabicDate(g.y, g.m, g.d);
-    }
-
-    function formatHijriArabic(value) {
-        const h = parseYmd(value);
-        if (!h) return '---';
-        return formatArabicDate(h.y, h.m, h.d);
-    }
-
-    function updateIssueDatePreview() {
-        if (!issueDatePreview || !dateTypeSelect) {
-            return;
         }
 
-        const type = dateTypeSelect.value || 'gregorian';
-        const hiddenValue = issueDateHidden ? issueDateHidden.value : '';
-        const hijriValue = issueDateHijri ? issueDateHijri.value : '';
-        const gregValue = issueDateGreg ? issueDateGreg.value : '';
+        function formatArabicDate(y, m, d) {
+            return `${y}/${pad2(m)}/${pad2(d)}`;
+        }
 
-        if (type === 'hijri') {
-            issueDatePreview.classList.remove('d-none');
-            if (!hijriValue) {
-                issueDatePreview.textContent = 'أدخل التاريخ الهجري بصيغة YYYY-MM-DD، وسيتم حفظ مقابله الميلادي تلقائيًا.';
+        function formatGregorianArabic(value) {
+            const g = parseYmd(value);
+            if (!g) return '---';
+            return formatArabicDate(g.y, g.m, g.d);
+        }
+
+        function formatHijriArabic(value) {
+            const h = parseYmd(value);
+            if (!h) return '---';
+            return formatArabicDate(h.y, h.m, h.d);
+        }
+
+        function updateIssueDatePreview() {
+            if (!issueDatePreview || !dateTypeSelect) {
                 return;
             }
-            issueDatePreview.textContent = `التاريخ الهجري المعروض: ${formatHijriArabic(hijriValue)} | المحفوظ ميلاديًا: ${formatGregorianArabic(hiddenValue)}`;
-            return;
-        }
-        issueDatePreview.textContent = '';
-        issueDatePreview.classList.add('d-none');
-    }
 
-    function addMonthsSafe(ymd, monthsToAdd) {
-        const p = parseYmd(ymd);
-        if (!p) return null;
-        const base = new Date(p.y, p.m - 1, p.d);
-        const targetMonth = base.getMonth() + monthsToAdd;
-        const target = new Date(base);
-        target.setMonth(targetMonth);
-        if (target.getMonth() !== ((targetMonth % 12) + 12) % 12) {
-            target.setDate(0);
-        }
-        const y = target.getFullYear();
-        const m = target.getMonth() + 1;
-        const d = target.getDate();
-        return `${y}-${pad2(m)}-${pad2(d)}`;
-    }
+            const type = dateTypeSelect.value || 'gregorian';
+            const hiddenValue = issueDateHidden ? issueDateHidden.value : '';
+            const hijriValue = issueDateHijri ? issueDateHijri.value : '';
+            const gregValue = issueDateGreg ? issueDateGreg.value : '';
 
-    function updateExpiryPreview() {
-        if (!visitDurationMonths || !visitExpiryHidden || !issueDateHidden) {
-            return;
-        }
-        const issue = issueDateHidden.value;
-        const months = parseInt(visitDurationMonths.value || '1', 10) || 1;
-        if (!issue) {
-            visitExpiryHidden.value = '';
-            if (visitExpiryPreview) visitExpiryPreview.textContent = '';
-            if (visitRemainingPreview) visitRemainingPreview.textContent = '';
-            return;
-        }
-
-        const expiry = addMonthsSafe(issue, months);
-        if (!expiry) {
-            visitExpiryHidden.value = '';
-            if (visitExpiryPreview) visitExpiryPreview.textContent = '';
-            if (visitRemainingPreview) visitRemainingPreview.textContent = '';
-            return;
-        }
-        visitExpiryHidden.value = expiry;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const pExp = parseYmd(expiry);
-        const expDate = pExp ? new Date(pExp.y, pExp.m - 1, pExp.d) : null;
-        if (!expDate) {
-            if (visitExpiryPreview) visitExpiryPreview.textContent = '';
-            if (visitRemainingPreview) visitRemainingPreview.textContent = '';
-            return;
-        }
-        expDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
-
-        const type = dateTypeSelect ? (dateTypeSelect.value || 'gregorian') : 'gregorian';
-        if (type === 'hijri') {
-            const h = jdToHijri(gregorianToJD(pExp.y, pExp.m, pExp.d));
-            const expiryHijri = `${h.year}/${pad2(h.month)}/${pad2(h.day)} هجري`;
-            if (visitExpiryPreview) visitExpiryPreview.textContent = `تاريخ الانتهاء: ${expiryHijri}`;
-        } else {
-            const expiryGreg = `${pExp.y}/${pad2(pExp.m)}/${pad2(pExp.d)}`;
-            if (visitExpiryPreview) visitExpiryPreview.textContent = `تاريخ الانتهاء: ${expiryGreg}`;
-        }
-        if (visitRemainingPreview) {
-            visitRemainingPreview.textContent = diffDays >= 0
-                ? `المتبقي حتى الانتهاء: ${diffDays} يوم`
-                : `منتهي منذ: ${Math.abs(diffDays)} يوم`;
-        }
-    }
-
-    function setIssueDateMode(type) {
-        if (!issueDateHidden || !issueDateGreg || !issueDateHijri) {
-            return;
-        }
-        const isHijri = type === 'hijri';
-        issueDateGreg.classList.toggle('d-none', isHijri);
-        issueDateHijri.classList.toggle('d-none', !isHijri);
-        issueDateGreg.disabled = isHijri;
-        issueDateHijri.disabled = !isHijri;
-        issueDateGreg.required = !isHijri;
-        issueDateHijri.required = isHijri;
-        if (issueDateLabel) {
-            issueDateLabel.textContent = isHijri ? 'تاريخ الإصدار (هجري)' : 'تاريخ الإصدار (ميلادي)';
-        }
-
-        if (isHijri) {
-            if (issueDateHidden.value) {
-                const g = parseYmd(issueDateHidden.value);
-                if (g) {
-                    const jd = gregorianToJD(g.y, g.m, g.d);
-                    const h = jdToHijri(jd);
-                    issueDateHijri.value = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
+            if (type === 'hijri') {
+                issueDatePreview.classList.remove('d-none');
+                if (!hijriValue) {
+                    issueDatePreview.textContent = 'أدخل التاريخ الهجري بصيغة YYYY-MM-DD، وسيتم حفظ مقابله الميلادي تلقائيًا.';
+                    return;
                 }
-            } else if (issueDateGreg.value) {
-                const g = parseYmd(issueDateGreg.value);
-                if (g) {
-                    issueDateHidden.value = issueDateGreg.value;
-                    const jd = gregorianToJD(g.y, g.m, g.d);
-                    const h = jdToHijri(jd);
-                    issueDateHijri.value = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
-                }
-            }
-        } else {
-            if (issueDateHidden.value) {
-                issueDateGreg.value = issueDateHidden.value;
-            }
-            issueDateHijri.value = '';
-        }
-
-        updateIssueDatePreview();
-        updateExpiryPreview();
-
-        if (type === 'hijri') {
-            setTimeout(function() {
-                openHijriPicker();
-            }, 0);
-        } else {
-            closeHijriPicker();
-        }
-    }
-
-    function syncIssueDate() {
-        if (!issueDateHidden || !issueDateGreg || !issueDateHijri || !dateTypeSelect) {
-            return;
-        }
-        const type = dateTypeSelect.value || 'gregorian';
-        if (type === 'hijri') {
-            const h = parseYmd(issueDateHijri.value);
-            if (!h) {
-                issueDateHidden.value = '';
-                updateIssueDatePreview();
+                issueDatePreview.textContent = `التاريخ الهجري المعروض: ${formatHijriArabic(hijriValue)} | المحفوظ ميلاديًا: ${formatGregorianArabic(hiddenValue)}`;
                 return;
             }
-            const jd = hijriToJD(h.y, h.m, h.d);
-            const g = jdToGregorian(jd);
-            issueDateHidden.value = `${g.year}-${pad2(g.month)}-${pad2(g.day)}`;
-        } else {
-            issueDateHidden.value = issueDateGreg.value || '';
+            issueDatePreview.textContent = '';
+            issueDatePreview.classList.add('d-none');
         }
-        updateIssueDatePreview();
-        updateExpiryPreview();
-    }
 
-    if (dateTypeSelect && issueDateHidden && issueDateGreg && issueDateHijri) {
-        dateTypeSelect.addEventListener('change', function() {
-            setIssueDateMode(this.value);
-            syncIssueDate();
-        });
-        issueDateGreg.addEventListener('change', function() {
-            syncIssueDate();
-        });
-        issueDateHijri.addEventListener('input', function() {
-            syncIssueDate();
-        });
-        setIssueDateMode(dateTypeSelect.value || 'gregorian');
-        syncIssueDate();
-    }
+        function addMonthsSafe(ymd, monthsToAdd) {
+            const p = parseYmd(ymd);
+            if (!p) return null;
+            const base = new Date(p.y, p.m - 1, p.d);
+            const targetMonth = base.getMonth() + monthsToAdd;
+            const target = new Date(base);
+            target.setMonth(targetMonth);
+            if (target.getMonth() !== ((targetMonth % 12) + 12) % 12) {
+                target.setDate(0);
+            }
+            const y = target.getFullYear();
+            const m = target.getMonth() + 1;
+            const d = target.getDate();
+            return `${y}-${pad2(m)}-${pad2(d)}`;
+        }
 
-    if (issueDateHijri && issueDateHijriPicker) {
-        issueDateHijri.addEventListener('focus', function() {
-            if ((dateTypeSelect?.value || 'gregorian') === 'hijri') {
-                openHijriPicker();
+        function updateExpiryPreview() {
+            if (!visitDurationMonths || !visitExpiryHidden || !issueDateHidden) {
+                return;
             }
-        });
-        issueDateHijri.addEventListener('click', function() {
-            if ((dateTypeSelect?.value || 'gregorian') === 'hijri') {
-                openHijriPicker();
+            const issue = issueDateHidden.value;
+            const months = parseInt(visitDurationMonths.value || '1', 10) || 1;
+            if (!issue) {
+                visitExpiryHidden.value = '';
+                if (visitExpiryPreview) visitExpiryPreview.textContent = '';
+                if (visitRemainingPreview) visitRemainingPreview.textContent = '';
+                return;
             }
-        });
-        document.addEventListener('click', function(e) {
-            if (issueDateHijri.classList.contains('d-none')) return;
-            const isInside = issueDateHijriPicker.contains(e.target) || issueDateHijri.contains(e.target);
-            if (!isInside) {
+
+            const expiry = addMonthsSafe(issue, months);
+            if (!expiry) {
+                visitExpiryHidden.value = '';
+                if (visitExpiryPreview) visitExpiryPreview.textContent = '';
+                if (visitRemainingPreview) visitRemainingPreview.textContent = '';
+                return;
+            }
+            visitExpiryHidden.value = expiry;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const pExp = parseYmd(expiry);
+            const expDate = pExp ? new Date(pExp.y, pExp.m - 1, pExp.d) : null;
+            if (!expDate) {
+                if (visitExpiryPreview) visitExpiryPreview.textContent = '';
+                if (visitRemainingPreview) visitRemainingPreview.textContent = '';
+                return;
+            }
+            expDate.setHours(0, 0, 0, 0);
+            const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
+
+            const type = dateTypeSelect ? (dateTypeSelect.value || 'gregorian') : 'gregorian';
+            if (type === 'hijri') {
+                const h = jdToHijri(gregorianToJD(pExp.y, pExp.m, pExp.d));
+                const expiryHijri = `${h.year}/${pad2(h.month)}/${pad2(h.day)} هجري`;
+                if (visitExpiryPreview) visitExpiryPreview.textContent = `تاريخ الانتهاء: ${expiryHijri}`;
+            } else {
+                const expiryGreg = `${pExp.y}/${pad2(pExp.m)}/${pad2(pExp.d)}`;
+                if (visitExpiryPreview) visitExpiryPreview.textContent = `تاريخ الانتهاء: ${expiryGreg}`;
+            }
+            if (visitRemainingPreview) {
+                visitRemainingPreview.textContent = diffDays >= 0 ?
+                    `المتبقي حتى الانتهاء: ${diffDays} يوم` :
+                    `منتهي منذ: ${Math.abs(diffDays)} يوم`;
+            }
+        }
+
+        function setIssueDateMode(type) {
+            if (!issueDateHidden || !issueDateGreg || !issueDateHijri) {
+                return;
+            }
+            const isHijri = type === 'hijri';
+            issueDateGreg.classList.toggle('d-none', isHijri);
+            issueDateHijri.classList.toggle('d-none', !isHijri);
+            issueDateGreg.disabled = isHijri;
+            issueDateHijri.disabled = !isHijri;
+            issueDateGreg.required = !isHijri;
+            issueDateHijri.required = isHijri;
+            if (issueDateLabel) {
+                issueDateLabel.textContent = isHijri ? 'تاريخ الإصدار (هجري)' : 'تاريخ الإصدار (ميلادي)';
+            }
+
+            if (isHijri) {
+                if (issueDateHidden.value) {
+                    const g = parseYmd(issueDateHidden.value);
+                    if (g) {
+                        const jd = gregorianToJD(g.y, g.m, g.d);
+                        const h = jdToHijri(jd);
+                        issueDateHijri.value = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
+                    }
+                } else if (issueDateGreg.value) {
+                    const g = parseYmd(issueDateGreg.value);
+                    if (g) {
+                        issueDateHidden.value = issueDateGreg.value;
+                        const jd = gregorianToJD(g.y, g.m, g.d);
+                        const h = jdToHijri(jd);
+                        issueDateHijri.value = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
+                    }
+                }
+            } else {
+                if (issueDateHidden.value) {
+                    issueDateGreg.value = issueDateHidden.value;
+                }
+                issueDateHijri.value = '';
+            }
+
+            updateIssueDatePreview();
+            updateExpiryPreview();
+
+            if (type === 'hijri') {
+                setTimeout(function() {
+                    openHijriPicker();
+                }, 0);
+            } else {
                 closeHijriPicker();
             }
-        });
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeHijriPicker();
+        }
+
+        function syncIssueDate() {
+            if (!issueDateHidden || !issueDateGreg || !issueDateHijri || !dateTypeSelect) {
+                return;
             }
-        });
-        issueDateHijriPicker.addEventListener('click', function(e) {
-            const dayBtn = e.target.closest('[data-hy][data-hm][data-hd]');
-            if (dayBtn) {
-                const hy = parseInt(dayBtn.getAttribute('data-hy') || '', 10);
-                const hm = parseInt(dayBtn.getAttribute('data-hm') || '', 10);
-                const hd = parseInt(dayBtn.getAttribute('data-hd') || '', 10);
-                if (hy && hm && hd) {
-                    issueDateHijri.value = `${hy}-${pad2(hm)}-${pad2(hd)}`;
-                    syncIssueDate();
+            const type = dateTypeSelect.value || 'gregorian';
+            if (type === 'hijri') {
+                const h = parseYmd(issueDateHijri.value);
+                if (!h) {
+                    issueDateHidden.value = '';
+                    updateIssueDatePreview();
+                    return;
+                }
+                const jd = hijriToJD(h.y, h.m, h.d);
+                const g = jdToGregorian(jd);
+                issueDateHidden.value = `${g.year}-${pad2(g.month)}-${pad2(g.day)}`;
+            } else {
+                issueDateHidden.value = issueDateGreg.value || '';
+            }
+            updateIssueDatePreview();
+            updateExpiryPreview();
+        }
+
+        if (dateTypeSelect && issueDateHidden && issueDateGreg && issueDateHijri) {
+            dateTypeSelect.addEventListener('change', function() {
+                setIssueDateMode(this.value);
+                syncIssueDate();
+            });
+            issueDateGreg.addEventListener('change', function() {
+                syncIssueDate();
+            });
+            issueDateHijri.addEventListener('input', function() {
+                syncIssueDate();
+            });
+            setIssueDateMode(dateTypeSelect.value || 'gregorian');
+            syncIssueDate();
+        }
+
+        if (issueDateHijri && issueDateHijriPicker) {
+            issueDateHijri.addEventListener('focus', function() {
+                if ((dateTypeSelect?.value || 'gregorian') === 'hijri') {
+                    openHijriPicker();
+                }
+            });
+            issueDateHijri.addEventListener('click', function() {
+                if ((dateTypeSelect?.value || 'gregorian') === 'hijri') {
+                    openHijriPicker();
+                }
+            });
+            document.addEventListener('click', function(e) {
+                if (issueDateHijri.classList.contains('d-none')) return;
+                const isInside = issueDateHijriPicker.contains(e.target) || issueDateHijri.contains(e.target);
+                if (!isInside) {
                     closeHijriPicker();
                 }
-                return;
-            }
-
-            const navBtn = e.target.closest('[data-hijri-nav]');
-            if (navBtn) {
-                const step = parseInt(navBtn.getAttribute('data-hijri-nav') || '0', 10);
-                let y = hijriPickerState.y || getTodayHijri().year;
-                let m = hijriPickerState.m || getTodayHijri().month;
-                m += step;
-                if (m < 1) {
-                    m = 12;
-                    y -= 1;
-                } else if (m > 12) {
-                    m = 1;
-                    y += 1;
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeHijriPicker();
                 }
-                hijriPickerState.y = y;
-                hijriPickerState.m = m;
-                renderHijriPicker(1);
-                return;
-            }
+            });
+            issueDateHijriPicker.addEventListener('click', function(e) {
+                const dayBtn = e.target.closest('[data-hy][data-hm][data-hd]');
+                if (dayBtn) {
+                    const hy = parseInt(dayBtn.getAttribute('data-hy') || '', 10);
+                    const hm = parseInt(dayBtn.getAttribute('data-hm') || '', 10);
+                    const hd = parseInt(dayBtn.getAttribute('data-hd') || '', 10);
+                    if (hy && hm && hd) {
+                        issueDateHijri.value = `${hy}-${pad2(hm)}-${pad2(hd)}`;
+                        syncIssueDate();
+                        closeHijriPicker();
+                    }
+                    return;
+                }
 
-            const monthSelect = e.target.closest('[data-hijri-month]');
-            if (monthSelect) {
-                const m = parseInt(monthSelect.value || '', 10);
-                if (m >= 1 && m <= 12) {
+                const navBtn = e.target.closest('[data-hijri-nav]');
+                if (navBtn) {
+                    const step = parseInt(navBtn.getAttribute('data-hijri-nav') || '0', 10);
+                    let y = hijriPickerState.y || getTodayHijri().year;
+                    let m = hijriPickerState.m || getTodayHijri().month;
+                    m += step;
+                    if (m < 1) {
+                        m = 12;
+                        y -= 1;
+                    } else if (m > 12) {
+                        m = 1;
+                        y += 1;
+                    }
+                    hijriPickerState.y = y;
                     hijriPickerState.m = m;
                     renderHijriPicker(1);
+                    return;
                 }
-                return;
-            }
 
-            const yearSelect = e.target.closest('[data-hijri-year]');
-            if (yearSelect) {
-                const y = parseInt(yearSelect.value || '', 10);
-                if (y) {
-                    hijriPickerState.y = y;
-                    renderHijriPicker(1);
+                const monthSelect = e.target.closest('[data-hijri-month]');
+                if (monthSelect) {
+                    const m = parseInt(monthSelect.value || '', 10);
+                    if (m >= 1 && m <= 12) {
+                        hijriPickerState.m = m;
+                        renderHijriPicker(1);
+                    }
+                    return;
                 }
-                return;
-            }
-        });
-    }
 
-    if (visitDurationMonths) {
-        visitDurationMonths.addEventListener('change', function() {
+                const yearSelect = e.target.closest('[data-hijri-year]');
+                if (yearSelect) {
+                    const y = parseInt(yearSelect.value || '', 10);
+                    if (y) {
+                        hijriPickerState.y = y;
+                        renderHijriPicker(1);
+                    }
+                    return;
+                }
+            });
+        }
+
+        if (visitDurationMonths) {
+            visitDurationMonths.addEventListener('change', function() {
+                updateExpiryPreview();
+            });
             updateExpiryPreview();
-        });
-        updateExpiryPreview();
-    }
-
-    function setFinancialTotals(totalSale, totalPurchase) {
-        const saleSelectors = [
-            '#total_amount',
-            'input[name="total_amount"]',
-            '#sale_price',
-            'input[name="sale_price"]'
-        ];
-        const purchaseSelectors = [
-            '#cost_amount',
-            'input[name="cost_amount"]',
-            '#purchase_price',
-            'input[name="purchase_price"]'
-        ];
-
-        saleSelectors.forEach(selector => {
-            document.querySelectorAll(selector).forEach(input => {
-                input.value = totalSale.toFixed(2);
-                input.setAttribute('data-original-price', totalSale.toFixed(2));
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-        });
-
-        purchaseSelectors.forEach(selector => {
-            document.querySelectorAll(selector).forEach(input => {
-                input.value = totalPurchase.toFixed(2);
-                input.setAttribute('data-original-cost', totalPurchase.toFixed(2));
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-        });
-
-        if (window.FinancialFields && typeof window.FinancialFields.updateLogic === 'function') {
-            window.FinancialFields.updateLogic();
         }
-    }
 
-    function calculateTotals() {
-        let totalPurchase = 0;
-        let totalSale = 0;
-        let names = [];
+        function setFinancialTotals(totalSale, totalPurchase) {
+            const saleSelectors = [
+                '#total_amount',
+                'input[name="total_amount"]',
+                '#sale_price',
+                'input[name="sale_price"]'
+            ];
+            const purchaseSelectors = [
+                '#cost_amount',
+                'input[name="cost_amount"]',
+                '#purchase_price',
+                'input[name="purchase_price"]'
+            ];
 
-        const scope = individualsList || document;
-        const purchaseInputs = scope.querySelectorAll('.individual-row .purchase-price-input');
-        const saleInputs = scope.querySelectorAll('.individual-row .sale-price-input');
-        const nameInputs = scope.querySelectorAll('.individual-row .input-name');
-        
-        purchaseInputs.forEach(input => {
-            const val = parseFloat(input.value);
-            if (!isNaN(val)) totalPurchase += val;
-        });
-        
-        saleInputs.forEach(input => {
-            const val = parseFloat(input.value);
-            if (!isNaN(val)) totalSale += val;
-        });
+            saleSelectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(input => {
+                    input.value = totalSale.toFixed(2);
+                    input.setAttribute('data-original-price', totalSale.toFixed(2));
+                    input.dispatchEvent(new Event('input', {
+                        bubbles: true
+                    }));
+                    input.dispatchEvent(new Event('change', {
+                        bubbles: true
+                    }));
+                });
+            });
 
-        nameInputs.forEach(input => {
-            if (input.value.trim() !== '') {
-                names.push(input.value.trim());
+            purchaseSelectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(input => {
+                    input.value = totalPurchase.toFixed(2);
+                    input.setAttribute('data-original-cost', totalPurchase.toFixed(2));
+                    input.dispatchEvent(new Event('input', {
+                        bubbles: true
+                    }));
+                    input.dispatchEvent(new Event('change', {
+                        bubbles: true
+                    }));
+                });
+            });
+
+            if (window.FinancialFields && typeof window.FinancialFields.updateLogic === 'function') {
+                window.FinancialFields.updateLogic();
+            }
+        }
+
+        function calculateTotals() {
+            let totalPurchase = 0;
+            let totalSale = 0;
+            let names = [];
+
+            const scope = individualsList || document;
+            const purchaseInputs = scope.querySelectorAll('.individual-row .purchase-price-input');
+            const saleInputs = scope.querySelectorAll('.individual-row .sale-price-input');
+            const nameInputs = scope.querySelectorAll('.individual-row .input-name');
+
+            purchaseInputs.forEach(input => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) totalPurchase += val;
+            });
+
+            saleInputs.forEach(input => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) totalSale += val;
+            });
+
+            nameInputs.forEach(input => {
+                if (input.value.trim() !== '') {
+                    names.push(input.value.trim());
+                }
+            });
+
+            document.getElementById('totalPurchasePrice').innerText = totalPurchase.toFixed(2);
+            document.getElementById('totalSalePrice').innerText = totalSale.toFixed(2);
+            setFinancialTotals(totalSale, totalPurchase);
+
+            // تحديث حقل البيان تلقائياً
+            const descriptionInput = document.getElementById('description');
+            if (descriptionInput && names.length > 0) {
+                const count = names.length;
+                const namesStr = names.join(' - ');
+                descriptionInput.value = `معاملة زيارة عائلية لعدد (${count}) أفراد: ${namesStr}`;
+            } else if (descriptionInput) {
+                descriptionInput.value = '';
+            }
+        }
+
+        // حساب العمر تلقائياً عند تغيير تاريخ الميلاد في النموذج
+        entryDob.addEventListener('input', function() {
+            if (this.value) {
+                const dob = new Date(this.value);
+                const diff = Date.now() - dob.getTime();
+                const ageDate = new Date(diff);
+                const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+                entryAge.value = age;
             }
         });
-        
-        document.getElementById('totalPurchasePrice').innerText = totalPurchase.toFixed(2);
-        document.getElementById('totalSalePrice').innerText = totalSale.toFixed(2);
-        setFinancialTotals(totalSale, totalPurchase);
 
-        // تحديث حقل البيان تلقائياً
-        const descriptionInput = document.getElementById('description');
-        if (descriptionInput && names.length > 0) {
-            const count = names.length;
-            const namesStr = names.join(' - ');
-            descriptionInput.value = `معاملة زيارة عائلية لعدد (${count}) أفراد: ${namesStr}`;
-        } else if (descriptionInput) {
-            descriptionInput.value = '';
-        }
-    }
-
-    // حساب العمر تلقائياً عند تغيير تاريخ الميلاد في النموذج
-    entryDob.addEventListener('input', function() {
-        if (this.value) {
-            const dob = new Date(this.value);
-            const diff = Date.now() - dob.getTime();
-            const ageDate = new Date(diff);
-            const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-            entryAge.value = age;
-        }
-    });
-
-    // تفريغ حقول الإدخال
-    function clearForm() {
-        entryName.value = '';
-        entryPassport.value = '';
-        entryRelationship.value = '';
-        entryGender.value = 'male';
-        entryDob.value = '';
-        entryAge.value = '';
-        if (entryComingFromCity) entryComingFromCity.value = '';
-        if (entryReceivedDocuments) entryReceivedDocuments.value = '';
-        // لا نفرغ الأسعار لتسهيل إدخال الفرد التالي بنفس السعر
-    }
-
-    clearEntryBtn.addEventListener('click', clearForm);
-
-    // إنزال الفرد إلى الجدول
-    pushToListBtn.addEventListener('click', function() {
-        if (!entryName.value || !entryPassport.value || !entryRelationship.value) {
-            Swal.fire({
-                icon: 'error',
-                title: 'خطأ',
-                text: 'يرجى إكمال بيانات الاسم والجواز والصلة',
-                confirmButtonText: 'حسناً'
-            });
-            return;
+        // تفريغ حقول الإدخال
+        function clearForm() {
+            entryName.value = '';
+            entryPassport.value = '';
+            entryRelationship.value = '';
+            entryGender.value = 'male';
+            entryDob.value = '';
+            entryAge.value = '';
+            if (entryComingFromCity) entryComingFromCity.value = '';
+            if (entryReceivedDocuments) entryReceivedDocuments.value = '';
+            // لا نفرغ الأسعار لتسهيل إدخال الفرد التالي بنفس السعر
         }
 
-        // تحقق من تكرار نفس الاسم أو رقم الجواز في نفس الطلب
-        let duplicate = false;
-        const existingNames = individualsList.querySelectorAll('.input-name');
-        const existingPassports = individualsList.querySelectorAll('.input-passport');
-        const nameTrimmed = entryName.value.trim();
-        const passportTrimmed = entryPassport.value.trim();
+        clearEntryBtn.addEventListener('click', clearForm);
 
-        for (let i = 0; i < existingNames.length; i++) {
-            if (existingNames[i].value.trim() === nameTrimmed) {
+        // إنزال الفرد إلى الجدول
+        pushToListBtn.addEventListener('click', function() {
+            if (!entryName.value || !entryPassport.value || !entryRelationship.value) {
                 Swal.fire({
-                    icon: 'warning',
-                    title: 'تكرار',
-                    text: `الاسم "${nameTrimmed}" موجود بالفعل في نفس الطلب`,
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'يرجى إكمال بيانات الاسم والجواز والصلة',
                     confirmButtonText: 'حسناً'
                 });
-                duplicate = true;
-                break;
+                return;
             }
-            if (existingPassports[i].value.trim() === passportTrimmed) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'تكرار',
-                    text: `رقم الجواز "${passportTrimmed}" موجود بالفعل في نفس الطلب`,
-                    confirmButtonText: 'حسناً'
-                });
-                duplicate = true;
-                break;
-            }
-        }
 
-        if (duplicate) {
-            return;
-        }
+            // تحقق من تكرار نفس الاسم أو رقم الهوية في نفس الطلب
+            let duplicate = false;
+            const existingNames = individualsList.querySelectorAll('.input-name');
+            const existingPassports = individualsList.querySelectorAll('.input-passport');
+            const nameTrimmed = entryName.value.trim();
+            const passportTrimmed = entryPassport.value.trim();
 
-        const clone = template.content.cloneNode(true);
-        const row = clone.querySelector('.individual-row');
-        const comingFromText = entryComingFromCity && entryComingFromCity.value
-            ? (entryComingFromCity.options[entryComingFromCity.selectedIndex]?.text || '---')
-            : '---';
-        
-        // تعبئة البيانات المرئية
-        row.querySelector('.display-name').innerText = entryName.value;
-        row.querySelector('.display-passport').innerText = entryPassport.passport || entryPassport.value;
-        row.querySelector('.display-relationship').innerText = entryRelationship.options[entryRelationship.selectedIndex].text;
-        row.querySelector('.display-gender').innerText = entryGender.options[entryGender.selectedIndex].text;
-        row.querySelector('.display-dob').innerText = entryDob.value;
-        row.querySelector('.display-age').innerText = entryAge.value;
-        row.querySelector('.display-coming-from').innerText = comingFromText;
-        row.querySelector('.display-purchase').innerText = parseFloat(entryPurchase.value || 0).toFixed(2);
-        row.querySelector('.display-sale').innerText = parseFloat(entrySale.value || 0).toFixed(2);
-        row.querySelector('.display-received-docs').innerText = (entryReceivedDocuments?.value || '').trim() || '---';
-
-        // تعبئة الحقول المخفية (لإرسالها للسيرفر)
-        row.querySelector('.input-name').value = entryName.value;
-        row.querySelector('.input-passport').value = entryPassport.value;
-        row.querySelector('.input-relationship').value = entryRelationship.value;
-        row.querySelector('.input-gender').value = entryGender.value;
-        row.querySelector('.input-dob').value = entryDob.value;
-        row.querySelector('.input-age').value = entryAge.value;
-        row.querySelector('.input-coming-from-city').value = entryComingFromCity?.value || '';
-        row.querySelector('.input-received-docs').value = (entryReceivedDocuments?.value || '').trim();
-        row.querySelector('.input-purchase').value = entryPurchase.value;
-        row.querySelector('.input-sale').value = entrySale.value;
-
-        individualsList.appendChild(clone);
-        calculateTotals();
-        clearForm();
-        
-        // تحديث المتطلبات للسطر المضاف حديثاً
-        const lastRow = individualsList.lastElementChild.previousElementSibling;
-        updateRequirements(lastRow);
-    });
-
-    // إجراءات الجدول (تعديل وحذف)
-    individualsList.addEventListener('click', function(e) {
-        // حذف
-        if (e.target.closest('.remove-individual')) {
-            const row = e.target.closest('.individual-row');
-            const reqRow = row.nextElementSibling;
-            row.remove();
-            if (reqRow && reqRow.classList.contains('requirements-row')) reqRow.remove();
-            calculateTotals();
-        }
-        
-        // تعديل (سحب البيانات للنموذج)
-        if (e.target.closest('.edit-individual')) {
-            const row = e.target.closest('.individual-row');
-            
-            // سحب البيانات للنموذج العلوي
-            entryName.value = row.querySelector('.input-name').value;
-            entryPassport.value = row.querySelector('.input-passport').value;
-            entryRelationship.value = row.querySelector('.input-relationship').value;
-            entryGender.value = row.querySelector('.input-gender').value;
-            entryDob.value = row.querySelector('.input-dob').value;
-            entryAge.value = row.querySelector('.input-age').value;
-            if (entryComingFromCity) entryComingFromCity.value = row.querySelector('.input-coming-from-city')?.value || '';
-            entryPurchase.value = row.querySelector('.input-purchase').value;
-            entrySale.value = row.querySelector('.input-sale').value;
-            if (entryReceivedDocuments) entryReceivedDocuments.value = row.querySelector('.input-received-docs')?.value || '';
-
-            // حذف السطر من الجدول بعد سحبه للتعديل
-            const reqRow = row.nextElementSibling;
-            row.remove();
-            if (reqRow && reqRow.classList.contains('requirements-row')) reqRow.remove();
-            calculateTotals();
-            
-            // التركيز على حقل الاسم
-            entryName.focus();
-        }
-    });
-
-    window.updatePaymentLogic = function() {
-        const paymentType = $('#payment_type').val();
-        const accountSelect = $('#account_id');
-        const accountLabel = $('#account_label');
-        const amountReceived = $('#amount_received');
-
-        // تفريغ الحسابات
-        accountSelect.empty().append('<option value="">اختر الحساب...</option>');
-        
-        // إعادة تعيين الحقول المخفية
-        $('#customer_id_hidden').val('');
-        $('#agent_id_hidden').val('');
-        $('#branch_id_hidden').val('');
-
-        let accounts = [];
-        let label = 'الحساب';
-
-        if (paymentType === 'cash') {
-            accounts = <?php echo json_encode($cashboxes_entities); ?>;
-            label = 'الصندوق (نقد)';
-            amountReceived.prop('readonly', false).removeClass('bg-light');
-        } else if (paymentType === 'credit') {
-            accounts = <?php echo json_encode($customers_entities); ?>;
-            label = 'العميل (آجل)';
-            amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
-        } else if (paymentType === 'agent') {
-            accounts = <?php echo json_encode($agents_entities); ?>;
-            label = 'الوكيل (آجل)';
-            amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
-        } else if (paymentType === 'branch') {
-            accounts = <?php echo json_encode($branches_accounts); ?>;
-            label = 'الفرع (آجل)';
-            amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
-        } else if (paymentType === 'bank_transfer') {
-            accounts = <?php echo json_encode($banks_entities); ?>;
-            label = 'البنك (تحويل)';
-            amountReceived.prop('readonly', false).removeClass('bg-light');
-        }
-
-        accountLabel.text(label);
-        accounts.forEach(acc => {
-            const displayName = acc.account_code ? `${acc.account_code} - ${acc.name || acc.account_name}` : (acc.name || acc.account_name);
-            const value = paymentType === 'cash' || paymentType === 'bank_transfer' ? acc.account_id : acc.id;
-            const customerId = paymentType === 'credit' ? acc.id : '';
-            const agentId = paymentType === 'agent' ? acc.id : '';
-            
-            accountSelect.append(`<option value="${value}" data-customer-id="${customerId}" data-agent-id="${agentId}">${displayName}</option>`);
-        });
-    };
-
-    window.loadPricesForSelectedAccount = async function() {
-        const paymentType = $('#payment_type').val();
-        const selectedId = $('#account_id').val();
-        const pricingBadge = document.getElementById('pricing_info_badge');
-
-        // تعبئة الحقل المخفي المناسب بناءً على نوع الدفع
-        $('#customer_id_hidden').val(paymentType === 'credit' ? selectedId : '');
-        $('#agent_id_hidden').val(paymentType === 'agent' ? selectedId : '');
-        $('#branch_id_hidden').val(paymentType === 'branch' ? selectedId : '');
-
-        let url = `ajax_family_visit.php?action=get_service_price`;
-        if (selectedId) {
-            if (paymentType === 'credit') url += `&customer_id=${selectedId}`;
-            else if (paymentType === 'agent') url += `&agent_id=${selectedId}`;
-            else if (paymentType === 'branch') url += `&branch_id=${selectedId}`;
-        }
-
-        try {
-            const res = await fetch(url);
-            const result = await res.json();
-            
-            if (result.status === 'success') {
-                const data = result.data;
-                const purchasePrice = data.purchase_price;
-                const salePrice = data.sale_price;
-                const currencySymbol = data.currency_symbol;
-                const currencyId = data.currency_id;
-
-                // تحديث نموذج الإدخال (Entry Fields)
-                if (entryPurchase) entryPurchase.value = purchasePrice;
-                if (entrySale) entrySale.value = salePrice;
-                if (currencyId) {
-                    const $mainCurrency = $('#main_currency_id');
-                    const $saleCurrency = $('#sale_currency_id');
-                    if ($mainCurrency.length) $mainCurrency.val(String(currencyId)).trigger('change');
-                    if ($saleCurrency.length) $saleCurrency.val(String(currencyId)).trigger('change');
+            for (let i = 0; i < existingNames.length; i++) {
+                if (existingNames[i].value.trim() === nameTrimmed) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تكرار',
+                        text: `الاسم "${nameTrimmed}" موجود بالفعل في نفس الطلب`,
+                        confirmButtonText: 'حسناً'
+                    });
+                    duplicate = true;
+                    break;
                 }
-
-                // إظهار بادج التسعيرة
-                if (pricingBadge) {
-                    pricingBadge.classList.remove('d-none');
-                    document.getElementById('target_purchase_label').innerText = purchasePrice.toFixed(2);
-                    document.getElementById('target_sale_label').innerText = salePrice.toFixed(2);
-                    document.getElementById('target_currency_label').innerText = currencySymbol;
+                if (existingPassports[i].value.trim() === passportTrimmed) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تكرار',
+                        text: `رقم الهوية "${passportTrimmed}" موجود بالفعل في نفس الطلب`,
+                        confirmButtonText: 'حسناً'
+                    });
+                    duplicate = true;
+                    break;
                 }
-                
-                // تحديث التيمبلت للأسطر القادمة
-                const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
-                const saleInputTpl = template.content.querySelector('.sale-price-input');
-                if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice;
-                if (saleInputTpl) saleInputTpl.value = salePrice;
-            } else {
-                if (pricingBadge) pricingBadge.classList.add('d-none');
             }
-        } catch (err) {
-            console.error('Error loading prices:', err);
-        }
-    };
 
-    // عند فتح مودال الإضافة، تأكد من تحديث منطق الدفع وجلب الأسعار الافتراضية
-    const addRequestModal = document.getElementById('addRequestModal');
-    if (addRequestModal) {
-        addRequestModal.addEventListener('shown.bs.modal', function () {
-            updatePaymentLogic();
-            loadPricesForSelectedAccount(); // جلب السعر الافتراضي العام عند الفتح
-        });
-    }
+            if (duplicate) {
+                return;
+            }
 
-    const addRequestForm = document.getElementById('addRequestForm');
-    if (addRequestForm) {
-        addRequestForm.addEventListener('submit', function(e) {
-            syncIssueDate();
+            const clone = template.content.cloneNode(true);
+            const row = clone.querySelector('.individual-row');
+            const comingFromText = entryComingFromCity && entryComingFromCity.value ?
+                (entryComingFromCity.options[entryComingFromCity.selectedIndex]?.text || '---') :
+                '---';
+
+            // تعبئة البيانات المرئية
+            row.querySelector('.display-name').innerText = entryName.value;
+            row.querySelector('.display-passport').innerText = entryPassport.passport || entryPassport.value;
+            row.querySelector('.display-relationship').innerText = entryRelationship.options[entryRelationship.selectedIndex].text;
+            row.querySelector('.display-gender').innerText = entryGender.options[entryGender.selectedIndex].text;
+            row.querySelector('.display-dob').innerText = entryDob.value;
+            row.querySelector('.display-age').innerText = entryAge.value;
+            row.querySelector('.display-coming-from').innerText = comingFromText;
+            row.querySelector('.display-purchase').innerText = parseFloat(entryPurchase.value || 0).toFixed(2);
+            row.querySelector('.display-sale').innerText = parseFloat(entrySale.value || 0).toFixed(2);
+            row.querySelector('.display-received-docs').innerText = (entryReceivedDocuments?.value || '').trim() || '---';
+
+            // تعبئة الحقول المخفية (لإرسالها للسيرفر)
+            row.querySelector('.input-name').value = entryName.value;
+            row.querySelector('.input-passport').value = entryPassport.value;
+            row.querySelector('.input-relationship').value = entryRelationship.value;
+            row.querySelector('.input-gender').value = entryGender.value;
+            row.querySelector('.input-dob').value = entryDob.value;
+            row.querySelector('.input-age').value = entryAge.value;
+            row.querySelector('.input-coming-from-city').value = entryComingFromCity?.value || '';
+            row.querySelector('.input-received-docs').value = (entryReceivedDocuments?.value || '').trim();
+            row.querySelector('.input-purchase').value = entryPurchase.value;
+            row.querySelector('.input-sale').value = entrySale.value;
+
+            individualsList.appendChild(clone);
             calculateTotals();
-            const hasIndividuals = (individualsList && individualsList.querySelectorAll('.individual-row').length > 0);
-            if (!hasIndividuals) {
-                e.preventDefault();
-                alert('يرجى إضافة فرد واحد على الأقل قبل الحفظ.');
+            clearForm();
+
+            // تحديث المتطلبات للسطر المضاف حديثاً
+            const lastRow = individualsList.lastElementChild.previousElementSibling;
+            updateRequirements(lastRow);
+        });
+
+        // إجراءات الجدول (تعديل وحذف)
+        individualsList.addEventListener('click', function(e) {
+            // حذف
+            if (e.target.closest('.remove-individual')) {
+                const row = e.target.closest('.individual-row');
+                const reqRow = row.nextElementSibling;
+                row.remove();
+                if (reqRow && reqRow.classList.contains('requirements-row')) reqRow.remove();
+                calculateTotals();
+            }
+
+            // تعديل (سحب البيانات للنموذج)
+            if (e.target.closest('.edit-individual')) {
+                const row = e.target.closest('.individual-row');
+
+                // سحب البيانات للنموذج العلوي
+                entryName.value = row.querySelector('.input-name').value;
+                entryPassport.value = row.querySelector('.input-passport').value;
+                entryRelationship.value = row.querySelector('.input-relationship').value;
+                entryGender.value = row.querySelector('.input-gender').value;
+                entryDob.value = row.querySelector('.input-dob').value;
+                entryAge.value = row.querySelector('.input-age').value;
+                if (entryComingFromCity) entryComingFromCity.value = row.querySelector('.input-coming-from-city')?.value || '';
+                entryPurchase.value = row.querySelector('.input-purchase').value;
+                entrySale.value = row.querySelector('.input-sale').value;
+                if (entryReceivedDocuments) entryReceivedDocuments.value = row.querySelector('.input-received-docs')?.value || '';
+
+                // حذف السطر من الجدول بعد سحبه للتعديل
+                const reqRow = row.nextElementSibling;
+                row.remove();
+                if (reqRow && reqRow.classList.contains('requirements-row')) reqRow.remove();
+                calculateTotals();
+
+                // التركيز على حقل الاسم
+                entryName.focus();
             }
         });
-    }
 
-    // دالة جلب السعر التلقائي
-    window.updateServicePrices = async function() {
-        const agentId = document.getElementById('main_agent_id')?.value;
-        const branchId = document.getElementById('main_branch_id')?.value;
-        const pricingBadge = document.getElementById('pricing_info_badge');
-        
-        if (!agentId && !branchId) {
-            pricingBadge?.classList.add('d-none');
-            return;
-        }
+        window.updatePaymentLogic = function() {
+            const paymentType = $('#payment_type').val();
+            const accountSelect = $('#account_id');
+            const accountLabel = $('#account_label');
+            const amountReceived = $('#amount_received');
 
-        try {
-            const res = await fetch(`ajax_family_visit.php?action=get_service_price&agent_id=${agentId}&branch_id=${branchId}`);
-            const result = await res.json();
-            
-            if (result.status === 'success') {
-                const data = result.data;
-                const purchasePrice = data.purchase_price;
-                const salePrice = data.sale_price;
-                const currencySymbol = data.currency_symbol;
-                const currencyId = data.currency_id;
+            // تفريغ الحسابات
+            accountSelect.empty().append('<option value="">اختر الحساب...</option>');
 
-                // تحديث المدخلات في نموذج الإدخال
-                if (entryPurchase) entryPurchase.value = purchasePrice;
-                if (entrySale) entrySale.value = salePrice;
-                if (currencyId) {
-                    const $mainCurrency = $('#main_currency_id');
-                    const $saleCurrency = $('#sale_currency_id');
-                    if ($mainCurrency.length) $mainCurrency.val(String(currencyId)).trigger('change');
-                    if ($saleCurrency.length) $saleCurrency.val(String(currencyId)).trigger('change');
-                }
+            // إعادة تعيين الحقول المخفية
+            $('#customer_id_hidden').val('');
+            $('#agent_id_hidden').val('');
+            $('#branch_id_hidden').val('');
 
-                // تحديث جميع المدخلات الحالية في الجدول (إذا رغب المستخدم في تطبيق السعر على الكل)
-                // ملاحظة: هذا السلوك يعتمد على رغبة المستخدم، سنتركه لزر "تنزيل السعر" فقط لتجنب تغيير أسعار تم إدخالها يدوياً فجأة
+            let accounts = [];
+            let label = 'الحساب';
 
-                // إظهار بادج التسعيرة
-                if (pricingBadge) {
-                    pricingBadge.classList.remove('d-none');
-                    document.getElementById('target_purchase_label').innerText = purchasePrice.toFixed(2);
-                    document.getElementById('target_sale_label').innerText = salePrice.toFixed(2);
-                    document.getElementById('target_currency_label').innerText = currencySymbol;
-                }
-                
-                // تحديث التيمبلت ليكون السعر الافتراضي للأسطر الجديدة
-                const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
-                const saleInputTpl = template.content.querySelector('.sale-price-input');
-                if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice;
-                if (saleInputTpl) saleInputTpl.value = salePrice;
+            if (paymentType === 'cash') {
+                accounts = <?php echo json_encode($cashboxes_entities); ?>;
+                label = 'الصندوق (نقد)';
+                amountReceived.prop('readonly', false).removeClass('bg-light');
+            } else if (paymentType === 'credit') {
+                accounts = <?php echo json_encode($customers_entities); ?>;
+                label = 'العميل (آجل)';
+                amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
+            } else if (paymentType === 'agent') {
+                accounts = <?php echo json_encode($agents_entities); ?>;
+                label = 'الوكيل (آجل)';
+                amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
+            } else if (paymentType === 'branch') {
+                accounts = <?php echo json_encode($branches_accounts); ?>;
+                label = 'الفرع (آجل)';
+                amountReceived.val('0.00').prop('readonly', true).addClass('bg-light');
+            } else if (paymentType === 'bank_transfer') {
+                accounts = <?php echo json_encode($banks_entities); ?>;
+                label = 'البنك (تحويل)';
+                amountReceived.prop('readonly', false).removeClass('bg-light');
             }
-        } catch (err) {
-            console.error('Error loading prices:', err);
-        }
-    }
 
-    // زر تنزيل السعر على جميع الأفراد
-    const applyPriceBtn = document.getElementById('applyDefaultPriceBtn');
-    if (applyPriceBtn) {
-        applyPriceBtn.onclick = function() {
+            accountLabel.text(label);
+            accounts.forEach(acc => {
+                const displayName = acc.account_code ? `${acc.account_code} - ${acc.name || acc.account_name}` : (acc.name || acc.account_name);
+                const value = paymentType === 'cash' || paymentType === 'bank_transfer' ? acc.account_id : acc.id;
+                const customerId = paymentType === 'credit' ? acc.id : '';
+                const agentId = paymentType === 'agent' ? acc.id : '';
+
+                accountSelect.append(`<option value="${value}" data-customer-id="${customerId}" data-agent-id="${agentId}">${displayName}</option>`);
+            });
+        };
+
+        window.loadPricesForSelectedAccount = async function() {
+            const paymentType = $('#payment_type').val();
+            const selectedId = $('#account_id').val();
+            const pricingBadge = document.getElementById('pricing_info_badge');
+
+            // تعبئة الحقل المخفي المناسب بناءً على نوع الدفع
+            $('#customer_id_hidden').val(paymentType === 'credit' ? selectedId : '');
+            $('#agent_id_hidden').val(paymentType === 'agent' ? selectedId : '');
+            $('#branch_id_hidden').val(paymentType === 'branch' ? selectedId : '');
+
+            let url = `ajax_family_visit.php?action=get_service_price`;
+            if (selectedId) {
+                if (paymentType === 'credit') url += `&customer_id=${selectedId}`;
+                else if (paymentType === 'agent') url += `&agent_id=${selectedId}`;
+                else if (paymentType === 'branch') url += `&branch_id=${selectedId}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    const data = result.data;
+                    const purchasePrice = data.purchase_price;
+                    const salePrice = data.sale_price;
+                    const currencySymbol = data.currency_symbol;
+                    const currencyId = data.currency_id;
+
+                    // تحديث نموذج الإدخال (Entry Fields)
+                    if (entryPurchase) entryPurchase.value = purchasePrice;
+                    if (entrySale) entrySale.value = salePrice;
+                    if (currencyId) {
+                        const $mainCurrency = $('#main_currency_id');
+                        const $saleCurrency = $('#sale_currency_id');
+                        if ($mainCurrency.length) $mainCurrency.val(String(currencyId)).trigger('change');
+                        if ($saleCurrency.length) $saleCurrency.val(String(currencyId)).trigger('change');
+                    }
+
+                    // إظهار بادج التسعيرة
+                    if (pricingBadge) {
+                        pricingBadge.classList.remove('d-none');
+                        document.getElementById('target_purchase_label').innerText = purchasePrice.toFixed(2);
+                        document.getElementById('target_sale_label').innerText = salePrice.toFixed(2);
+                        document.getElementById('target_currency_label').innerText = currencySymbol;
+                    }
+
+                    // تحديث التيمبلت للأسطر القادمة
+                    const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
+                    const saleInputTpl = template.content.querySelector('.sale-price-input');
+                    if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice;
+                    if (saleInputTpl) saleInputTpl.value = salePrice;
+                } else {
+                    if (pricingBadge) pricingBadge.classList.add('d-none');
+                }
+            } catch (err) {
+                console.error('Error loading prices:', err);
+            }
+        };
+
+        // عند فتح مودال الإضافة، تأكد من تحديث منطق الدفع وجلب الأسعار الافتراضية
+        const addRequestModal = document.getElementById('addRequestModal');
+        if (addRequestModal) {
+            addRequestModal.addEventListener('shown.bs.modal', function() {
+                updatePaymentLogic();
+                loadPricesForSelectedAccount(); // جلب السعر الافتراضي العام عند الفتح
+            });
+        }
+
+        const addRequestForm = document.getElementById('addRequestForm');
+        if (addRequestForm) {
+            addRequestForm.addEventListener('submit', function(e) {
+                syncIssueDate();
+                calculateTotals();
+                const hasIndividuals = (individualsList && individualsList.querySelectorAll('.individual-row').length > 0);
+                if (!hasIndividuals) {
+                    e.preventDefault();
+                    alert('يرجى إضافة فرد واحد على الأقل قبل الحفظ.');
+                }
+            });
+        }
+
+        // دالة جلب السعر التلقائي
+        window.updateServicePrices = async function() {
             const agentId = document.getElementById('main_agent_id')?.value;
             const branchId = document.getElementById('main_branch_id')?.value;
-            
+            const pricingBadge = document.getElementById('pricing_info_badge');
+
             if (!agentId && !branchId) {
-                alert('يرجى اختيار الوكيل أو الفرع أولاً');
+                pricingBadge?.classList.add('d-none');
                 return;
             }
-            
-            updateServicePrices();
-        };
-    }
 
-    // جلب الأسعار تلقائياً عند تغيير الوكيل أو الفرع
-    const agentSelect = document.querySelector('select[name="agent_id"]');
-    const branchSelect = document.querySelector('select[name="branch_id"]');
-    
-    async function loadServicePrices() {
-        const agentId = agentSelect ? agentSelect.value : '';
-        const branchId = branchSelect ? branchSelect.value : '';
-        
-        try {
-            const res = await fetch(`ajax_family_visit.php?action=get_service_price&agent_id=${agentId}&branch_id=${branchId}`);
-            const result = await res.json();
-            
-            if (result.status === 'success') {
-                const data = result.data || {};
-                const purchasePrice = parseFloat(data.purchase_price ?? 0) || 0;
-                const salePrice = parseFloat(data.sale_price ?? 0) || 0;
-                if (entryPurchase) entryPurchase.value = purchasePrice.toFixed(2);
-                if (entrySale) entrySale.value = salePrice.toFixed(2);
+            try {
+                const res = await fetch(`ajax_family_visit.php?action=get_service_price&agent_id=${agentId}&branch_id=${branchId}`);
+                const result = await res.json();
 
-                const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
-                const saleInputTpl = template.content.querySelector('.sale-price-input');
-                if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice.toFixed(2);
-                if (saleInputTpl) saleInputTpl.value = salePrice.toFixed(2);
+                if (result.status === 'success') {
+                    const data = result.data;
+                    const purchasePrice = data.purchase_price;
+                    const salePrice = data.sale_price;
+                    const currencySymbol = data.currency_symbol;
+                    const currencyId = data.currency_id;
+
+                    // تحديث المدخلات في نموذج الإدخال
+                    if (entryPurchase) entryPurchase.value = purchasePrice;
+                    if (entrySale) entrySale.value = salePrice;
+                    if (currencyId) {
+                        const $mainCurrency = $('#main_currency_id');
+                        const $saleCurrency = $('#sale_currency_id');
+                        if ($mainCurrency.length) $mainCurrency.val(String(currencyId)).trigger('change');
+                        if ($saleCurrency.length) $saleCurrency.val(String(currencyId)).trigger('change');
+                    }
+
+                    // تحديث جميع المدخلات الحالية في الجدول (إذا رغب المستخدم في تطبيق السعر على الكل)
+                    // ملاحظة: هذا السلوك يعتمد على رغبة المستخدم، سنتركه لزر "تنزيل السعر" فقط لتجنب تغيير أسعار تم إدخالها يدوياً فجأة
+
+                    // إظهار بادج التسعيرة
+                    if (pricingBadge) {
+                        pricingBadge.classList.remove('d-none');
+                        document.getElementById('target_purchase_label').innerText = purchasePrice.toFixed(2);
+                        document.getElementById('target_sale_label').innerText = salePrice.toFixed(2);
+                        document.getElementById('target_currency_label').innerText = currencySymbol;
+                    }
+
+                    // تحديث التيمبلت ليكون السعر الافتراضي للأسطر الجديدة
+                    const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
+                    const saleInputTpl = template.content.querySelector('.sale-price-input');
+                    if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice;
+                    if (saleInputTpl) saleInputTpl.value = salePrice;
+                }
+            } catch (err) {
+                console.error('Error loading prices:', err);
             }
-        } catch (err) { console.error('Error loading prices:', err); }
-    }
-
-    if (agentSelect) agentSelect.addEventListener('change', loadServicePrices);
-    if (branchSelect) branchSelect.addEventListener('change', loadServicePrices);
-
-    // تنفيذ أولي لجلب الأسعار إذا كان هناك وكيل أو فرع مختار مسبقاً
-    if ((agentSelect && agentSelect.value) || (branchSelect && branchSelect.value)) {
-        loadServicePrices();
-    }
-
-    async function updateRequirements(row) {
-        if (!row) {
-            return;
         }
 
-        const relInput = row.querySelector('.input-relationship');
-        const genderInput = row.querySelector('.input-gender');
-        const ageInput = row.querySelector('.input-age');
-        const reqRow = row.nextElementSibling;
-        const reqList = reqRow ? reqRow.querySelector('.requirements-list') : null;
+        // زر تنزيل السعر على جميع الأفراد
+        const applyPriceBtn = document.getElementById('applyDefaultPriceBtn');
+        if (applyPriceBtn) {
+            applyPriceBtn.onclick = function() {
+                const agentId = document.getElementById('main_agent_id')?.value;
+                const branchId = document.getElementById('main_branch_id')?.value;
 
-        if (!reqList) {
-            return;
+                if (!agentId && !branchId) {
+                    alert('يرجى اختيار الوكيل أو الفرع أولاً');
+                    return;
+                }
+
+                updateServicePrices();
+            };
         }
 
-        const relId = relInput ? relInput.value : '';
-        const gender = genderInput ? genderInput.value : '';
-        const age = ageInput ? ageInput.value : '';
+        // جلب الأسعار تلقائياً عند تغيير الوكيل أو الفرع
+        const agentSelect = document.querySelector('select[name="agent_id"]');
+        const branchSelect = document.querySelector('select[name="branch_id"]');
 
-        if (!relId) {
-            reqList.innerHTML = '---';
-            return;
+        async function loadServicePrices() {
+            const agentId = agentSelect ? agentSelect.value : '';
+            const branchId = branchSelect ? branchSelect.value : '';
+
+            try {
+                const res = await fetch(`ajax_family_visit.php?action=get_service_price&agent_id=${agentId}&branch_id=${branchId}`);
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    const data = result.data || {};
+                    const purchasePrice = parseFloat(data.purchase_price ?? 0) || 0;
+                    const salePrice = parseFloat(data.sale_price ?? 0) || 0;
+                    if (entryPurchase) entryPurchase.value = purchasePrice.toFixed(2);
+                    if (entrySale) entrySale.value = salePrice.toFixed(2);
+
+                    const purchaseInputTpl = template.content.querySelector('.purchase-price-input');
+                    const saleInputTpl = template.content.querySelector('.sale-price-input');
+                    if (purchaseInputTpl) purchaseInputTpl.value = purchasePrice.toFixed(2);
+                    if (saleInputTpl) saleInputTpl.value = salePrice.toFixed(2);
+                }
+            } catch (err) {
+                console.error('Error loading prices:', err);
+            }
         }
 
-        try {
-            const res = await fetch(`ajax_family_visit.php?action=get_requirements&relationship_id=${encodeURIComponent(relId)}&gender=${encodeURIComponent(gender)}&age=${encodeURIComponent(age)}`);
-            const payload = await res.json();
-            const data = Array.isArray(payload) ? payload : (payload.data || []);
-            if (Array.isArray(data) && data.length > 0) {
-                reqList.innerHTML = data.map(req => `
+        if (agentSelect) agentSelect.addEventListener('change', loadServicePrices);
+        if (branchSelect) branchSelect.addEventListener('change', loadServicePrices);
+
+        // تنفيذ أولي لجلب الأسعار إذا كان هناك وكيل أو فرع مختار مسبقاً
+        if ((agentSelect && agentSelect.value) || (branchSelect && branchSelect.value)) {
+            loadServicePrices();
+        }
+
+        async function updateRequirements(row) {
+            if (!row) {
+                return;
+            }
+
+            const relInput = row.querySelector('.input-relationship');
+            const genderInput = row.querySelector('.input-gender');
+            const ageInput = row.querySelector('.input-age');
+            const reqRow = row.nextElementSibling;
+            const reqList = reqRow ? reqRow.querySelector('.requirements-list') : null;
+
+            if (!reqList) {
+                return;
+            }
+
+            const relId = relInput ? relInput.value : '';
+            const gender = genderInput ? genderInput.value : '';
+            const age = ageInput ? ageInput.value : '';
+
+            if (!relId) {
+                reqList.innerHTML = '---';
+                return;
+            }
+
+            try {
+                const res = await fetch(`ajax_family_visit.php?action=get_requirements&relationship_id=${encodeURIComponent(relId)}&gender=${encodeURIComponent(gender)}&age=${encodeURIComponent(age)}`);
+                const payload = await res.json();
+                const data = Array.isArray(payload) ? payload : (payload.data || []);
+                if (Array.isArray(data) && data.length > 0) {
+                    reqList.innerHTML = data.map(req => `
                     <div class="form-check form-check-inline mb-0">
                         <input class="form-check-input" type="checkbox" checked disabled>
                         <label class="form-check-label x-small ${req.is_mandatory ? 'fw-bold text-dark' : ''}">
@@ -2032,50 +2152,54 @@ document.addEventListener('DOMContentLoaded', function() {
                         </label>
                     </div>
                 `).join('');
-            } else {
-                reqList.innerHTML = '<span class="x-small">لا توجد متطلبات خاصة</span>';
+                } else {
+                    reqList.innerHTML = '<span class="x-small">لا توجد متطلبات خاصة</span>';
+                }
+            } catch (err) {
+                console.error('Error loading requirements:', err);
             }
-        } catch (err) {
-            console.error('Error loading requirements:', err);
         }
-    }
 
-    // عرض تفاصيل الطلب
-    document.querySelectorAll('.view-request').forEach(btn => {
-        btn.onclick = async function() {
-            const id = this.dataset.id;
-            const modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
-            modal.show();
-            
-            const content = document.getElementById('viewRequestContent');
-            content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-info"></div></div>';
+        // عرض تفاصيل الطلب
+        document.querySelectorAll('.view-request').forEach(btn => {
+            btn.onclick = async function() {
+                const id = this.dataset.id;
+                const modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
+                modal.show();
 
-            try {
-                const res = await fetch(`ajax_family_visit.php?action=get_request_details&id=${id}`);
-                const result = await res.json();
-                
-                if (result.status === 'success') {
-                    const req = result.data;
-                    const formatDateParts = (value) => {
-                        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value || '').trim());
-                        if (!m) return null;
-                        return { y: parseInt(m[1], 10), m: parseInt(m[2], 10), d: parseInt(m[3], 10) };
-                    };
-                    const formatDateArabic = (value) => {
-                        const d = formatDateParts(value);
-                        return d ? `${d.y}/${String(d.m).padStart(2, '0')}/${String(d.d).padStart(2, '0')}` : (value || '---');
-                    };
-                    const displayIssueDate = (() => {
-                        if ((req.date_type || 'gregorian') !== 'hijri') {
-                            return formatDateArabic(req.issue_date);
-                        }
-                        const g = formatDateParts(req.issue_date);
-                        if (!g) return req.issue_date || '---';
-                        const jd = gregorianToJD(g.y, g.m, g.d);
-                        const h = jdToHijri(jd);
-                        return `${h.year}/${String(h.month).padStart(2, '0')}/${String(h.day).padStart(2, '0')} هجري`;
-                    })();
-                    content.innerHTML = `
+                const content = document.getElementById('viewRequestContent');
+                content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-info"></div></div>';
+
+                try {
+                    const res = await fetch(`ajax_family_visit.php?action=get_request_details&id=${id}`);
+                    const result = await res.json();
+
+                    if (result.status === 'success') {
+                        const req = result.data;
+                        const formatDateParts = (value) => {
+                            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value || '').trim());
+                            if (!m) return null;
+                            return {
+                                y: parseInt(m[1], 10),
+                                m: parseInt(m[2], 10),
+                                d: parseInt(m[3], 10)
+                            };
+                        };
+                        const formatDateArabic = (value) => {
+                            const d = formatDateParts(value);
+                            return d ? `${d.y}/${String(d.m).padStart(2, '0')}/${String(d.d).padStart(2, '0')}` : (value || '---');
+                        };
+                        const displayIssueDate = (() => {
+                            if ((req.date_type || 'gregorian') !== 'hijri') {
+                                return formatDateArabic(req.issue_date);
+                            }
+                            const g = formatDateParts(req.issue_date);
+                            if (!g) return req.issue_date || '---';
+                            const jd = gregorianToJD(g.y, g.m, g.d);
+                            const h = jdToHijri(jd);
+                            return `${h.year}/${String(h.month).padStart(2, '0')}/${String(h.day).padStart(2, '0')} هجري`;
+                        })();
+                        content.innerHTML = `
                         <div class="row g-4 text-end" dir="rtl">
                             <!-- بيانات الطلب -->
                             <div class="col-md-4 border-start">
@@ -2085,7 +2209,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="mb-2"><span class="text-muted small">صاحب الطلب:</span> <span class="fw-bold">${req.owner_name}</span></div>
                                 <div class="mb-2"><span class="text-muted small">رقم السجل:</span> <span>${req.owner_id_no}</span></div>
                                 <div class="mb-2"><span class="text-muted small">الجوال:</span> <span>${req.phone_no || '---'}</span></div>
-                                <div class="mb-2"><span class="text-muted small">الحالة الحالية:</span> 
+                                <div class="mb-2"><span class="text-muted small">الحالة الحالية:</span>
                                     <span class="badge rounded-pill" style="background-color: ${req.status_color}; color: #fff;">${req.status_name}</span>
                                 </div>
                                 <hr>
@@ -2115,7 +2239,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     ${req.document_pdf ? `<a href="../assets/uploads/family_visits/${req.document_pdf}" target="_blank" class="btn btn-sm btn-outline-dark"><i class="fas fa-file-pdf me-1"></i> عرض مستند الزيارة</a>` : ''}
                                 </div>
                             </div>
-                            
+
                             <!-- بيانات الأفراد -->
                             <div class="col-md-8">
                                 <h6 class="fw-bold border-bottom pb-2 mb-3"><i class="fas fa-user-friends me-1 text-info"></i> بيانات الأفراد (${req.individuals.length})</h6>
@@ -2160,254 +2284,333 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
+                    }
+                } catch (err) {
+                    content.innerHTML = '<div class="alert alert-danger">خطأ في تحميل البيانات.</div>';
                 }
-            } catch (err) {
-                content.innerHTML = '<div class="alert alert-danger">خطأ في تحميل البيانات.</div>';
+            };
+        });
+
+        // زر التعديل (فتح مودال التفاصيل حالياً كحل مؤقت للمراجعة والتعديل)
+        document.querySelectorAll('.edit-request').forEach(btn => {
+            btn.onclick = function() {
+                const id = this.dataset.id;
+                // توجيه لزر العرض لأن واجهة العرض تدعم التعديل (الحالة، التأشيرة)
+                const viewBtn = document.querySelector(`.view-request[data-id="${id}"]`);
+                if (viewBtn) viewBtn.click();
+            };
+        });
+
+        // تحديث حالة الطلب عبر AJAX
+        document.addEventListener('change', async function(e) {
+            if (e.target.classList.contains('update-request-status')) {
+                const id = e.target.dataset.id;
+                const statusId = e.target.value;
+                if (confirm('هل تريد تغيير حالة الطلب وكافة الأفراد التابعين له؟')) {
+                    try {
+                        const body = new URLSearchParams({
+                            id,
+                            status_id: statusId,
+                            csrf_token: CSRF_TOKEN
+                        });
+                        const res = await fetch('ajax_family_visit.php?action=update_request_status', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body
+                        });
+                        const result = await res.json();
+                        if (result.status === 'success') location.reload();
+                        else alert(result.message);
+                    } catch (err) {
+                        alert('خطأ في الاتصال بالسيرفر');
+                    }
+                }
             }
-        };
-    });
+        });
+        // حفظ بيانات التأشيرة
+        document.addEventListener('click', async function(e) {
+            if (e.target.classList.contains('save-visa-info')) {
+                const id = e.target.dataset.id;
+                const visaNo = document.querySelector('.visa-no-input').value;
+                const duration = document.querySelector('.visa-duration-input').value;
 
-    // زر التعديل (فتح مودال التفاصيل حالياً كحل مؤقت للمراجعة والتعديل)
-    document.querySelectorAll('.edit-request').forEach(btn => {
-        btn.onclick = function() {
-            const id = this.dataset.id;
-            // توجيه لزر العرض لأن واجهة العرض تدعم التعديل (الحالة، التأشيرة)
-            const viewBtn = document.querySelector(`.view-request[data-id="${id}"]`);
-            if (viewBtn) viewBtn.click();
-        };
-    });
-
-    // تحديث حالة الطلب عبر AJAX
-    document.addEventListener('change', async function(e) {
-        if (e.target.classList.contains('update-request-status')) {
-            const id = e.target.dataset.id;
-            const statusId = e.target.value;
-            if (confirm('هل تريد تغيير حالة الطلب وكافة الأفراد التابعين له؟')) {
                 try {
-                    const body = new URLSearchParams({ id, status_id: statusId, csrf_token: CSRF_TOKEN });
-                    const res = await fetch('ajax_family_visit.php?action=update_request_status', {
+                    const body = new URLSearchParams({
+                        id,
+                        visa_no: visaNo,
+                        duration,
+                        csrf_token: CSRF_TOKEN
+                    });
+                    const res = await fetch('ajax_family_visit.php?action=update_visa_info', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
                         body
                     });
                     const result = await res.json();
-                    if (result.status === 'success') location.reload();
-                    else alert(result.message);
-                } catch (err) { alert('خطأ في الاتصال بالسيرفر'); }
+                    if (result.status === 'success') {
+                        alert('تم حفظ بيانات التأشيرة بنجاح');
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                } catch (err) {
+                    alert('خطأ في الاتصال بالسيرفر');
+                }
             }
+        });
+
+        function toggleActionMenu(menuId) {
+            const target = document.getElementById(menuId);
+            if (!target) return;
+            const willShow = !target.classList.contains('show');
+            document.querySelectorAll('.financial-action-menu.show').forEach(menu => menu.classList.remove('show'));
+            if (willShow) target.classList.add('show');
         }
-    });
-    // حفظ بيانات التأشيرة
-    document.addEventListener('click', async function(e) {
-        if (e.target.classList.contains('save-visa-info')) {
-            const id = e.target.dataset.id;
-            const visaNo = document.querySelector('.visa-no-input').value;
-            const duration = document.querySelector('.visa-duration-input').value;
-            
+
+        function closeActionMenus() {
+            document.querySelectorAll('.financial-action-menu.show').forEach(menu => menu.classList.remove('show'));
+        }
+
+        async function confirmDialog({
+            title,
+            text,
+            icon,
+            confirmText,
+            cancelText
+        }) {
+            const isDark = document.body.classList.contains('theme-dark');
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                const res = await window.Swal.fire({
+                    title,
+                    text,
+                    icon: icon || 'question',
+                    showCancelButton: true,
+                    confirmButtonText: confirmText || 'تأكيد',
+                    cancelButtonText: cancelText || 'إلغاء',
+                    reverseButtons: true,
+                    background: isDark ? '#0b1220' : '#ffffff',
+                    color: isDark ? '#e2e8f0' : '#0f172a',
+                    confirmButtonColor: isDark ? '#2563eb' : undefined,
+                    cancelButtonColor: isDark ? '#475569' : undefined
+                });
+                return !!res.isConfirmed;
+            }
+            return window.confirm(text || title || '');
+        }
+
+        async function postFinance(id, scope) {
+            closeActionMenus();
+            const ok = await confirmDialog({
+                title: 'تأكيد الترحيل المالي',
+                text: 'هل تريد ترحيل الفاتورة/الفواتير المحددة؟',
+                icon: 'warning',
+                confirmText: 'نعم، رحّل',
+                cancelText: 'تراجع'
+            });
+            if (!ok) return;
             try {
-                const body = new URLSearchParams({ id, visa_no: visaNo, duration, csrf_token: CSRF_TOKEN });
-                const res = await fetch('ajax_family_visit.php?action=update_visa_info', {
+                const body = new URLSearchParams({
+                    id: String(id),
+                    scope: String(scope || 'all'),
+                    csrf_token: CSRF_TOKEN
+                });
+                const res = await fetch('ajax_family_visit.php?action=post_finance', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
                     body
                 });
                 const result = await res.json();
                 if (result.status === 'success') {
-                    alert('تم حفظ بيانات التأشيرة بنجاح');
+                    if (window.Swal) {
+                        await window.Swal.fire({
+                            icon: 'success',
+                            title: 'تم',
+                            text: result.message || 'تم الترحيل بنجاح'
+                        });
+                    }
                     location.reload();
+                    return;
+                }
+                if (window.Swal) {
+                    await window.Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: result.message || 'فشل الترحيل'
+                    });
                 } else {
-                    alert(result.message);
+                    alert(result.message || 'فشل الترحيل');
                 }
-            } catch (err) { alert('خطأ في الاتصال بالسيرفر'); }
-        }
-    });
-
-    function toggleActionMenu(menuId) {
-        const target = document.getElementById(menuId);
-        if (!target) return;
-        const willShow = !target.classList.contains('show');
-        document.querySelectorAll('.financial-action-menu.show').forEach(menu => menu.classList.remove('show'));
-        if (willShow) target.classList.add('show');
-    }
-
-    function closeActionMenus() {
-        document.querySelectorAll('.financial-action-menu.show').forEach(menu => menu.classList.remove('show'));
-    }
-
-    async function confirmDialog({ title, text, icon, confirmText, cancelText }) {
-        const isDark = document.body.classList.contains('theme-dark');
-        if (window.Swal && typeof window.Swal.fire === 'function') {
-            const res = await window.Swal.fire({
-                title,
-                text,
-                icon: icon || 'question',
-                showCancelButton: true,
-                confirmButtonText: confirmText || 'تأكيد',
-                cancelButtonText: cancelText || 'إلغاء',
-                reverseButtons: true,
-                background: isDark ? '#0b1220' : '#ffffff',
-                color: isDark ? '#e2e8f0' : '#0f172a',
-                confirmButtonColor: isDark ? '#2563eb' : undefined,
-                cancelButtonColor: isDark ? '#475569' : undefined
-            });
-            return !!res.isConfirmed;
-        }
-        return window.confirm(text || title || '');
-    }
-
-    async function postFinance(id, scope) {
-        closeActionMenus();
-        const ok = await confirmDialog({
-            title: 'تأكيد الترحيل المالي',
-            text: 'هل تريد ترحيل الفاتورة/الفواتير المحددة؟',
-            icon: 'warning',
-            confirmText: 'نعم، رحّل',
-            cancelText: 'تراجع'
-        });
-        if (!ok) return;
-        try {
-            const body = new URLSearchParams({ id: String(id), scope: String(scope || 'all'), csrf_token: CSRF_TOKEN });
-            const res = await fetch('ajax_family_visit.php?action=post_finance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body
-            });
-            const result = await res.json();
-            if (result.status === 'success') {
-                if (window.Swal) {
-                    await window.Swal.fire({ icon: 'success', title: 'تم', text: result.message || 'تم الترحيل بنجاح' });
-                }
-                location.reload();
-                return;
+            } catch (err) {
+                alert('خطأ في الاتصال بالسيرفر');
             }
-            if (window.Swal) {
-                await window.Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'فشل الترحيل' });
-            } else {
-                alert(result.message || 'فشل الترحيل');
-            }
-        } catch (err) {
-            alert('خطأ في الاتصال بالسيرفر');
         }
-    }
 
-    async function unpostFinance(id, scope) {
-        closeActionMenus();
-        const ok = await confirmDialog({
-            title: 'تأكيد إلغاء الترحيل',
-            text: 'سيتم إرجاع الفاتورة/الفواتير إلى مسودة. هل تريد المتابعة؟',
-            icon: 'warning',
-            confirmText: 'نعم، ألغِ الترحيل',
-            cancelText: 'تراجع'
-        });
-        if (!ok) return;
-        try {
-            const body = new URLSearchParams({ id: String(id), scope: String(scope || 'all'), csrf_token: CSRF_TOKEN });
-            const res = await fetch('ajax_family_visit.php?action=unpost_finance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body
-            });
-            const result = await res.json();
-            if (result.status === 'success') {
-                if (window.Swal) {
-                    await window.Swal.fire({ icon: 'success', title: 'تم', text: result.message || 'تم إلغاء الترحيل بنجاح' });
-                }
-                location.reload();
-                return;
-            }
-            if (window.Swal) {
-                await window.Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'فشل إلغاء الترحيل' });
-            } else {
-                alert(result.message || 'فشل إلغاء الترحيل');
-            }
-        } catch (err) {
-            alert('خطأ في الاتصال بالسيرفر');
-        }
-    }
-
-    async function cancelInvoices(id, scope) {
-        closeActionMenus();
-        const ok = await confirmDialog({
-            title: 'تأكيد حذف الفواتير',
-            text: 'سيتم تحويل الفاتورة/الفواتير إلى ملغي وفصلها عن الطلب. لا يمكن حذف فاتورة مُرحلة.',
-            icon: 'warning',
-            confirmText: 'نعم، احذف',
-            cancelText: 'تراجع'
-        });
-        if (!ok) return;
-        try {
-            const body = new URLSearchParams({ id: String(id), scope: String(scope || 'all'), csrf_token: CSRF_TOKEN });
-            const res = await fetch('ajax_family_visit.php?action=cancel_invoices', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body
-            });
-            const result = await res.json();
-            if (result.status === 'success') {
-                if (window.Swal) {
-                    await window.Swal.fire({ icon: 'success', title: 'تم', text: result.message || 'تم حذف الفواتير بنجاح' });
-                }
-                location.reload();
-                return;
-            }
-            if (window.Swal) {
-                await window.Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'فشل حذف الفواتير' });
-            } else {
-                alert(result.message || 'فشل حذف الفواتير');
-            }
-        } catch (err) {
-            alert('خطأ في الاتصال بالسيرفر');
-        }
-    }
-
-    window.FamilyVisit = {
-        postFinance,
-        unpostFinance,
-        cancelInvoices
-    };
-
-    document.addEventListener('click', function(e) {
-        const menuToggleBtn = e.target.closest('[data-action-menu-toggle]');
-        if (menuToggleBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleActionMenu(menuToggleBtn.dataset.actionMenuToggle);
-            return;
-        }
-        const deleteLink = e.target.closest('.delete-family-request');
-        if (deleteLink) {
-            e.preventDefault();
-            e.stopPropagation();
+        async function unpostFinance(id, scope) {
             closeActionMenus();
-            (async () => {
-                const ok = await confirmDialog({
-                    title: 'تأكيد حذف الطلب',
-                    text: 'سيتم حذف الطلب وكافة الأفراد التابعين له. هل تريد المتابعة؟',
-                    icon: 'warning',
-                    confirmText: 'نعم، احذف',
-                    cancelText: 'تراجع'
+            const ok = await confirmDialog({
+                title: 'تأكيد إلغاء الترحيل',
+                text: 'سيتم إرجاع الفاتورة/الفواتير إلى مسودة. هل تريد المتابعة؟',
+                icon: 'warning',
+                confirmText: 'نعم، ألغِ الترحيل',
+                cancelText: 'تراجع'
+            });
+            if (!ok) return;
+            try {
+                const body = new URLSearchParams({
+                    id: String(id),
+                    scope: String(scope || 'all'),
+                    csrf_token: CSRF_TOKEN
                 });
-                if (ok) {
-                    window.location.href = deleteLink.getAttribute('href');
+                const res = await fetch('ajax_family_visit.php?action=unpost_finance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    if (window.Swal) {
+                        await window.Swal.fire({
+                            icon: 'success',
+                            title: 'تم',
+                            text: result.message || 'تم إلغاء الترحيل بنجاح'
+                        });
+                    }
+                    location.reload();
+                    return;
                 }
-            })();
-            return;
+                if (window.Swal) {
+                    await window.Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: result.message || 'فشل إلغاء الترحيل'
+                    });
+                } else {
+                    alert(result.message || 'فشل إلغاء الترحيل');
+                }
+            } catch (err) {
+                alert('خطأ في الاتصال بالسيرفر');
+            }
         }
-        if (!e.target.closest('.financial-action-group')) {
+
+        async function cancelInvoices(id, scope) {
             closeActionMenus();
+            const ok = await confirmDialog({
+                title: 'تأكيد حذف الفواتير',
+                text: 'سيتم تحويل الفاتورة/الفواتير إلى ملغي وفصلها عن الطلب. لا يمكن حذف فاتورة مُرحلة.',
+                icon: 'warning',
+                confirmText: 'نعم، احذف',
+                cancelText: 'تراجع'
+            });
+            if (!ok) return;
+            try {
+                const body = new URLSearchParams({
+                    id: String(id),
+                    scope: String(scope || 'all'),
+                    csrf_token: CSRF_TOKEN
+                });
+                const res = await fetch('ajax_family_visit.php?action=cancel_invoices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    if (window.Swal) {
+                        await window.Swal.fire({
+                            icon: 'success',
+                            title: 'تم',
+                            text: result.message || 'تم حذف الفواتير بنجاح'
+                        });
+                    }
+                    location.reload();
+                    return;
+                }
+                if (window.Swal) {
+                    await window.Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: result.message || 'فشل حذف الفواتير'
+                    });
+                } else {
+                    alert(result.message || 'فشل حذف الفواتير');
+                }
+            } catch (err) {
+                alert('خطأ في الاتصال بالسيرفر');
+            }
+        }
+
+        window.FamilyVisit = {
+            postFinance,
+            unpostFinance,
+            cancelInvoices
+        };
+
+        document.addEventListener('click', function(e) {
+            const menuToggleBtn = e.target.closest('[data-action-menu-toggle]');
+            if (menuToggleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleActionMenu(menuToggleBtn.dataset.actionMenuToggle);
+                return;
+            }
+            const deleteLink = e.target.closest('.delete-family-request');
+            if (deleteLink) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeActionMenus();
+                (async () => {
+                    const ok = await confirmDialog({
+                        title: 'تأكيد حذف الطلب',
+                        text: 'سيتم حذف الطلب وكافة الأفراد التابعين له. هل تريد المتابعة؟',
+                        icon: 'warning',
+                        confirmText: 'نعم، احذف',
+                        cancelText: 'تراجع'
+                    });
+                    if (ok) {
+                        window.location.href = deleteLink.getAttribute('href');
+                    }
+                })();
+                return;
+            }
+            if (!e.target.closest('.financial-action-group')) {
+                closeActionMenus();
+            }
+        });
+        // تفعيل منطق الدفع عند التحميل
+        if (typeof window.updatePaymentLogic === 'function') {
+            window.updatePaymentLogic();
         }
     });
-    // تفعيل منطق الدفع عند التحميل
-    if (typeof window.updatePaymentLogic === 'function') {
-        window.updatePaymentLogic();
-    }
-});
 </script>
 
 <style>
-    .section-title { font-size: 1rem; font-weight: 700; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; }
-    .x-small { font-size: 0.75rem; }
-    .table-sm td, .table-sm th { padding: 0.3rem; }
+    .section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e293b;
+        border-bottom: 2px solid #f1f5f9;
+        padding-bottom: 0.5rem;
+    }
+
+    .x-small {
+        font-size: 0.75rem;
+    }
+
+    .table-sm td,
+    .table-sm th {
+        padding: 0.3rem;
+    }
+
     .clamp-2 {
         display: -webkit-box;
         -webkit-line-clamp: 2;
@@ -2481,7 +2684,7 @@ document.addEventListener('DOMContentLoaded', function() {
         margin-bottom: 6px;
     }
 
-    table.align-middle > :not(caption) > * > td.fv-raise {
+    table.align-middle> :not(caption)>*>td.fv-raise {
         vertical-align: top !important;
         padding-top: 0.95rem;
         padding-bottom: 0.95rem;
@@ -2630,30 +2833,74 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /* تحسينات التصميم والوضع الليلي للبطاقات */
-    .transition-all { transition: all 0.3s ease; }
-    .ring-2 { box-shadow: 0 0 0 2px var(--primary-color); }
-    .custom-scrollbar::-webkit-scrollbar { height: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
-    
+    .transition-all {
+        transition: all 0.3s ease;
+    }
+
+    .ring-2 {
+        box-shadow: 0 0 0 2px var(--primary-color);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+    }
+
     .mini-card {
         min-width: 180px;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1px solid rgba(0,0,0,0.05) !important;
+        border: 1px solid rgba(0, 0, 0, 0.05) !important;
         background: #fff;
     }
+
     .mini-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08) !important;
     }
-    .stat-label { font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 2px; }
-    .stat-value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
-    .sub-stat { font-size: 0.65rem; color: #94a3b8; }
-    .sub-stat-value { font-weight: 700; color: #1e293b; }
-    
-    body.theme-dark .stat-label { color: #94a3b8; }
-    body.theme-dark .sub-stat-value { color: #e2e8f0; }
-    body.theme-dark .mini-card { background: #111827 !important; border-color: #1e2d45 !important; }
+
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 2px;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .sub-stat {
+        font-size: 0.65rem;
+        color: #94a3b8;
+    }
+
+    .sub-stat-value {
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    body.theme-dark .stat-label {
+        color: #94a3b8;
+    }
+
+    body.theme-dark .sub-stat-value {
+        color: #e2e8f0;
+    }
+
+    body.theme-dark .mini-card {
+        background: #111827 !important;
+        border-color: #1e2d45 !important;
+    }
 
     .hijri-picker {
         position: absolute;

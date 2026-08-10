@@ -3,6 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/customer_profile.php';
 require_once '../includes/accounting_functions.php';
 require_once '../includes/ServiceFinancialEngine.php';
 
@@ -602,7 +603,7 @@ if ($method === 'GET') {
         // تبويب سير العمل (WorkFlow Tab)
         // ============================================================
         echo '<div class="tab-pane fade" id="workflow" role="tabpanel">';
-        echo '  <div id="umrahWfRoot" class="p-3 bg-light bg-opacity-25 rounded-4">';
+        echo '  <div id="umrahWfRoot" class="p-3 bg-light bg-opacity-25 rounded-4" data-passport-id="'.(int)$id.'">';
 
         // بطاقة رأس الصفحة: اسم سير العمل + المرحلة الحالية
         $cur = $umrahWf['currentStep'];
@@ -888,7 +889,8 @@ if ($method === 'GET') {
                 echo '          <button type="button" class="btn btn-lg btn-primary rounded-pill text-start fw-bold shadow-sm umrahWfTrBtn" style="background-color:'.h($toColor).';border-color:'.h($toColor).';"';
                 echo $disabled;
                 if ($umrahWf['canEditWf']) {
-                    echo '             onclick="UmrahWorkflow.prepareTransition('.$toStepId.', '.h($toName).', '.$reqNote.', '.$reqReason.', '.$reqApproval.', '.$tid.');"';
+                    $toNameJs = h(json_encode($toName, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT));
+                    echo '             onclick="UmrahWorkflow.prepareTransition('.$toStepId.', '.$toNameJs.', '.$reqNote.', '.$reqReason.', '.$reqApproval.', '.$tid.');"';
                 } else {
                     echo '             title="تحتاج صلاحية تعديل سير العمل لتنفيذ هذا الإجراء"';
                 }
@@ -972,7 +974,7 @@ if ($method === 'GET') {
 
         // CSRF token لسكريبتات الجافاسكربت المضمنة
         $csrfVal = (string)(function_exists('get_csrf_token') ? get_csrf_token() : ($_SESSION['csrf_token'] ?? ''));
-        echo '  <script type="module" id="umrahWfInlineScript">';
+        echo '  <script id="umrahWfInlineScript">';
         echo '(function(){';
         echo '  if (!window.UmrahWorkflow) { window.UmrahWorkflow = {}; }';
         echo '  var UW = window.UmrahWorkflow;';
@@ -1628,6 +1630,21 @@ if ($method === 'POST') {
 
             $passport_id = $pdo->lastInsertId();
 
+            if (customer_profile_has_column($pdo, 'customer_service_history', 'passport_id')) {
+                customer_profile_record_service($pdo, [
+                    'passport_id' => (int)$passport_id,
+                    'service_type' => 'umrah',
+                    'service_id' => (int)$passport_id,
+                    'service_number' => 'UM-' . $passport_id,
+                    'service_date' => $_POST['invoice_date'] ?? date('Y-m-d'),
+                    'amount' => $_POST['total_amount'] ?? null,
+                    'currency_id' => $_POST['sale_currency_id'] ?? $_POST['currency_id'] ?? null,
+                    'status' => 'new',
+                    'branch_id' => $selected_branch_id,
+                    'created_by' => $_SESSION['admin_id'] ?? null,
+                ]);
+            }
+
             if ($passport_id && $default_workflow_step_id) {
                 try {
                     $pdo->prepare("UPDATE passports SET workflow_step_id = ? WHERE id = ?")->execute([$default_workflow_step_id, $passport_id]);
@@ -1963,6 +1980,23 @@ if ($method === 'POST') {
             $extraData = $_POST['extra_data'] ?? [];
             $checklist = $_POST['checklist'] ?? [];
 
+            $requiredFields = [];
+            foreach (get_step_dynamic_fields($pdo, $toStepId) as $field) {
+                if (!empty($field['is_required']) && !empty($field['field_key'])) {
+                    $requiredFields[] = (string)$field['field_key'];
+                }
+            }
+            $missingFields = [];
+            foreach (array_unique($requiredFields) as $requiredField) {
+                $value = is_array($extraData) ? ($extraData[$requiredField] ?? '') : '';
+                if ($value === '' || $value === null) {
+                    $missingFields[] = $requiredField;
+                }
+            }
+            if ($missingFields) {
+                throw new Exception('الحقول المطلوبة للمرحلة التالية غير مكتملة: ' . implode(', ', $missingFields));
+            }
+
             // جلب معلومات المستخدم الحالي
             $userId = (int)($_SESSION['admin_id'] ?? 0);
             $userRoleId = null;
@@ -2097,6 +2131,7 @@ if ($method === 'POST') {
                     $processedIds[] = $passportId;
                 } catch (Throwable $innerErr) {
                     $failedIds[] = [$passportId, $innerErr->getMessage()];
+                    throw $innerErr;
                 }
             }
 
@@ -2125,7 +2160,7 @@ if ($method === 'POST') {
                 'failed' => $failedIds
             ], JSON_UNESCAPED_UNICODE);
             exit();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }

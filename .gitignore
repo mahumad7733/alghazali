@@ -1,1 +1,7 @@
 sessions/*
+sessions/sess_*
+assets/uploads/*
+!assets/uploads/.gitkeep
+staging/
+tools/customer_profile_integration_test.php
+tools/staging_performance/

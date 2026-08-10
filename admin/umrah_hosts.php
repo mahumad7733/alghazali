@@ -221,6 +221,7 @@ $hosts = $stmt->fetchAll();
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3><i class="fas fa-house-user text-info me-2"></i> إدارة المستضيفين</h3>
+        <a href="umrah.php" class="btn btn-outline-primary rounded-pill me-auto"><i class="fas fa-kaaba me-1"></i>العودة إلى وحدة العمرة</a>
         <?php if (has_permission('umrah_create')): ?>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addHostModal">
             <i class="fas fa-plus-circle me-1"></i> إضافة مستضيف جديد

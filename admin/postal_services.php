@@ -828,7 +828,7 @@ $nextTrackingNumber = generate_next_postal_tracking_number($pdo);
 <div class="modal fade" id="addPostalShipmentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form id="addPostalShipmentForm" method="POST" action="process_postal_service.php?action=add">
+            <form id="addPostalShipmentForm" method="POST" action="process_postal_service.php?action=add" data-customer-profile-form="1">
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title fw-bold">إضافة شحنة بريدية جديدة</h5>

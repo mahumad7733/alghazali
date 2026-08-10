@@ -27,7 +27,7 @@ if (isset($_POST['add_payment'])) {
         $cost_center_id = !empty($_POST['cost_center_id']) ? $_POST['cost_center_id'] : null;
         $created_by = $_SESSION['admin_id'];
 
-        $res = php_create_voucher_and_post(
+        $res = \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
             $pdo, $type, $branch_id, $entity_type, $entity_id,
             $amount, $currency_id, $cash_bank_account_id, $party_account_id,
             $description, null, null, $cost_center_id

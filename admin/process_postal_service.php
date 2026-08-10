@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/customer_profile.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -250,6 +251,23 @@ try {
         ]);
 
         $shipmentId = (int)$pdo->lastInsertId();
+
+        customer_profile_sync_service($pdo, 'postal_shipments', $shipmentId, [
+            'passport_id' => $_POST['passport_id'] ?? null,
+            'full_name' => $senderFullName,
+            'phone_number' => $senderPhone,
+            'branch_id' => $branchId,
+            'created_by' => $_SESSION['admin_id'] ?? null,
+        ], [
+            'service_type' => 'postal_service',
+            'service_number' => $trackingNumber,
+            'service_date' => $operationDate,
+            'amount' => $pricingData['sale_price'] ?? null,
+            'currency_id' => $pricingData['currency_id'] ?? null,
+            'status' => 'new',
+            'branch_id' => $branchId,
+            'created_by' => $_SESSION['admin_id'] ?? null,
+        ]);
 
         require_once '../includes/ServiceFinancialEngine.php';
         $financialEngine = new ServiceFinancialEngine($pdo, (int)$_SESSION['admin_id']);

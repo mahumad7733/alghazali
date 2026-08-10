@@ -135,7 +135,7 @@ if (!$default_status_id) {
         </a>
     </div>
 
-    <form action="process_passport_transaction.php" method="POST" id="transactionForm">
+    <form action="process_passport_transaction.php" method="POST" id="transactionForm" data-customer-profile-form="1">
         <input type="hidden" name="action" value="add">
         <input type="hidden" name="status_id" value="<?php echo $default_status_id; ?>">
         <input type="hidden" name="workflow_id" value="<?php echo ($settings['passport_workflow_enabled'] ?? 1) ? get_workflow_id_by_transaction_type($pdo, 'passport_transactions') : ''; ?>">
@@ -248,6 +248,10 @@ if (!$default_status_id) {
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">تاريخ إصدار الجواز</label>
                                     <input type="date" class="form-control rounded-3" name="passport_issue_date">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">تاريخ انتهاء الجواز</label>
+                                    <input type="date" class="form-control rounded-3" name="passport_expiry_date">
                                 </div>
                             </div>
                         </div>

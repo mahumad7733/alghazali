@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/customer_profile.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -532,6 +533,22 @@ if (isset($_POST['add_passport'])) {
     }
 
     $passport_id = $pdo->lastInsertId();
+
+    if (customer_profile_has_column($pdo, 'customer_service_history', 'passport_id')) {
+        $transactionServiceType = (string)($_POST['transaction_type'] ?? 'passport');
+        $serviceType = in_array($transactionServiceType, ['work_visa', 'umrah', 'hajj'], true)
+            ? $transactionServiceType : 'passport';
+        customer_profile_record_service($pdo, [
+            'passport_id' => (int)$passport_id,
+            'service_type' => $serviceType,
+            'service_id' => (int)$passport_id,
+            'service_number' => $_POST['passport_number'] ?? null,
+            'service_date' => $_POST['operation_date'] ?? date('Y-m-d'),
+            'status' => 'new',
+            'branch_id' => $_POST['branch_id'] ?? null,
+            'created_by' => $_SESSION['admin_id'] ?? null,
+        ]);
+    }
 
     if (isWorkVisaTransaction($transaction_type)) {
         try {
@@ -1742,6 +1759,14 @@ $statuses_json = json_encode($statuses);
             .then(html => {
                 container.innerHTML = html;
             });
+    }
+
+    const editId = new URLSearchParams(window.location.search).get('edit_id');
+    if (editId) {
+        const editModal = document.getElementById(`editPassportModal${editId}`);
+        if (editModal && window.bootstrap) {
+            new bootstrap.Modal(editModal).show();
+        }
     }
 </script>
 

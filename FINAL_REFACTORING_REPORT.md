@@ -6,7 +6,7 @@
 
 - Phases 6 and 7 are accepted on the isolated MariaDB database; service migration acceptance and the broad accounting suite pass.
 - Phases 9–12 are documented and accepted within the refactoring scope.
-- Phase 8 has a passing microbenchmark (`legacy 4.120ms`, `facade 3.887ms` for 1,000 normalizations), but full SQL/query/memory/page-load comparison remains pending.
+- Phase 8 isolated evidence is complete: the benchmark, three integration timing runs (average `296.28ms`), and read-only SQL/index review passed; production-scale load and page timing remain environment-gated.
 - Production migration and production acceptance remain deployment activities requiring backup and approval.
 
 The previous status text in this file predates the completed migration slice. Current evidence is:

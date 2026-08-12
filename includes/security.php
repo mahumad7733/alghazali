@@ -113,6 +113,7 @@ function request_header_value($name)
 
 function csrf_token_from_request()
 {
+    // Read CSRF token from header or POST/JSON body only. Do NOT accept token from GET to avoid token leakage via URLs.
     $token = request_header_value('X-CSRF-Token');
     if ($token) {
         return $token;
@@ -120,10 +121,6 @@ function csrf_token_from_request()
 
     if (isset($_POST['csrf_token'])) {
         return $_POST['csrf_token'];
-    }
-
-    if (isset($_GET['csrf_token'])) {
-        return $_GET['csrf_token'];
     }
 
     $raw = file_get_contents('php://input');

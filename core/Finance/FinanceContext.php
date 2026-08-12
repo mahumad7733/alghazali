@@ -91,26 +91,45 @@ final class FinanceContext
     public function assertUserCan(string $permission, string $operation): void
     {
         try {
+            $requiredPermissions = [$permission];
+            $permissionAliases = [
+                'create_receipt_voucher' => ['voucher_create'],
+                'create_payment_voucher' => ['voucher_create'],
+                'post_receipt_voucher' => ['voucher_post'],
+                'post_payment_voucher' => ['voucher_post'],
+                'reverse_receipt_voucher' => ['voucher_reverse', 'receipt_reverse'],
+                'reverse_payment_voucher' => ['voucher_reverse', 'payment_reverse'],
+                'unpost_receipt_voucher' => ['vouchers_unpost'],
+                'unpost_payment_voucher' => ['vouchers_unpost'],
+            ];
+            foreach ($permissionAliases[$permission] ?? [] as $alias) {
+                $requiredPermissions[] = $alias;
+            }
             if (function_exists('has_permission')) {
                 $reflection = new \ReflectionFunction('has_permission');
                 $hasPermission = false;
-                if ($reflection->getNumberOfParameters() >= 2) {
-                    $hasPermission = has_permission($this->userId, $permission);
-                } else {
-                    $hadUserId = array_key_exists('user_id', $_SESSION ?? []);
-                    $previousUserId = $_SESSION['user_id'] ?? null;
-                    if (!$hadUserId) {
-                        $_SESSION['user_id'] = $this->userId;
-                    }
-                    $hasPermission = has_permission($permission);
-                    if (!$hadUserId) {
-                        unset($_SESSION['user_id']);
+                foreach ($requiredPermissions as $requiredPermission) {
+                    if ($reflection->getNumberOfParameters() >= 2) {
+                        $hasPermission = has_permission($this->userId, $requiredPermission);
                     } else {
-                        $_SESSION['user_id'] = $previousUserId;
+                        $hadUserId = array_key_exists('user_id', $_SESSION ?? []);
+                        $previousUserId = $_SESSION['user_id'] ?? null;
+                        if (!$hadUserId) {
+                            $_SESSION['user_id'] = $this->userId;
+                        }
+                        $hasPermission = has_permission($requiredPermission);
+                        if (!$hadUserId) {
+                            unset($_SESSION['user_id']);
+                        } else {
+                            $_SESSION['user_id'] = $previousUserId;
+                        }
+                    }
+                    if ($hasPermission) {
+                        break;
                     }
                 }
                 if (!$hasPermission) {
-                    throw new \RuntimeException("Permission denied for {$operation}");
+                    throw new \RuntimeException("Permission denied for {$operation} (required: " . implode('|', $requiredPermissions) . ")");
                 }
                 return;
             }

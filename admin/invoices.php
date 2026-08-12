@@ -2,6 +2,7 @@
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/accounting_functions.php';
+require_once '../includes/security.php';
 require_once '../core/FinanceService.php';
 
 $settings = getSettings($pdo);
@@ -10,10 +11,7 @@ $base_currency = $pdo->query("SELECT * FROM currencies WHERE is_default = 1")->f
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-if (!isset($_SESSION['admin_id'])) {
-    header("Location: login.php");
-    exit;
-}
+$authenticatedUser = require_active_financial_user($pdo);
 
 $admin_id = $_SESSION['admin_id'];
 $success_msg = "";
@@ -113,6 +111,14 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_account_from_entity' && i
 // فلترة الفواتير (نقلها للأعلى ليتم استخدامها في الاستعلام الرئيسي قبل Header)
 $where = "WHERE 1=1";
 $params = [];
+$roleName = strtolower((string)($authenticatedUser['role_name'] ?? ''));
+$globalFinanceView = in_array($roleName, ['admin', 'developer'], true)
+    || strtolower((string)($authenticatedUser['user_type'] ?? '')) === 'developer'
+    || (string)($authenticatedUser['branch_scope'] ?? '') === 'all_branches';
+if (!$globalFinanceView) {
+    $where .= " AND (i.branch_id IS NULL OR i.branch_id = ?)";
+    $params[] = $authenticatedUser['branch_id'] !== null ? (int)$authenticatedUser['branch_id'] : 0;
+}
 
 if (!empty($_GET['from_date'])) {
     $where .= " AND invoice_date >= ?";
@@ -544,6 +550,7 @@ if (isset($_POST['update_invoice'])) {
         $error_msg = "خطأ في التحقق من الطلب (CSRF).";
     } else {
         try {
+            require_active_financial_user($pdo, 'voucher_edit');
             $pdo->beginTransaction();
 
             $invoice_id = (int)$_POST['invoice_id'];
@@ -554,6 +561,10 @@ if (isset($_POST['update_invoice'])) {
             $stmt = $pdo->prepare("SELECT * FROM invoices WHERE id = ?");
             $stmt->execute([$invoice_id]);
             $current_inv = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($current_inv) {
+                require_active_financial_user($pdo, 'voucher_edit', null, $current_inv['branch_id'] !== null ? (int)$current_inv['branch_id'] : null);
+            }
 
             if (!$current_inv) throw new Exception("الفاتورة غير موجودة.");
 
@@ -981,6 +992,8 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
             throw new Exception("خطأ في التحقق من الطلب (CSRF).");
         }
 
+        require_active_financial_user($pdo, 'vouchers_unpost');
+
         $id = (int)($_POST['invoice_id'] ?? 0);
         $type = $_POST['reset_type'] ?? 'sales'; // sales, purchase, all
         $linked_invoice_id = (int)($_POST['linked_invoice_id'] ?? 0);
@@ -1073,6 +1086,16 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
             $stmt_old = $pdo->prepare("SELECT * FROM invoices WHERE id = ?");
             $stmt_old->execute([$reset_id]);
             $old_invoice = $stmt_old->fetch(PDO::FETCH_ASSOC);
+            if (!$old_invoice) {
+                throw new Exception("الفاتورة غير موجودة.");
+            }
+            require_active_financial_user(
+                $pdo,
+                'vouchers_unpost',
+                null,
+                $old_invoice['branch_id'] !== null ? (int)$old_invoice['branch_id'] : null
+            );
+            require_open_financial_period($pdo, $old_invoice['invoice_date'] ?? null);
 
             // جلب رقم الفاتورة
             $inv_num = $old_invoice['invoice_number'] ?? null;
@@ -1102,19 +1125,28 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
 
                 foreach ($ft_ids as $ft_id) {
                     // إلغاء ترحيل المعاملة المالية
-                    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ? FOR UPDATE");
                     $stmt->execute([$ft_id]);
                     $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
                     if ($voucher && $voucher['status'] == 'posted') {
-                        // أولاً: عكس تأثير القيد على الأرصدة BEFORE حذف سطور القيد
+                        require_active_financial_user(
+                            $pdo,
+                            'vouchers_unpost',
+                            null,
+                            $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null
+                        );
+                        require_open_financial_period($pdo, $voucher['transaction_date']);
+
+                        // Keep posted journal lines as immutable accounting evidence.
+                        // Their effect is removed by moving the transaction out of
+                        // posted status after the balance reversal; the next post
+                        // creates a new, independently auditable transaction.
                         if (!balances_triggers_enabled($pdo)) {
                             apply_transaction_balances($pdo, (int)$ft_id, -1);
                         }
-                        
-                        // ثانياً: حذف سطور القيد
-                        $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$ft_id]);
-                        
-                        // ثالثاً: تحديث حالة المعاملة إلى ملغي حتى لا تمنع إعادة ترحيل الفاتورة لاحقاً
+
+                        // Update only the state.  Deleting journal lines while the
+                        // transaction is posted is correctly rejected by the DB guard.
                         $stmt_reset = $pdo->prepare("
                             UPDATE financial_transactions
                             SET status = 'cancelled',
@@ -1124,7 +1156,7 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
                         ");
                         $stmt_reset->execute([$_SESSION['admin_id'], $ft_id]);
                         
-                        // رابعاً: إعادة حساب مبالغ الفواتير المرتبطة
+                        // Recalculate amounts linked to the cancelled transaction.
                         $stmt_allocs = $pdo->prepare("SELECT DISTINCT invoice_id FROM payment_allocations WHERE financial_transaction_id = ?");
                         $stmt_allocs->execute([$ft_id]);
                         $invoice_ids = $stmt_allocs->fetchAll(PDO::FETCH_COLUMN);
@@ -1171,6 +1203,7 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'reset_invoi
 // ترحيل خدمة محاسبياً عبر POST + CSRF فقط
 if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'post_invoice') {
     try {
+        require_active_financial_user($pdo, 'voucher_post');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             throw new Exception("خطأ في التحقق من الطلب (CSRF).");
         }
@@ -1230,6 +1263,8 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'post_invoic
             $inv_before = $stmt_before->fetch(PDO::FETCH_ASSOC);
 
             if (!$inv_before || $inv_before['invoice_status'] == 'posted') continue;
+            require_active_financial_user($pdo, 'voucher_post', null, $inv_before['branch_id'] !== null ? (int)$inv_before['branch_id'] : null);
+            require_open_financial_period($pdo, $inv_before['invoice_date']);
 
             // --- التحقق من الحدود قبل الترحيل ---
             if ($inv_before['invoice_category'] == 'sales' && in_array($inv_before['delivery_type'], ['credit', 'credit_doc'])) {
@@ -1263,6 +1298,7 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'post_invoic
 // حذف فاتورة عبر POST + CSRF فقط
 if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invoice') {
     try {
+        require_active_financial_user($pdo, 'voucher_delete');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             throw new Exception("خطأ في التحقق من الطلب (CSRF).");
         }
@@ -1275,14 +1311,14 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
         $source_id = (int)($_POST['source_id'] ?? 0);
 
         // 1. التحقق من وجود فاتورة مرتبطة ديناميكياً بناءً على إعدادات الخدمة
-        $stmt_current = $pdo->prepare("SELECT id, invoice_number, invoice_category, source_type, source_id FROM invoices WHERE id = ?");
+        $stmt_current = $pdo->prepare("SELECT id, invoice_number, invoice_category, source_type, source_id, branch_id, invoice_date, invoice_status FROM invoices WHERE id = ?");
         $stmt_current->execute([$id]);
         $current_inv = $stmt_current->fetch(PDO::FETCH_ASSOC);
 
         // If invoice not found by id, try by source_type and source_id
         if (!$current_inv && $source_type && $source_id) {
             // Try to find the invoice by source_type and source_id
-            $stmt_current = $pdo->prepare("SELECT id, invoice_number, invoice_category, source_type, source_id FROM invoices WHERE source_type = ? AND source_id = ? AND invoice_category = ? LIMIT 1");
+            $stmt_current = $pdo->prepare("SELECT id, invoice_number, invoice_category, source_type, source_id, branch_id, invoice_date, invoice_status FROM invoices WHERE source_type = ? AND source_id = ? AND invoice_category = ? LIMIT 1");
             // Determine invoice_category based on delete button clicked
             $category = 'sales';
             if (isset($_POST['delete_scope']) && $_POST['delete_scope'] === 'self') {
@@ -1297,6 +1333,11 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
             }
             $stmt_current->execute([$source_type, $source_id, $category]);
             $current_inv = $stmt_current->fetch(PDO::FETCH_ASSOC);
+
+            if ($current_inv) {
+                require_active_financial_user($pdo, 'voucher_delete', null, $current_inv['branch_id'] !== null ? (int)$current_inv['branch_id'] : null);
+                require_open_financial_period($pdo, $current_inv['invoice_date'] ?? null);
+            }
             if ($current_inv) {
                 $id = $current_inv['id'];
             }
@@ -1431,28 +1472,96 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
                             $stmt_before_delete = $pdo->prepare("SELECT * FROM invoices WHERE id = ?");
                             $stmt_del = $pdo->prepare("DELETE FROM invoices WHERE id = ?");
 
-                            // إضافة مصفوفة لتتبع معاملات العمرة التي يجب حذفها لتجنب التكرار
                             $umrah_ids_to_delete = [];
                             $family_visit_ids_to_delete = [];
                             $passport_transaction_ids_to_delete = [];
+                            $deletion_audit = [];
+
+                            $invoice_delete_cleanup_passport_ids = function (PDO $pdo, int $passport_id, ?array &$audit) use ($ids_to_delete, $stmt_before_delete, $passport_service_source_aliases, $passport_service_source_placeholders) {
+                                $audit = $audit ?? [];
+
+                                $passport_id = (int)$passport_id;
+                                if ($passport_id <= 0) {
+                                    return;
+                                }
+
+                                // 1. حذف الجداول التابعة التي تشير بقيود خارجية إلى جواز السفر (قبل حذف جواز السفر نفسه)
+                                $cascade_passport_child_tables = [
+                                    ['workflow_approval_requests', 'passport_id'],
+                                    ['umrah_details', 'passport_id'],
+                                    ['passport_transactions', 'passport_id'],
+                                    ['family_visit_individuals', null],
+                                    ['family_visit_requests', 'passport_id'],
+                                    ['bus_flight_bookings', 'passport_id'],
+                                    ['postal_shipments', 'passport_id'],
+                                    ['work_visa_profiles', 'passport_id'],
+                                    ['customer_service_history', 'passport_id'],
+                                ];
+
+                                foreach ($cascade_passport_child_tables as $cascade_child_spec) {
+                                    [$child_table, $child_fk_col] = $cascade_child_spec;
+
+                                    if ($child_table === 'family_visit_individuals') {
+                                        $pdo->prepare("
+                                            DELETE i
+                                            FROM family_visit_individuals i
+                                            INNER JOIN family_visit_requests r ON r.id = i.request_id
+                                            WHERE r.passport_id = ?
+                                        ")->execute([$passport_id]);
+                                        continue;
+                                    }
+
+                                    if ($child_fk_col !== null) {
+                                        try {
+                                            $pdo->prepare("DELETE FROM {$child_table} WHERE {$child_fk_col} = ?")->execute([$passport_id]);
+                                        } catch (Throwable $e_child) {
+                                            // تجاهل الفشل للأعمدة/الجداول الغير موجودة في نسخة قديمة من القاعدة
+                                        }
+                                    }
+                                }
+
+                                // 2. حذف الفواتير المرتبطة بنفس جواز السفر إن لم تكن ضمن القائمة الأصلية (لضمان عدم بقاء فواتير منفصلة تشير إلى معاملة محذوفة)
+                                try {
+                                    $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ({$passport_service_source_placeholders}) AND source_id = ?");
+                                    $stmt_other_inv->execute(array_merge($passport_service_source_aliases, [$passport_id]));
+                                    $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
+
+                                    foreach ($other_inv_ids as $other_id) {
+                                        $other_id = (int)$other_id;
+                                        if ($other_id <= 0 || in_array($other_id, $ids_to_delete, true)) {
+                                            continue;
+                                        }
+                                        $stmt_before_delete->execute([$other_id]);
+                                        $other_inv_data = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
+                                        $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$other_id]);
+                                        if ($other_inv_data) {
+                                            $audit[] = ['delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة جواز سفر محذوفة'];
+                                        }
+                                    }
+                                } catch (Throwable $e_other) {
+                                    // تجاهل فشل البحث عن فواتير إضافية إذا كانت placeholders غير متوفرة في مسار محدود
+                                }
+
+                                // 3. أخيراً: حذف جواز السفر نفسه بعد إزالة كل ما يشير إليه
+                                $pdo->prepare("DELETE FROM passports WHERE id = ?")->execute([$passport_id]);
+                                $audit[] = ['delete', 'passports', $passport_id, null, null, 'حذف معاملة جواز سفر بالكامل بسبب حذف الفاتورة المرتبطة'];
+                            };
 
                             foreach ($ids_to_delete as $del_id) {
                                 $stmt_before_delete->execute([$del_id]);
                                 $old_invoice = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
 
                                 if ($old_invoice) {
-                                    // --- الحذف الكامل لكل ما يتعلق بالفاتورة ---
                                     $inv_num = $old_invoice['invoice_number'] ?? null;
                                     if ($inv_num) {
                                         $numeric_inv_num = preg_replace('/[^0-9]/', '', $inv_num);
 
-                                        // 1. إيجاد كل المعاملات المالية المرتبطة
                                         $stmt_ft = $pdo->prepare("
                                                 SELECT id FROM financial_transactions
                                                 WHERE
-                                                    (transaction_number = ? OR reference_number = ?) -- Original full invoice number
+                                                    (transaction_number = ? OR reference_number = ?)
                                                     OR
-                                                    (transaction_number = ? OR reference_number = ?) -- Numeric part of invoice number
+                                                    (transaction_number = ? OR reference_number = ?)
                                                     OR
                                                     (reference_id = ? AND reference_type = 'invoice')
                                             ");
@@ -1466,184 +1575,180 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
                                         $ft_ids = $stmt_ft->fetchAll(PDO::FETCH_COLUMN);
 
                                         foreach ($ft_ids as $ft_id) {
-                                            // أولاً: إلغاء الترحيل وتصحيح الأرصدة إن كانت مرحلة
                                             $stmt_ft_check = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
                                             $stmt_ft_check->execute([$ft_id]);
                                             $voucher = $stmt_ft_check->fetch(PDO::FETCH_ASSOC);
-                                            
+
                                             if ($voucher && $voucher['status'] == 'posted' && !balances_triggers_enabled($pdo)) {
                                                 apply_transaction_balances($pdo, (int)$ft_id, -1);
                                             }
-                                            
-                                            // 2. حذف تخصيصات المدفوعات
+
                                             $pdo->prepare("DELETE FROM payment_allocations WHERE financial_transaction_id = ?")->execute([$ft_id]);
-                                            
-                                            // 3. حذف خطوط الدفتر اليومي
                                             $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$ft_id]);
-                                            
-                                            // 4. حذف المعاملة المالية نفسها
                                             $pdo->prepare("DELETE FROM financial_transactions WHERE id = ?")->execute([$ft_id]);
                                         }
                                     }
-                                    // --- نهاية الحذف الكامل ---
 
-                                    // إذا كانت الفاتورة مرتبطة بمعاملة عمرة، نضيف معرف المعاملة للمصفوفة
                                     if ((is_umrah_service($old_invoice['source_type'] ?? '') || is_hajj_service($old_invoice['source_type'] ?? '')) && !empty($old_invoice['source_id'])) {
-                                        $umrah_ids_to_delete[] = $old_invoice['source_id'];
+                                        $umrah_ids_to_delete[] = (int)$old_invoice['source_id'];
                                     }
                                     if (in_array($old_invoice['source_type'] ?? '', $family_visit_source_aliases, true) && !empty($old_invoice['source_id'])) {
-                                        $family_visit_ids_to_delete[] = $old_invoice['source_id'];
+                                        $family_visit_ids_to_delete[] = (int)$old_invoice['source_id'];
                                     }
                                     if (in_array($old_invoice['source_type'] ?? '', $passport_transaction_source_aliases, true) && !empty($old_invoice['source_id'])) {
-                                        $passport_transaction_ids_to_delete[] = $old_invoice['source_id'];
+                                        $passport_transaction_ids_to_delete[] = (int)$old_invoice['source_id'];
                                     }
 
                                     $stmt_del->execute([$del_id]);
-                                    log_audit($pdo, 'delete', 'invoices', $del_id, $old_invoice, null, 'حذف فاتورة');
+                                    $deletion_audit[] = ['delete', 'invoices', $del_id, $old_invoice, null, 'حذف فاتورة'];
                                 }
                             }
 
-                            // حذف معاملات العمرة المرتبطة
-                            if (!empty($umrah_ids_to_delete)) {
-                                $umrah_ids_to_delete = array_unique($umrah_ids_to_delete);
-                                foreach ($umrah_ids_to_delete as $passport_id) {
-                                    // 1. حذف تفاصيل العمرة
-                                    $pdo->prepare("DELETE FROM umrah_details WHERE passport_id = ?")->execute([$passport_id]);
-
-                                    // 2. حذف أي فواتير أخرى مرتبطة بنفس المعاملة لم يتم تحديدها للحذف بعد
-                                    $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ($passport_service_source_placeholders) AND source_id = ?");
-                                    $stmt_other_inv->execute(array_merge($passport_service_source_aliases, [$passport_id]));
-                                    $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
-
-                                    foreach ($other_inv_ids as $other_id) {
-                                        if (!in_array($other_id, $ids_to_delete)) {
-                                            $stmt_before_delete->execute([$other_id]);
-                                            $other_inv_data = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
-                                            $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$other_id]);
-                                            if ($other_inv_data) {
-                                                log_audit($pdo, 'delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة عمره محذوفة');
-                                            }
-                                        }
-                                    }
-
-                                    // 3. حذف المعاملة (جواز السفر)
-                                    $pdo->prepare("DELETE FROM passports WHERE id = ?")->execute([$passport_id]);
-                                    log_audit($pdo, 'delete', 'passports', $passport_id, null, null, 'حذف معاملة عمره بالكامل بسبب حذف الفاتورة');
-                                }
-                            }
-
+                            // حذف الحجوزات المرتبطة (مع تنظيف جداول التبعيات قبل الحذف الأساسي)
                             if (!empty($booking_ids_to_delete)) {
-                                $booking_ids_to_delete = array_unique($booking_ids_to_delete);
+                                $booking_ids_to_delete = array_values(array_unique(array_filter(array_map('intval', $booking_ids_to_delete))));
                                 $stmt_booking_before_delete = $pdo->prepare("SELECT * FROM bus_flight_bookings WHERE id = ?");
+
+                                $booking_child_cascade = [
+                                    ['booking_workflow', 'booking_id'],
+                                    ['booking_tickets', 'booking_id'],
+                                    ['booking_status_logs', 'booking_id'],
+                                    ['booking_refunds', 'booking_id'],
+                                    ['booking_notifications', 'booking_id'],
+                                    ['booking_modifications', 'booking_id'],
+                                    ['workflow_approval_requests', 'booking_id'],
+                                ];
+
                                 foreach ($booking_ids_to_delete as $booking_id_to_delete) {
                                     $stmt_booking_before_delete->execute([$booking_id_to_delete]);
                                     $booking_before = $stmt_booking_before_delete->fetch(PDO::FETCH_ASSOC);
 
-                                    $pdo->prepare("DELETE FROM workflow_approval_requests WHERE booking_id = ?")->execute([$booking_id_to_delete]);
-                                    $pdo->prepare("DELETE FROM bus_flight_bookings WHERE id = ?")->execute([$booking_id_to_delete]);
+                                    foreach ($booking_child_cascade as [$c_table, $c_col]) {
+                                        try {
+                                            $pdo->prepare("DELETE FROM {$c_table} WHERE {$c_col} = ?")->execute([$booking_id_to_delete]);
+                                        } catch (Throwable $e_bc) {
+                                            // تجاهل الفشل للأعمدة/الجداول الغير موجودة في نسخة قديمة
+                                        }
+                                    }
 
-                                    log_audit($pdo, 'delete', 'bus_flight_bookings', $booking_id_to_delete, $booking_before ?: null, null, 'حذف الحجز بالكامل بسبب حذف الفاتورة المرتبطة');
+                                    $pdo->prepare("DELETE FROM bus_flight_bookings WHERE id = ?")->execute([$booking_id_to_delete]);
+                                    $deletion_audit[] = ['delete', 'bus_flight_bookings', $booking_id_to_delete, $booking_before ?: null, null, 'حذف الحجز بالكامل بسبب حذف الفاتورة المرتبطة'];
                                 }
                             }
 
-                            // حذف معاملات زيارة عائلية المرتبطة
+                            // حذف معاملات الزيارة العائلية المرتبطة
                             if (!empty($family_visit_ids_to_delete)) {
-                                $family_visit_ids_to_delete = array_unique($family_visit_ids_to_delete);
+                                $family_visit_ids_to_delete = array_values(array_unique(array_filter(array_map('intval', $family_visit_ids_to_delete))));
                                 $stmt_family_visit_before_delete = $pdo->prepare("SELECT * FROM family_visit_requests WHERE id = ?");
+
                                 foreach ($family_visit_ids_to_delete as $family_visit_id) {
                                     $stmt_family_visit_before_delete->execute([$family_visit_id]);
                                     $family_visit_before = $stmt_family_visit_before_delete->fetch(PDO::FETCH_ASSOC);
 
-                                    // 1. حذف الأفراد
                                     $pdo->prepare("DELETE FROM family_visit_individuals WHERE request_id = ?")->execute([$family_visit_id]);
 
-                                    // 2. حذف أي فواتير أخرى مرتبطة بنفس المعاملة لم يتم تحديدها للحذف بعد
-                                    $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ($family_visit_source_placeholders) AND source_id = ?");
-                                    $stmt_other_inv->execute(array_merge($family_visit_source_aliases, [$family_visit_id]));
-                                    $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
+                                    try {
+                                        $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ({$family_visit_source_placeholders}) AND source_id = ?");
+                                        $stmt_other_inv->execute(array_merge($family_visit_source_aliases, [$family_visit_id]));
+                                        $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
 
-                                    foreach ($other_inv_ids as $other_id) {
-                                        if (!in_array($other_id, $ids_to_delete)) {
+                                        foreach ($other_inv_ids as $other_id) {
+                                            $other_id = (int)$other_id;
+                                            if ($other_id <= 0 || in_array($other_id, $ids_to_delete, true)) {
+                                                continue;
+                                            }
                                             $stmt_before_delete->execute([$other_id]);
                                             $other_inv_data = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
                                             $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$other_id]);
                                             if ($other_inv_data) {
-                                                log_audit($pdo, 'delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة زيارة عائلية محذوفة');
+                                                $deletion_audit[] = ['delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة زيارة عائلية محذوفة'];
                                             }
                                         }
+                                    } catch (Throwable $e_fv) {
+                                        // تجاهل الفشل إذا كانت placeholders غير متوفرة
                                     }
 
-                                    // 3. حذف المعاملة الرئيسية
+                                    $linked_passport_stmt = $pdo->prepare("SELECT passport_id FROM family_visit_requests WHERE id = ?");
+                                    $linked_passport_stmt->execute([$family_visit_id]);
+                                    $linked_passport_id = (int)($linked_passport_stmt->fetchColumn() ?: 0);
+
                                     $pdo->prepare("DELETE FROM family_visit_requests WHERE id = ?")->execute([$family_visit_id]);
-                                    log_audit($pdo, 'delete', 'family_visit_requests', $family_visit_id, $family_visit_before ?: null, null, 'حذف معاملة زيارة عائلية بالكامل بسبب حذف الفاتورة');
+                                    $deletion_audit[] = ['delete', 'family_visit_requests', $family_visit_id, $family_visit_before ?: null, null, 'حذف معاملة زيارة عائلية بالكامل بسبب حذف الفاتورة'];
+
+                                    if ($linked_passport_id > 0) {
+                                        $invoice_delete_cleanup_passport_ids($pdo, $linked_passport_id, $deletion_audit);
+                                    }
                                 }
                             }
 
-                            // حذف معاملات جواز السفر المرتبطة
+                            // حذف معاملات جواز السفر الفرعية المرتبطة (passport_transactions)
                             if (!empty($passport_transaction_ids_to_delete)) {
-                                $passport_transaction_ids_to_delete = array_unique($passport_transaction_ids_to_delete);
+                                $passport_transaction_ids_to_delete = array_values(array_unique(array_filter(array_map('intval', $passport_transaction_ids_to_delete))));
                                 $stmt_passport_transaction_before_delete = $pdo->prepare("SELECT * FROM passport_transactions WHERE id = ?");
+
                                 foreach ($passport_transaction_ids_to_delete as $passport_transaction_id) {
                                     $stmt_passport_transaction_before_delete->execute([$passport_transaction_id]);
                                     $passport_transaction_before = $stmt_passport_transaction_before_delete->fetch(PDO::FETCH_ASSOC);
 
-                                    // 1. حذف أي فواتير أخرى مرتبطة بنفس المعاملة لم يتم تحديدها للحذف بعد
-                                    $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ($passport_transaction_source_placeholders) AND source_id = ?");
-                                    $stmt_other_inv->execute(array_merge($passport_transaction_source_aliases, [$passport_transaction_id]));
-                                    $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
+                                    try {
+                                        $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ({$passport_transaction_source_placeholders}) AND source_id = ?");
+                                        $stmt_other_inv->execute(array_merge($passport_transaction_source_aliases, [$passport_transaction_id]));
+                                        $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
 
-                                    foreach ($other_inv_ids as $other_id) {
-                                        if (!in_array($other_id, $ids_to_delete)) {
+                                        foreach ($other_inv_ids as $other_id) {
+                                            $other_id = (int)$other_id;
+                                            if ($other_id <= 0 || in_array($other_id, $ids_to_delete, true)) {
+                                                continue;
+                                            }
                                             $stmt_before_delete->execute([$other_id]);
                                             $other_inv_data = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
                                             $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$other_id]);
                                             if ($other_inv_data) {
-                                                log_audit($pdo, 'delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة جواز سحر محذوفة');
+                                                $deletion_audit[] = ['delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة جواز سفر فرعية محذوفة'];
                                             }
                                         }
+                                    } catch (Throwable $e_pt) {
+                                        // تجاهل الفشل إذا كانت placeholders غير متوفرة
                                     }
 
-                                    // 2. حذف المعاملة الرئيسية
+                                    $pt_passport_stmt = $pdo->prepare("SELECT passport_id FROM passport_transactions WHERE id = ?");
+                                    $pt_passport_stmt->execute([$passport_transaction_id]);
+                                    $pt_passport_id = (int)($pt_passport_stmt->fetchColumn() ?: 0);
+
                                     $pdo->prepare("DELETE FROM passport_transactions WHERE id = ?")->execute([$passport_transaction_id]);
-                                    log_audit($pdo, 'delete', 'passport_transactions', $passport_transaction_id, $passport_transaction_before ?: null, null, 'حذف معاملة جواز سحر بالكامل بسبب حذف الفاتورة');
+                                    $deletion_audit[] = ['delete', 'passport_transactions', $passport_transaction_id, $passport_transaction_before ?: null, null, 'حذف معاملة جواز سفر فرعية بالكامل بسبب حذف الفاتورة'];
+
+                                    if ($pt_passport_id > 0) {
+                                        $invoice_delete_cleanup_passport_ids($pdo, $pt_passport_id, $deletion_audit);
+                                    }
+                                }
+                            }
+
+                            // حذف معاملات العمرة / الحج المرتبطة (مخزنها الأساسي في جدول passports بجانب umrah_details)
+                            if (!empty($umrah_ids_to_delete)) {
+                                $umrah_ids_to_delete = array_values(array_unique(array_filter(array_map('intval', $umrah_ids_to_delete))));
+                                foreach ($umrah_ids_to_delete as $passport_id) {
+                                    $invoice_delete_cleanup_passport_ids($pdo, $passport_id, $deletion_audit);
+                                }
+                            }
+
+                            // تسجيل تدقيقات الحذف في سجل التدقيق بعد نجاح المعاملة
+                            foreach ($deletion_audit as $audit_row) {
+                                [$a_action, $a_table, $a_id, $a_before, $a_after, $a_notes] = $audit_row;
+                                try {
+                                    log_audit($pdo, $a_action, $a_table, $a_id, $a_before, $a_after, $a_notes ?? '');
+                                } catch (Throwable $e_log) {
+                                    // لا نرجّع المعاملة بسبب فشل تسجيل التدقيق؛ فقط نتجاهل الخطأ
                                 }
                             }
 
                             $pdo->commit();
                             $success_msg = "تم حذف الفاتورة وكل ما يتعلق بها بنجاح.";
                         } catch (Exception $e) {
-                            $pdo->rollBack();
-                            $error_msg = "خطأ في الحذف: " . $e->getMessage();
-                        }
-
-                        // حذف معاملات العمرة المرتبطة
-                        if (!empty($umrah_ids_to_delete)) {
-                            $umrah_ids_to_delete = array_unique($umrah_ids_to_delete);
-                            foreach ($umrah_ids_to_delete as $passport_id) {
-                                // 1. حذف تفاصيل العمرة
-                                $pdo->prepare("DELETE FROM umrah_details WHERE passport_id = ?")->execute([$passport_id]);
-
-                                // 2. حذف أي فواتير أخرى مرتبطة بنفس المعاملة لم يتم تحديدها للحذف بعد
-                                $stmt_other_inv = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ($passport_service_source_placeholders) AND source_id = ?");
-                                $stmt_other_inv->execute(array_merge($passport_service_source_aliases, [$passport_id]));
-                                $other_inv_ids = $stmt_other_inv->fetchAll(PDO::FETCH_COLUMN);
-
-                                foreach ($other_inv_ids as $other_id) {
-                                    // حذف الفاتورة الأخرى إذا لم تكن في القائمة الأصلية المحذوفة
-                                    if (!in_array($other_id, $ids_to_delete)) {
-                                        $stmt_before_delete->execute([$other_id]);
-                                        $other_inv_data = $stmt_before_delete->fetch(PDO::FETCH_ASSOC);
-                                        $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$other_id]);
-                                        if ($other_inv_data) {
-                                            log_audit($pdo, 'delete', 'invoices', $other_id, $other_inv_data, null, 'حذف فاتورة مرتبطة بمعاملة عمرة محذوفة');
-                                        }
-                                    }
-                                }
-
-                                // 3. حذف المعاملة (جواز السفر)
-                                $pdo->prepare("DELETE FROM passports WHERE id = ?")->execute([$passport_id]);
-                                log_audit($pdo, 'delete', 'passports', $passport_id, null, null, 'حذف معاملة عمره بالكامل بسبب حذف الفاتورة');
+                            if ($pdo->inTransaction()) {
+                                $pdo->rollBack();
                             }
+                            $error_msg = "خطأ في الحذف: " . $e->getMessage();
                         }
 
                         $separator = (strpos($return_to, '?') === false) ? '?' : '&';

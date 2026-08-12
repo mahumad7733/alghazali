@@ -5,6 +5,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
 require_once '../../includes/accounting_functions.php';
 require_once '../../core/FinanceService.php';
+require_once '../../includes/security.php';
 
 header('Content-Type: application/json');
 
@@ -15,17 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'خطأ في التحقق من الطلب (CSRF).']);
     exit;
 }
 
 if (!isset($_SESSION['admin_id'])) {
+    http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'انتهت الجلسة، يرجى تسجيل الدخول']);
-    exit;
-}
-
-if (!has_permission('vouchers_unpost')) {
-    echo json_encode(['success' => false, 'message' => 'ليس لديك صلاحية لإلغاء ترحيل السندات']);
     exit;
 }
 
@@ -37,25 +35,35 @@ try {
     $pdo->beginTransaction();
 
     // 1. جلب السند
-    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ? FOR UPDATE");
     $stmt->execute([$id]);
     $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($voucher) {
+        require_active_financial_user($pdo, 'vouchers_unpost', null, $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null);
+        require_open_financial_period($pdo, $voucher['transaction_date']);
+    }
     if (!$voucher) throw new Exception("السند غير موجود.");
 
     if ($voucher['status'] !== 'posted') {
         throw new Exception("السند ليس في حالة ترحيل.");
     }
 
+    if (!empty($voucher['original_voucher_id']) || !empty($voucher['is_reversed']) || !empty($voucher['reversal_voucher_id'])) {
+        throw new Exception('لا يمكن إلغاء ترحيل سند مرتبط بعكس. استخدم السجل العكسي المعتمد بدلاً من تعديل القيود المرحلة.');
+    }
+
     if (!balances_triggers_enabled($pdo)) {
         apply_transaction_balances($pdo, (int)$id, -1);
     }
 
-    // 2. حذف سطور القيد فقط، والـ triggers ستعكس الأرصدة تلقائياً.
-    $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$id]);
+    // 2. Verify the existing journal, then preserve its lines as immutable
+    // accounting evidence.  Deleting lines from a posted transaction is
+    // intentionally prohibited by the database guard.
+    validate_journal_balance($pdo, (int)$id);
 
     // 3. تحديث حالة السند إلى مسودة
-    $stmt_reset = $pdo->prepare("UPDATE financial_transactions SET status = 'draft', posted_at = NULL, posted_by = NULL WHERE id = ?");
-    $stmt_reset->execute([$id]);
+    $stmt_reset = $pdo->prepare("UPDATE financial_transactions SET status = 'draft', posted_at = NULL, posted_by = NULL, updated_by = ?, updated_at = NOW() WHERE id = ? AND status = 'posted'");
+    $stmt_reset->execute([$user_id, $id]);
 
     // 4. إعادة حساب مبالغ الفواتير المرتبطة (لأن التوزيعات ما زالت موجودة ولكن السند لم يعد مرحلاً)
     $stmt_allocs = $pdo->prepare("SELECT DISTINCT invoice_id FROM payment_allocations WHERE financial_transaction_id = ?");

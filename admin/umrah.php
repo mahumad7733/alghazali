@@ -185,7 +185,7 @@ if ($has_new_columns) {
                     )
                 ), 0)
            ) as purchase_paid,
-           sup.supplier_name,
+           COALESCE(NULLIF(TRIM(sup.trade_name), ''), sup.supplier_name) as supplier_name,
            ua_inv.account_name_ar as cashbox_name,
            ua_inv.account_code as invoice_account_code,
            ua_inv.account_name_ar as invoice_account_name_ar,
@@ -279,7 +279,7 @@ if ($has_new_columns) {
                     )
                 ), 0)
            ) as purchase_paid,
-           sup.supplier_name,
+           COALESCE(NULLIF(TRIM(sup.trade_name), ''), sup.supplier_name) as supplier_name,
            ua_inv.account_name_ar as cashbox_name,
            ua_inv.account_code as invoice_account_code,
            ua_inv.account_name_ar as invoice_account_name_ar,
@@ -396,7 +396,20 @@ $agents_accounts = $pdo->query("
     ORDER BY ua.account_name_ar ASC
 ")->fetchAll();
 $branches_accounts = $pdo->query("SELECT id, branch_name as account_name FROM branches WHERE deleted_at IS NULL AND status = 'active' ORDER BY branch_name ASC")->fetchAll();
-$suppliers_accounts = $pdo->query("SELECT id, supplier_name, account_id FROM suppliers WHERE deleted_at IS NULL ORDER BY supplier_name ASC")->fetchAll();
+$suppliers_accounts_stmt = $pdo->prepare("
+    SELECT s.id,
+           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_name,
+           s.account_id
+    FROM suppliers s
+    INNER JOIN supplier_services ss ON s.id = ss.supplier_id
+    INNER JOIN catalog_services cs ON ss.service_id = cs.id
+    WHERE s.deleted_at IS NULL
+      AND ss.is_active = 1
+      AND cs.service_code = 'umrah'
+    ORDER BY supplier_name ASC
+");
+$suppliers_accounts_stmt->execute();
+$suppliers_accounts = $suppliers_accounts_stmt->fetchAll();
 function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null)
 {
     // جلب معرف الحساب الأب

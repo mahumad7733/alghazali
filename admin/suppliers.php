@@ -17,12 +17,15 @@ if (isset($_GET['deactivate']) || isset($_GET['delete_permanent'])) {
     $error = "تم تعطيل تنفيذ الإجراءات الحساسة عبر الرابط المباشر. استخدم النماذج الداخلية المحمية فقط.";
 }
 
+$catalog_services = $pdo->query("SELECT id, service_code, service_name_ar FROM catalog_services WHERE is_active = 1 AND deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll();
+
 // إضافة مورد جديد
 if (isset($_POST['add_supplier_account'])) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         die("<script>alert('رمز الأمان غير صالح'); location.href='suppliers.php';</script>");
     }
     $account_name = $_POST['account_name'];
+    $trade_name = trim($_POST['trade_name'] ?? '') ?: null;
     $branch_id = $_POST['branch_id'] ?: null;
     $supplier_phone = $_POST['supplier_phone'] ?? null;
     $address = $_POST['address'] ?? null;
@@ -31,29 +34,28 @@ if (isset($_POST['add_supplier_account'])) {
     $currency_id = $_POST['currency_id'] ?? 1;
     $status = $_POST['status'] == 'active' ? 'active' : $_POST['status'];
     $supplier_email = $_POST['supplier_email'] ?? null;
+    $supplier_services = $_POST['supplier_services'] ?? [];
+    if (!is_array($supplier_services)) $supplier_services = [];
 
     try {
         $pdo->beginTransaction();
 
-        // 1. العثور على الحساب الرئيسي للموردين (21101)
         $parent_stmt = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_code = '21101'");
         $parent_stmt->execute();
         $parent_id = $parent_stmt->fetchColumn();
-        
+
         if (!$parent_id) throw new Exception("الحساب الرئيسي للموردين (21101) غير موجود.");
 
-        // التحقق من عدم تكرار الاسم تحت نفس الأب
         $stmt_check_name = $pdo->prepare("SELECT COUNT(*) FROM unified_accounts WHERE account_name_ar = ? AND parent_id = ?");
         $stmt_check_name->execute([$account_name, $parent_id]);
         if ($stmt_check_name->fetchColumn() > 0) {
             throw new Exception("اسم المورد موجود بالفعل.");
         }
 
-        // 2. توليد الكود الجديد (21101001, 21101002, ...)
         $stmt_last = $pdo->prepare("SELECT MAX(account_code) FROM unified_accounts WHERE parent_id = ? AND account_code LIKE '21101%'");
         $stmt_last->execute([$parent_id]);
         $last_code = $stmt_last->fetchColumn();
-        
+
         if ($last_code) {
             $new_code = (int)$last_code + 1;
         } else {
@@ -62,28 +64,41 @@ if (isset($_POST['add_supplier_account'])) {
 
         $stmt = $pdo->prepare("INSERT INTO unified_accounts (account_code, account_name_ar, account_type, normal_balance, parent_id, branch_id, account_status) VALUES (?, ?, 'مورد', 'credit', ?, ?, ?)");
         $stmt->execute([$new_code, $account_name, $parent_id, $branch_id, $status]);
-        
+
         $new_account_id = $pdo->lastInsertId();
-        
-        // تفعيل الرصيد الافتتاحي في الجدول الموحد - فقط العملة الأساسية للنظام
+
         if ($base_currency_id) {
             $opening_balance_for_base = $_POST['opening_balance'] ?? 0;
-            // Get currency code and exchange rate
             $stmt_curr = $pdo->prepare("SELECT currency_code, exchange_rate FROM currencies WHERE id = ?");
             $stmt_curr->execute([$base_currency_id]);
             $curr = $stmt_curr->fetch(PDO::FETCH_ASSOC);
             $currency_code = $curr['currency_code'] ?? '';
             $rate = (float)($curr['exchange_rate'] ?? 1);
             $opening_balance_base = $opening_balance_for_base * $rate;
-            
+
             $stmt_base_balance = $pdo->prepare("INSERT INTO account_balances_unified (account_id, branch_id, currency_id, currency_code, opening_balance, current_balance, opening_balance_base, current_balance_base, is_frozen, credit_limit, debit_limit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)");
             $stmt_base_balance->execute([$new_account_id, null, $base_currency_id, $currency_code, $opening_balance_for_base, $opening_balance_for_base, $opening_balance_base, $opening_balance_base]);
         }
 
-        // Also insert into suppliers table!
-        $insertSupplierStmt = $pdo->prepare("INSERT INTO suppliers (supplier_name, account_id, supplier_phone, address, link, created_at, status) VALUES (?, ?, ?, ?, ?, NOW(), ?)");
-        $insertSupplierStmt->execute([$account_name, $new_account_id, $supplier_phone, $address, $link, $status]);
-        
+        $insertSupplierStmt = $pdo->prepare("INSERT INTO suppliers (supplier_name, trade_name, account_id, supplier_phone, supplier_email, address, link, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)");
+        $insertSupplierStmt->execute([$account_name, $trade_name, $new_account_id, $supplier_phone, $supplier_email, $address, $link, $status]);
+
+        $new_supplier_id = $pdo->lastInsertId();
+
+        $currentUserId = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
+        if (!empty($supplier_services)) {
+            $stmtInsSvc = $pdo->prepare("INSERT IGNORE INTO supplier_services (supplier_id, service_id, is_active, assigned_at, assigned_by) VALUES (?, ?, 1, NOW(), ?)");
+            foreach ($supplier_services as $svcId) {
+                $stmtInsSvc->execute([$new_supplier_id, (int)$svcId, $currentUserId]);
+            }
+        } else {
+            $stmtAllSvc = $pdo->prepare("
+                INSERT IGNORE INTO supplier_services (supplier_id, service_id, is_active, assigned_at, assigned_by)
+                SELECT ?, id, 1, NOW(), ? FROM catalog_services WHERE is_active = 1 AND deleted_at IS NULL
+            ");
+            $stmtAllSvc->execute([$new_supplier_id, $currentUserId]);
+        }
+
         $pdo->commit();
         echo "<script>location.href='suppliers.php?success=1';</script>";
         exit();
@@ -100,21 +115,22 @@ if (isset($_POST['update_supplier_account'])) {
     }
     $id = $_POST['id'];
     $account_name = $_POST['account_name'];
+    $trade_name = trim($_POST['trade_name'] ?? '') ?: null;
     $new_status = $_POST['status'];
     $branch_id = $_POST['branch_id'] ?: null;
     $supplier_phone = $_POST['supplier_phone'] ?? null;
     $supplier_email = $_POST['supplier_email'] ?? null;
     $address = $_POST['address'] ?? null;
-    
+    $supplier_services = $_POST['supplier_services'] ?? [];
+    if (!is_array($supplier_services)) $supplier_services = [];
+
     try {
         $pdo->beginTransaction();
-        
-        // الحصول على الحالة الحالية
+
         $stmt_get_current = $pdo->prepare("SELECT account_status FROM unified_accounts WHERE id = ?");
         $stmt_get_current->execute([$id]);
         $current_status = $stmt_get_current->fetchColumn();
-        
-        // إذا كنا نريد تغيير الحالة إلى مغلق، تحقق من أن الرصيد صفر
+
         if ($new_status === 'closed' && $current_status !== 'closed') {
             $stmt_check_balance = $pdo->prepare("SELECT SUM(current_balance) as total FROM account_balances_unified WHERE account_id = ?");
             $stmt_check_balance->execute([$id]);
@@ -123,14 +139,30 @@ if (isset($_POST['update_supplier_account'])) {
                 throw new Exception("لا يمكن تغيير الحالة إلى مغلق لأن الرصيد ليس صفرًا.");
             }
         }
-        
+
         $stmt = $pdo->prepare("UPDATE unified_accounts SET account_name_ar = ?, account_status = ?, branch_id = ? WHERE id = ?");
         $stmt->execute([$account_name, $new_status, $branch_id, $id]);
 
-        // Update suppliers table as well
-        $updateSupplierStmt = $pdo->prepare("UPDATE suppliers SET supplier_name = ?, supplier_phone = ?, supplier_email = ?, address = ?, status = ?, updated_at = NOW() WHERE account_id = ?");
-        $updateSupplierStmt->execute([$account_name, $supplier_phone, $supplier_email, $address, $new_status, $id]);
-        
+        $updateSupplierStmt = $pdo->prepare("UPDATE suppliers SET supplier_name = ?, trade_name = ?, supplier_phone = ?, supplier_email = ?, address = ?, status = ?, updated_at = NOW() WHERE account_id = ?");
+        $updateSupplierStmt->execute([$account_name, $trade_name, $supplier_phone, $supplier_email, $address, $new_status, $id]);
+
+        $stmtGetSupId = $pdo->prepare("SELECT id FROM suppliers WHERE account_id = ? LIMIT 1");
+        $stmtGetSupId->execute([$id]);
+        $supplier_id = (int)$stmtGetSupId->fetchColumn();
+
+        if ($supplier_id > 0) {
+            $stmtDelSvc = $pdo->prepare("DELETE FROM supplier_services WHERE supplier_id = ?");
+            $stmtDelSvc->execute([$supplier_id]);
+
+            $currentUserId = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
+            if (!empty($supplier_services)) {
+                $stmtInsSvc = $pdo->prepare("INSERT INTO supplier_services (supplier_id, service_id, is_active, assigned_at, assigned_by) VALUES (?, ?, 1, NOW(), ?)");
+                foreach ($supplier_services as $svcId) {
+                    $stmtInsSvc->execute([$supplier_id, (int)$svcId, $currentUserId]);
+                }
+            }
+        }
+
         $pdo->commit();
         echo "<script>location.href='suppliers.php?success=2';</script>";
         exit();
@@ -164,7 +196,7 @@ if (isset($_POST['delete_account_permanent'])) {
     $id = (int)$_POST['delete_account_permanent'];
     try {
         $pdo->beginTransaction();
-        
+
         // تحقق من أن الرصيد صفر
         $stmt_check_balance = $pdo->prepare("SELECT SUM(current_balance) as total FROM account_balances_unified WHERE account_id = ?");
         $stmt_check_balance->execute([$id]);
@@ -195,23 +227,24 @@ if (isset($_POST['delete_account_permanent'])) {
     }
 }
 
-// جلب معرف الأب للموردين (21101)
 $parent_stmt = $pdo->prepare("SELECT id FROM unified_accounts WHERE account_code = '21101'");
 $parent_stmt->execute();
 $suppliers_parent_id = $parent_stmt->fetchColumn();
 
-// جلب الموردين من النظام الموحد
 $where = "WHERE coa.parent_id = ? AND (coa.account_status = 'active' OR coa.account_status = 'dormant')";
 $params = [$suppliers_parent_id];
 if (!empty($_GET['q'])) {
-    $where .= " AND (coa.account_name_ar LIKE ? OR coa.account_code LIKE ?)";
+    $where .= " AND (coa.account_name_ar LIKE ? OR coa.account_code LIKE ? OR s.trade_name LIKE ?)";
     $q = "%" . $_GET['q'] . "%";
-    $params[] = $q; $params[] = $q;
+    $params[] = $q;
+    $params[] = $q;
+    $params[] = $q;
 }
 
 $suppliers_stmt = $pdo->prepare("
     SELECT coa.*, p.account_name_ar as parent_name, b.branch_name,
-           s.id as supplier_id, s.supplier_phone, s.supplier_email, s.address, s.link
+           s.id as supplier_id, s.supplier_phone, s.supplier_email, s.address, s.link, s.trade_name,
+           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_display_name
     FROM unified_accounts coa
     LEFT JOIN unified_accounts p ON coa.parent_id = p.id
     LEFT JOIN branches b ON coa.branch_id = b.id
@@ -222,6 +255,23 @@ $suppliers_stmt = $pdo->prepare("
 $suppliers_stmt->execute($params);
 $suppliers = $suppliers_stmt->fetchAll();
 
+$supplier_ids = array_filter(array_column($suppliers, 'supplier_id'));
+$supplier_services_map = [];
+if (!empty($supplier_ids)) {
+    $placeholders = implode(',', array_fill(0, count($supplier_ids), '?'));
+    $svcStmt = $pdo->prepare("
+        SELECT ss.supplier_id, ss.service_id, cs.service_code, cs.service_name_ar
+        FROM supplier_services ss
+        JOIN catalog_services cs ON ss.service_id = cs.id
+        WHERE ss.supplier_id IN ($placeholders) AND ss.is_active = 1 AND cs.is_active = 1 AND cs.deleted_at IS NULL
+        ORDER BY cs.sort_order ASC
+    ");
+    $svcStmt->execute($supplier_ids);
+    foreach ($svcStmt->fetchAll() as $row) {
+        $supplier_services_map[$row['supplier_id']][] = $row;
+    }
+}
+
 // جلب الأرصدة الحقيقية من account_balances_unified
 $supplier_account_ids = array_column($suppliers, 'id');
 $balances = [];
@@ -231,8 +281,8 @@ $supplier_totals = []; // to store per supplier totals in base currency
 if (!empty($supplier_account_ids)) {
     $placeholders = implode(',', array_fill(0, count($supplier_account_ids), '?'));
     $bal_stmt = $pdo->prepare("
-        SELECT 
-            abu.account_id, 
+        SELECT
+            abu.account_id,
             abu.currency_id,
             c.currency_name,
             c.currency_symbol,
@@ -248,12 +298,12 @@ if (!empty($supplier_account_ids)) {
     $result = $bal_stmt->fetchAll();
     foreach ($result as $row) {
         $balances[$row['account_id']][] = $row;
-        
+
         // Calculate per supplier and overall totals in base currency
         if (!isset($supplier_totals[$row['account_id']])) {
             $supplier_totals[$row['account_id']] = ['debit' => 0, 'credit' => 0];
         }
-        
+
         $current_balance_base = (float)$row['current_balance_base'];
         if ($row['normal_balance'] === 'debit') {
             if ($current_balance_base > 0) {
@@ -305,7 +355,7 @@ $page_title = "إدارة الموردين";
         top: 0 !important;
         z-index: 1051 !important;
     }
-    
+
     #editSupplierModal .modal-header {
         background-color: #ffc107 !important;
         color: #212529 !important;
@@ -422,7 +472,9 @@ $page_title = "إدارة الموردين";
                     <thead class="bg-light text-secondary small text-uppercase fw-bold">
                         <tr>
                             <th class="px-4 py-3">كود الحساب</th>
-                            <th>اسم المورد</th>
+                            <th>الاسم التجاري</th>
+                            <th>اسم المورد (محاسبي)</th>
+                            <th>الخدمات</th>
                             <th>الفرع</th>
                             <th>الرصيد الحالي</th>
                             <th>الحالة</th>
@@ -431,72 +483,105 @@ $page_title = "إدارة الموردين";
                     </thead>
                     <tbody>
                         <?php foreach ($suppliers as $supplier): ?>
-                        <tr>
-                            <td class="px-4">
-                                <code class="text-primary fw-bold"><?php echo $supplier['account_code']; ?></code>
-                            </td>
-                            <td>
-                                <div class="fw-bold"><?php echo htmlspecialchars($supplier['account_name_ar']); ?></div>
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-dark border fw-normal">
-                                    <i class="fas fa-building me-1 text-muted"></i>
-                                    <?php echo htmlspecialchars($supplier['branch_name'] ?? 'عام'); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <?php 
-                                if (isset($balances[$supplier['id']]) && !empty($balances[$supplier['id']])) {
-                                    foreach ($balances[$supplier['id']] as $bal) {
-                                        echo '<div class="mb-1 small">' . format_account_balance($bal['current_balance'], $bal['normal_balance'], $bal['currency_name']) . '</div>';
+                            <tr>
+                                <td class="px-4">
+                                    <code class="text-primary fw-bold"><?php echo $supplier['account_code']; ?></code>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-primary"><?php echo htmlspecialchars($supplier['supplier_display_name'] ?? $supplier['account_name_ar']); ?></div>
+                                    <?php if (!empty($supplier['trade_name'])): ?>
+                                        <small class="text-success"><i class="fas fa-check-circle me-1"></i>اسم تجاري مفعّل</small>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <div class="small text-muted"><?php echo htmlspecialchars($supplier['account_name_ar']); ?></div>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1" style="max-width:220px; justify-content:center;">
+                                        <?php
+                                        $svc_list = $supplier_services_map[$supplier['supplier_id']] ?? [];
+                                        if (!empty($svc_list)):
+                                            foreach (array_slice($svc_list, 0, 4) as $svc):
+                                        ?>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-20 small">
+                                                    <?php echo htmlspecialchars($svc['service_name_ar']); ?>
+                                                </span>
+                                            <?php
+                                            endforeach;
+                                            if (count($svc_list) > 4):
+                                            ?>
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary small">
+                                                    +<?php echo count($svc_list) - 4; ?>
+                                                </span>
+                                            <?php
+                                            endif;
+                                        else:
+                                            ?>
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary small">غير محدد</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border fw-normal">
+                                        <i class="fas fa-building me-1 text-muted"></i>
+                                        <?php echo htmlspecialchars($supplier['branch_name'] ?? 'عام'); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php
+                                    if (isset($balances[$supplier['id']]) && !empty($balances[$supplier['id']])) {
+                                        foreach ($balances[$supplier['id']] as $bal) {
+                                            echo '<div class="mb-1 small">' . format_account_balance($bal['current_balance'], $bal['normal_balance'], $bal['currency_name']) . '</div>';
+                                        }
+                                    } else {
+                                        echo '<div class="mb-1 small text-muted">0.00 ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
                                     }
-                                } else {
-                                    echo '<div class="mb-1 small text-muted">0.00 ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
-                                }
-                                
-                                $cust_debit = $supplier_totals[$supplier['id']]['debit'] ?? 0;
-                                $cust_credit = $supplier_totals[$supplier['id']]['credit'] ?? 0;
-                                if ($cust_debit > 0 || $cust_credit > 0) {
-                                    echo '<hr class="my-2">';
-                                    if ($cust_debit > 0) {
-                                        echo '<div class="small text-success"><i class="fas fa-arrow-down me-1"></i> لنا: ' . number_format($cust_debit, 2) . ' ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
+
+                                    $cust_debit = $supplier_totals[$supplier['id']]['debit'] ?? 0;
+                                    $cust_credit = $supplier_totals[$supplier['id']]['credit'] ?? 0;
+                                    if ($cust_debit > 0 || $cust_credit > 0) {
+                                        echo '<hr class="my-2">';
+                                        if ($cust_debit > 0) {
+                                            echo '<div class="small text-success"><i class="fas fa-arrow-down me-1"></i> لنا: ' . number_format($cust_debit, 2) . ' ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
+                                        }
+                                        if ($cust_credit > 0) {
+                                            echo '<div class="small text-danger"><i class="fas fa-arrow-up me-1"></i> علينا: ' . number_format($cust_credit, 2) . ' ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
+                                        }
                                     }
-                                    if ($cust_credit > 0) {
-                                        echo '<div class="small text-danger"><i class="fas fa-arrow-up me-1"></i> علينا: ' . number_format($cust_credit, 2) . ' ' . htmlspecialchars($baseCurrency['currency_name'] ?? '') . '</div>';
-                                    }
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <?php echo get_account_status_label($supplier['account_status']); ?>
-                            </td>
-                            <td>
-                                <div class="btn-group">
-                                    <a href="account_statement.php?id=<?php echo $supplier['id']; ?>" class="btn btn-sm btn-light border-0" title="كشف حساب">
-                                        <i class="fas fa-file-invoice-dollar text-primary"></i>
-                                    </a>
-                                    <button class="btn btn-sm btn-light border-0 edit-supplier" 
-                                            data-id="<?php echo $supplier['id']; ?>" 
+                                    ?>
+                                </td>
+                                <td>
+                                    <?php echo get_account_status_label($supplier['account_status']); ?>
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="account_statement.php?id=<?php echo $supplier['id']; ?>" class="btn btn-sm btn-light border-0" title="كشف حساب">
+                                            <i class="fas fa-file-invoice-dollar text-primary"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-light border-0 edit-supplier"
+                                            data-id="<?php echo $supplier['id']; ?>"
                                             data-name="<?php echo htmlspecialchars($supplier['account_name_ar']); ?>"
+                                            data-trade-name="<?php echo htmlspecialchars($supplier['trade_name'] ?? ''); ?>"
                                             data-branch="<?php echo $supplier['branch_id']; ?>"
                                             data-status="<?php echo $supplier['account_status']; ?>"
                                             data-phone="<?php echo htmlspecialchars($supplier['supplier_phone'] ?? ''); ?>"
                                             data-email="<?php echo htmlspecialchars($supplier['supplier_email'] ?? ''); ?>"
                                             data-address="<?php echo htmlspecialchars($supplier['address'] ?? ''); ?>"
+                                            data-services="<?php echo htmlspecialchars(json_encode(array_column($supplier_services_map[$supplier['supplier_id']] ?? [], 'service_id'))); ?>"
                                             title="تعديل"><i class="fas fa-edit text-warning"></i></button>
-                                    <form method="POST" class="d-inline-block mb-0" onsubmit="return confirm('هل أنت متأكد من تحويل هذا المورد إلى خامل؟')">
-                                        <?php echo csrf_input(); ?>
-                                        <input type="hidden" name="deactivate_account" value="<?php echo $supplier['id']; ?>">
-                                        <button type="submit" class="btn btn-sm btn-light border-0" title="تحويل إلى خامل"><i class="fas fa-pause text-secondary"></i></button>
-                                    </form>
-                                    <form method="POST" class="d-inline-block mb-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا المورد نهائيًا؟ هذا الإجراء لا يمكن التراجع عنه!')">
-                                        <?php echo csrf_input(); ?>
-                                        <input type="hidden" name="delete_account_permanent" value="<?php echo $supplier['id']; ?>">
-                                        <button type="submit" class="btn btn-sm btn-light border-0" title="حذف نهائي"><i class="fas fa-trash text-danger"></i></button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
+                                        <form method="POST" class="d-inline-block mb-0" onsubmit="return confirm('هل أنت متأكد من تحويل هذا المورد إلى خامل؟')">
+                                            <?php echo csrf_input(); ?>
+                                            <input type="hidden" name="deactivate_account" value="<?php echo $supplier['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-light border-0" title="تحويل إلى خامل"><i class="fas fa-pause text-secondary"></i></button>
+                                        </form>
+                                        <form method="POST" class="d-inline-block mb-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا المورد نهائيًا؟ هذا الإجراء لا يمكن التراجع عنه!')">
+                                            <?php echo csrf_input(); ?>
+                                            <input type="hidden" name="delete_account_permanent" value="<?php echo $supplier['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-light border-0" title="حذف نهائي"><i class="fas fa-trash text-danger"></i></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -523,8 +608,13 @@ $page_title = "إدارة الموردين";
                 <div class="modal-body p-4 flex-grow-1 overflow-auto">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold small">اسم المورد <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold small">اسم المورد (محاسبي) <span class="text-danger">*</span></label>
                             <input type="text" name="account_name" class="form-control rounded-3" placeholder="مثلاً: شركة التوريد" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold small">الاسم التجاري <span class="text-info" data-bs-toggle="tooltip" title="الاسم الذي سيظهر للمستخدمين في صفحات الخدمات"><i class="fas fa-info-circle"></i></span></label>
+                            <input type="text" name="trade_name" class="form-control rounded-3" placeholder="مثلاً: شركة المتصدر للنقل - اسم المثال: الخطوط الجوية اليمنية">
+                            <small class="text-muted">إذا ترك فارغاً سيتم استخدام اسم المورد</small>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold small">رقم الهاتف</label>
@@ -569,6 +659,30 @@ $page_title = "إدارة الموردين";
                                 <option value="dormant">راكد (غير مستخدم)</option>
                             </select>
                         </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold small mb-2">
+                                <i class="fas fa-concierge-bell text-primary me-1"></i> الخدمات التي يقدمها المورد
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div class="card border rounded-3 p-3 bg-light bg-opacity-50">
+                                <div class="row g-2">
+                                    <?php foreach ($catalog_services as $svc): ?>
+                                        <div class="col-md-6 col-lg-4 col-xl-3">
+                                            <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-start bg-white border rounded-3 p-2 h-100">
+                                                <input class="form-check-input me-3 ms-0 supplier-service-checkbox" type="checkbox"
+                                                    name="supplier_services[]"
+                                                    value="<?php echo $svc['id']; ?>"
+                                                    id="add_svc_<?php echo $svc['service_code']; ?>" checked>
+                                                <label class="form-check-label fw-bold small flex-grow-1 text-start" for="add_svc_<?php echo $svc['service_code']; ?>">
+                                                    <?php echo htmlspecialchars($svc['service_name_ar']); ?>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle me-1"></i> اختيار خدمة واحدة أو أكثر. إذا لم يتم اختيار أي خدمة، سيتم اختيار جميع الخدمات تلقائياً.</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-4 bg-light shadow-sm flex-shrink-0">
@@ -599,8 +713,13 @@ $page_title = "إدارة الموردين";
                 <div class="modal-body p-4 flex-grow-1 overflow-auto">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold small">اسم المورد <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold small">اسم المورد (محاسبي) <span class="text-danger">*</span></label>
                             <input type="text" name="account_name" id="edit_name" class="form-control rounded-3" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold small">الاسم التجاري <span class="text-info" data-bs-toggle="tooltip" title="الاسم الذي سيظهر للمستخدمين في صفحات الخدمات"><i class="fas fa-info-circle"></i></span></label>
+                            <input type="text" name="trade_name" id="edit_trade_name" class="form-control rounded-3" placeholder="مثلاً: شركة المتصدر للنقل">
+                            <small class="text-muted">إذا ترك فارغاً سيتم استخدام اسم المورد</small>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold small">رقم الهاتف</label>
@@ -632,6 +751,31 @@ $page_title = "إدارة الموردين";
                             <label class="form-label fw-bold small">العنوان</label>
                             <textarea name="address" id="edit_address" class="form-control rounded-3" rows="2" placeholder="العنوان التفصيلي"></textarea>
                         </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold small mb-2">
+                                <i class="fas fa-concierge-bell text-primary me-1"></i> الخدمات التي يقدمها المورد
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div class="card border rounded-3 p-3 bg-light bg-opacity-50">
+                                <div class="row g-2" id="edit_services_container">
+                                    <?php foreach ($catalog_services as $svc): ?>
+                                        <div class="col-md-6 col-lg-4 col-xl-3">
+                                            <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-start bg-white border rounded-3 p-2 h-100">
+                                                <input class="form-check-input me-3 ms-0 edit-supplier-service-checkbox" type="checkbox"
+                                                    name="supplier_services[]"
+                                                    value="<?php echo $svc['id']; ?>"
+                                                    data-service-id="<?php echo $svc['id']; ?>"
+                                                    id="edit_svc_<?php echo $svc['service_code']; ?>">
+                                                <label class="form-check-label fw-bold small flex-grow-1 text-start" for="edit_svc_<?php echo $svc['service_code']; ?>">
+                                                    <?php echo htmlspecialchars($svc['service_name_ar']); ?>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle me-1"></i> اختيار خدمة واحدة أو أكثر.</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-4 bg-light shadow-sm flex-shrink-0">
@@ -644,35 +788,46 @@ $page_title = "إدارة الموردين";
 </div>
 
 <script>
-$(document).ready(function() {
-    $('.edit-supplier').click(function() {
-        var id = $(this).data('id');
-        var name = $(this).data('name');
-        var branch = $(this).data('branch');
-        var status = $(this).data('status');
-        var phone = $(this).data('phone');
-        var email = $(this).data('email');
-        var address = $(this).data('address');
-        
-        $('#edit_id').val(id);
-        $('#edit_name').val(name);
-        $('#edit_branch').val(branch);
-        $('#edit_status').val(status);
-        $('#edit_phone').val(phone);
-        $('#edit_email').val(email);
-        $('#edit_address').val(address);
-        
-        $('#editSupplierModal').modal('show');
-    });
+    $(document).ready(function() {
+        $('.edit-supplier').click(function() {
+            var id = $(this).data('id');
+            var name = $(this).data('name');
+            var trade_name = $(this).data('trade-name');
+            var branch = $(this).data('branch');
+            var status = $(this).data('status');
+            var phone = $(this).data('phone');
+            var email = $(this).data('email');
+            var address = $(this).data('address');
+            var services = $(this).data('services');
 
-    // بحث ديناميكي في الجدول
-    $("#supplierSearch").on("keyup", function() {
-        var value = $(this).val().toLowerCase();
-        $("#suppliersTable tbody tr").filter(function() {
-            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            $('#edit_id').val(id);
+            $('#edit_name').val(name);
+            $('#edit_trade_name').val(trade_name || '');
+            $('#edit_branch').val(branch);
+            $('#edit_status').val(status);
+            $('#edit_phone').val(phone);
+            $('#edit_email').val(email);
+            $('#edit_address').val(address);
+
+            $('.edit-supplier-service-checkbox').prop('checked', false);
+            if (services && Array.isArray(services) && services.length > 0) {
+                services.forEach(function(svc_id) {
+                    $('.edit-supplier-service-checkbox[data-service-id="' + svc_id + '"]').prop('checked', true);
+                });
+            } else {
+                $('.edit-supplier-service-checkbox').prop('checked', true);
+            }
+
+            $('#editSupplierModal').modal('show');
+        });
+
+        $("#supplierSearch").on("keyup", function() {
+            var value = $(this).val().toLowerCase();
+            $("#suppliersTable tbody tr").filter(function() {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            });
         });
     });
-});
 </script>
 
 <?php require_once 'footer.php'; ?>

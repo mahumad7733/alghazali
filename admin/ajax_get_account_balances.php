@@ -1,11 +1,22 @@
 <?php
 require_once '../includes/db.php';
+require_once '../includes/security.php';
+
+$authenticatedUser = require_active_financial_user($pdo, 'financial_hub_view');
 
 if (isset($_GET['account_id'])) {
     $account_id = intval($_GET['account_id']);
     
     try {
         // أولاً نحضر جميع الأرصدة المسجلة في account_balances_unified
+        $role = strtolower((string)($authenticatedUser['role_name'] ?? ''));
+        $isGlobal = in_array($role, ['admin', 'developer'], true) || strtolower((string)($authenticatedUser['user_type'] ?? '')) === 'developer';
+        $balanceBranchFilter = '';
+        $balanceParams = [$account_id];
+        if (!$isGlobal) {
+            $balanceBranchFilter = ' AND (abu.branch_id IS NULL OR abu.branch_id = ?)';
+            $balanceParams[] = $authenticatedUser['branch_id'] !== null ? (int)$authenticatedUser['branch_id'] : 0;
+        }
         $stmt_saved_balances = $pdo->prepare("
             SELECT 
                 abu.id,
@@ -29,12 +40,18 @@ if (isset($_GET['account_id'])) {
             FROM account_balances_unified abu
             LEFT JOIN currencies c ON abu.currency_id = c.id
             LEFT JOIN unified_accounts ua ON abu.account_id = ua.id
-            WHERE abu.account_id = ?
+            WHERE abu.account_id = ?{$balanceBranchFilter}
         ");
-        $stmt_saved_balances->execute([$account_id]);
+        $stmt_saved_balances->execute($balanceParams);
         $saved_balances = $stmt_saved_balances->fetchAll(PDO::FETCH_ASSOC);
         
         // نحضر الرصيد المحسوب من journal_lines لكل عملة
+        $calcBranchFilter = '';
+        $calcParams = [$account_id];
+        if (!$isGlobal) {
+            $calcBranchFilter = ' AND (ft.branch_id IS NULL OR ft.branch_id = ?)';
+            $calcParams[] = $authenticatedUser['branch_id'] !== null ? (int)$authenticatedUser['branch_id'] : 0;
+        }
         $stmt_calc_balances = $pdo->prepare("
             SELECT 
                 jl.currency_id,
@@ -43,10 +60,10 @@ if (isset($_GET['account_id'])) {
             FROM journal_lines jl
             JOIN financial_transactions ft ON jl.financial_transaction_id = ft.id
             JOIN currencies c ON jl.currency_id = c.id 
-            WHERE jl.account_id = ? AND ft.status = 'posted'
+            WHERE jl.account_id = ? AND ft.status = 'posted'{$calcBranchFilter}
             GROUP BY jl.currency_id
         ");
-        $stmt_calc_balances->execute([$account_id]);
+        $stmt_calc_balances->execute($calcParams);
         $calc_balances_raw = $stmt_calc_balances->fetchAll(PDO::FETCH_ASSOC);
         
         // نحول الرصيد المحسوب إلى مصفوفة بناءً على currency_id للوصول السريع

@@ -3,6 +3,7 @@ require_once '../../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
 require_once '../../includes/accounting_functions.php';
+require_once '../../includes/security.php';
 require_once '../../core/FinanceService.php';
 
 header('Content-Type: application/json');
@@ -12,6 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'طريقة الطلب غير مدعومة.']);
     exit;
 }
+
+$authenticatedUser = require_active_financial_user($pdo);
 
 if (!isset($_SESSION['admin_id'])) {
     http_response_code(401);
@@ -33,9 +36,14 @@ try {
     $pdo->beginTransaction();
 
     // 1. جلب بيانات السند الأصلي
-    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ? FOR UPDATE");
     $stmt->execute([$id]);
     $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($voucher) {
+        require_active_financial_user($pdo, null, null, $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null);
+        require_open_financial_period($pdo, $voucher['transaction_date']);
+    }
 
     if (!$voucher) throw new Exception("السند غير موجود.");
     if ($voucher['status'] === 'cancelled') throw new Exception("هذا السند ملغي بالفعل.");
@@ -76,9 +84,8 @@ try {
         if ($perm_needed && $has_perm($perm_needed)) $allowed = true;
 
         // استثناءات قديمة للباك وارك
-        if ($user_role === 'accountant') $allowed = true;
-
         if (!$allowed) {
+            http_response_code(403);
             log_audit($pdo, 'reverse_denied', 'financial_transactions', $id, $voucher, null, "محاولة عكس سند مرفوضة: المستخدم ليس لديه صلاحية {$perm_needed}");
             throw new Exception("ليس لديك صلاحية لعكس هذا السند ({$perm_needed}).");
         }
@@ -116,7 +123,7 @@ try {
                 cash_bank_account_id, party_account_id, cost_center_id, 
                 reference_number, description, created_by, status, 
                 original_voucher_id, reference_type, reference_id
-            ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, 'reversal', ?)
+            ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, 'reversal', ?)
         ");
         $stmt_rev->execute([
             $rev_number, $voucher['branch_id'], $rev_type,
@@ -147,6 +154,9 @@ try {
                 $line['cost_center_id'], 'عكس قيد السند: ' . $voucher['transaction_number']
             ]);
         }
+
+        validate_journal_balance($pdo, (int)$reversal_id);
+        $pdo->prepare("UPDATE financial_transactions SET status = 'posted', posted_at = NOW(), posted_by = ? WHERE id = ? AND status = 'draft'")->execute([$user_id, $reversal_id]);
 
         // تحديث الأرصدة للسند العكسي
         if (function_exists('apply_transaction_balances')) {

@@ -1,6 +1,12 @@
 <?php
 require_once '../../includes/db.php';
+require_once '../../includes/security.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
+
+$authenticatedUser = require_active_financial_user($pdo, 'financial_hub_view');
+$role = strtolower((string)($authenticatedUser['role_name'] ?? ''));
+$isGlobal = in_array($role, ['admin', 'developer'], true) || strtolower((string)($authenticatedUser['user_type'] ?? '')) === 'developer';
+$invoiceBranchFilter = $isGlobal ? '' : ' AND (i.branch_id IS NULL OR i.branch_id = ?)';
 
 $payer_id = $_GET['customer_id'] ?? 0; // keeping the param name for compatibility
 $currency_id = $_GET['currency_id'] ?? 0;
@@ -108,6 +114,7 @@ try {
         AND i.currency_id = ?
         AND i.invoice_category = ?
         AND i.invoice_status = 'posted'
+        {$invoiceBranchFilter}
         AND (i.net_amount - COALESCE(received.total_received, 0)) > 0
         GROUP BY i.id
         ORDER BY i.invoice_date ASC
@@ -126,6 +133,7 @@ try {
     }
     $execute_params[] = $currency_id; // ? - للـ currency_id
     $execute_params[] = $type; // ? - للـ invoice_category
+    if (!$isGlobal) $execute_params[] = (int)($authenticatedUser['branch_id'] ?? 0);
     $stmt->execute($execute_params);
     $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -154,6 +162,7 @@ try {
         AND i.currency_id != ?
         AND i.invoice_category = ?
         AND i.invoice_status = 'posted'
+        {$invoiceBranchFilter}
         AND (i.net_amount - COALESCE(received.total_received, 0)) > 0
         GROUP BY i.currency_id
     ";
@@ -170,6 +179,7 @@ try {
     }
     $other_params[] = $currency_id; // ? - للـ currency_id
     $other_params[] = $type; // ? - للـ invoice_category
+    if (!$isGlobal) $other_params[] = (int)($authenticatedUser['branch_id'] ?? 0);
     $stmt_other->execute($other_params);
     $other_currencies = $stmt_other->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {

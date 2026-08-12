@@ -25,7 +25,17 @@ class InvoiceService implements InvoiceInterface
         $this->context->assertUserCan('create_' . $category . '_invoice', "create {$category} invoice");
         $this->context->assertFiscalPeriodOpen($data['operation_date']);
 
-        if (!empty($data['idempotency_key'])) {
+        $idempotencyKey = trim((string)($data['idempotency_key'] ?? ''));
+        if ($idempotencyKey !== '') {
+            $stmt = $this->context->pdo()->prepare(
+                'SELECT id FROM invoices WHERE idempotency_key = ? LIMIT 1'
+            );
+            $stmt->execute([$idempotencyKey]);
+            $existing = (int)$stmt->fetchColumn();
+            if ($existing > 0) {
+                return $existing;
+            }
+
             $stmt = $this->context->pdo()->prepare(
                 'SELECT id FROM invoices WHERE source_type = ? AND source_id = ? AND invoice_category = ? LIMIT 1'
             );
@@ -43,16 +53,31 @@ class InvoiceService implements InvoiceInterface
             throw new \InvalidArgumentException('Invalid invoice amount or currency');
         }
 
-        return (int)$this->context->executeAtomically(function () use ($data, $category, $partyId, $currencyId, $total): int {
-            $id = $this->postingAdapter->createInvoice(
-                $this->context->pdo(), $data, $category, $this->context->userId()
-            );
-            $this->context->audit('create_' . $category . '_invoice_draft', 'invoice', $id, [
-                'source_type' => $data['source_type'], 'source_id' => $data['source_id'],
-                'party_id' => $partyId, 'currency_id' => $currencyId, 'total' => $total,
-            ]);
-            return $id;
-        });
+        try {
+            return (int)$this->context->executeAtomically(function () use ($data, $category, $partyId, $currencyId, $total, $idempotencyKey): int {
+                $id = $this->postingAdapter->createInvoice(
+                    $this->context->pdo(), $data, $category, $this->context->userId()
+                );
+                if ($idempotencyKey !== '') {
+                    $this->context->pdo()->prepare('UPDATE invoices SET idempotency_key = ? WHERE id = ? AND idempotency_key IS NULL')
+                        ->execute([$idempotencyKey, $id]);
+                }
+                $this->context->audit('create_' . $category . '_invoice_draft', 'invoice', $id, [
+                    'source_type' => $data['source_type'], 'source_id' => $data['source_id'],
+                    'party_id' => $partyId, 'currency_id' => $currencyId, 'total' => $total,
+                    'idempotency_key' => $idempotencyKey ?: null,
+                ]);
+                return $id;
+            });
+        } catch (\PDOException $e) {
+            if ($idempotencyKey !== '' && (int)$e->errorInfo[1] === 1062) {
+                $stmt = $this->context->pdo()->prepare('SELECT id FROM invoices WHERE idempotency_key = ? LIMIT 1');
+                $stmt->execute([$idempotencyKey]);
+                $existing = (int)$stmt->fetchColumn();
+                if ($existing > 0) return $existing;
+            }
+            throw $e;
+        }
     }
 
     public function postInvoice(int $invoiceId): void

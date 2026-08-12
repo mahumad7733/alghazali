@@ -83,7 +83,7 @@ $requests_stmt = $pdo->prepare("
            purchase_inv.amount_received as purchase_paid_amount,
            purchase_inv.payment_status as purchase_payment_status,
            purchase_inv.invoice_status as purchase_invoice_status,
-           sup.supplier_name as purchase_supplier_name,
+           COALESCE(NULLIF(TRIM(sup.trade_name), ''), sup.supplier_name) as purchase_supplier_name,
            sale_acc.account_code as sales_account_code,
            sale_acc.account_name_ar as sales_account_name,
            c.currency_name,

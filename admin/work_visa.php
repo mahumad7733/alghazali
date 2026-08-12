@@ -721,7 +721,19 @@ while ($row = $suppliers_stmt->fetch()) {
     $suppliers_with_codes[] = $row;
 }
 
-$suppliers = $pdo->query("SELECT id, supplier_name FROM suppliers WHERE deleted_at IS NULL ORDER BY supplier_name ASC")->fetchAll();
+$suppliers_stmt = $pdo->prepare("
+    SELECT s.id,
+           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_name
+    FROM suppliers s
+    INNER JOIN supplier_services ss ON s.id = ss.supplier_id
+    INNER JOIN catalog_services cs ON ss.service_id = cs.id
+    WHERE s.deleted_at IS NULL
+      AND ss.is_active = 1
+      AND cs.service_code = 'work_visa'
+    ORDER BY supplier_name ASC
+");
+$suppliers_stmt->execute();
+$suppliers = $suppliers_stmt->fetchAll();
 
 // جلب البيانات الافتراضية للمستخدم الحالي (إذا كان وكيلاً أو فرعاً)
 $user_defaults = [
@@ -853,7 +865,7 @@ $stmt = $pdo->prepare("
            purchase_inv.total_amount as purchase_price, sale_inv.total_amount as sale_price,
            sale_inv.payment_status as sales_payment_status, sale_inv.invoice_status as sales_invoice_status,
            purchase_inv.payment_status as purchase_payment_status, purchase_inv.invoice_status as purchase_invoice_status,
-           sup.supplier_name as purchase_supplier_name,
+           COALESCE(NULLIF(TRIM(sup.trade_name), ''), sup.supplier_name) as purchase_supplier_name,
            sale_acc.account_code as sales_account_code, sale_acc.account_name_ar as sales_account_name
     FROM passports p
     LEFT JOIN professions pr ON p.profession_id = pr.id

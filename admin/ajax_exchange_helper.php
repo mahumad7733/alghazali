@@ -290,6 +290,7 @@ if ($action === 'get_exchange') {
 }
 
 if ($action === 'update_exchange') {
+    $authenticatedUser = require_active_financial_user($pdo, 'currency_exchange_edit');
     $input = json_decode(file_get_contents('php://input'), true);
 
     if (!$input || !isset($input['id'])) {
@@ -323,9 +324,17 @@ if ($action === 'update_exchange') {
     try {
         $pdo->beginTransaction();
 
-        $stmt_exchange = $pdo->prepare("SELECT transaction_number FROM currency_exchange_transactions WHERE id = ?");
+        $stmt_exchange = $pdo->prepare("SELECT transaction_number, branch_id, transaction_date FROM currency_exchange_transactions WHERE id = ? FOR UPDATE");
         $stmt_exchange->execute([$id]);
         $existing_exchange = $stmt_exchange->fetch(PDO::FETCH_ASSOC);
+        if ($existing_exchange) {
+            require_active_financial_user($pdo, 'currency_exchange_edit', null, $existing_exchange['branch_id'] !== null ? (int)$existing_exchange['branch_id'] : null);
+            require_open_financial_period($pdo, $existing_exchange['transaction_date']);
+            $stmt_posted = $pdo->prepare("SELECT COUNT(*) FROM financial_transactions WHERE reference_type = 'exchange' AND reference_id = ? AND status IN ('posted','reversed','reconciled')");
+            $stmt_posted->execute([$id]);
+            if ((int)$stmt_posted->fetchColumn() > 0) throw new Exception('لا يمكن تعديل تحويل مرتبط بقيد مرحل؛ استخدم Reverse/Cancel.');
+            if ($from_amount <= 0 || $to_amount <= 0 || $exchange_rate <= 0) throw new Exception('قيم التحويل وسعر الصرف يجب أن تكون موجبة.');
+        }
         if (!$existing_exchange) {
             throw new Exception('العملية غير موجودة.');
         }
@@ -373,10 +382,21 @@ if ($action === 'update_exchange') {
 }
 
 if ($action === 'delete_exchange') {
+    $authenticatedUser = require_active_financial_user($pdo, 'currency_exchange_delete');
     $id = (int)($_GET['id'] ?? 0);
 
     try {
         $pdo->beginTransaction();
+
+        $stmt_exchange = $pdo->prepare("SELECT branch_id, transaction_date FROM currency_exchange_transactions WHERE id = ? FOR UPDATE");
+        $stmt_exchange->execute([$id]);
+        $exchange = $stmt_exchange->fetch(PDO::FETCH_ASSOC);
+        if (!$exchange) throw new Exception('العملية غير موجودة.');
+        require_active_financial_user($pdo, 'currency_exchange_delete', null, $exchange['branch_id'] !== null ? (int)$exchange['branch_id'] : null);
+        require_open_financial_period($pdo, $exchange['transaction_date']);
+        $stmt_posted = $pdo->prepare("SELECT COUNT(*) FROM financial_transactions WHERE reference_type = 'exchange' AND reference_id = ? AND status IN ('posted','reversed','reconciled')");
+        $stmt_posted->execute([$id]);
+        if ((int)$stmt_posted->fetchColumn() > 0) throw new Exception('لا يمكن حذف تحويل مرتبط بقيد مرحل؛ استخدم Reverse/Cancel.');
 
         // 1. حذف جميع القيود المحاسبية؛ الـ triggers ستعكس الأرصدة تلقائياً.
         $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id IN (SELECT id FROM financial_transactions WHERE reference_type = 'exchange' AND reference_id = ?)")->execute([$id]);

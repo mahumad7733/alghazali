@@ -288,15 +288,10 @@ if (isset($_POST['add_payment'])) {
                 // لا يتم خصم المبالغ القديمة من الفواتير هنا
                 // لأن الفواتير تُحدّث فقط عند ترحيل السند
 
-                // ✅ إذا كان السند مرحلاً: نعكس القيود اليومية ثم نحذفها
-                // (التعديل لا يُعاد الترحيل تلقائياً — السند يعود لمسودة ويُرحَّل يدوياً)
+                // A posted voucher is immutable.  Reject edit attempts instead
+                // of deleting its journal lines; use the reverse workflow.
                 if ($old_voucher['status'] == 'posted') {
-                    if (!balances_triggers_enabled($pdo)) {
-                        apply_transaction_balances($pdo, (int)$id, -1);
-                    }
-
-                    // حذف القيود — السند سيُرحَّل من جديد بعد التعديل
-                    $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$id]);
+                    throw new Exception('لا يمكن تعديل سند مُرحّل. استخدم العكس لإنشاء سجل محاسبي مقابل ثم أنشئ سنداً جديداً عند الحاجة.');
                 }
 
                 $stmt = $pdo->prepare("UPDATE financial_transactions SET transaction_date = ?, entity_type = ?, entity_id = ?, party_account_id = ?, cash_bank_account_id = ?, currency_id = ?, amount = ?, description = ?, cost_center_id = ?, updated_at = NOW(), updated_by = ?, updated_ip = ? WHERE id = ?");
@@ -312,16 +307,6 @@ if (isset($_POST['add_payment'])) {
 
                 log_audit($pdo, 'update', 'financial_transactions', $id, $old_voucher, $new_voucher, "تعديل سند صرف");
 
-                // ✅ بعد التعديل: السند يصبح مسودة تلقائياً
-                // لا نُطبّق الأرصدة الجديدة الآن — سيتم ذلك عند الترحيل
-                if ($old_voucher['status'] == 'posted') {
-                    $pdo->prepare("UPDATE financial_transactions SET status = 'draft', posted_at = NULL, posted_by = NULL WHERE id = ?")
-                        ->execute([$id]);
-                    $financeService = new FinanceService($pdo, (int)($_SESSION['admin_id'] ?? 1));
-                    foreach ($old_invoice_ids as $oldInvoiceId) {
-                        $financeService->recalculateInvoicePaymentStatus((int)$oldInvoiceId);
-                    }
-                }
             } else {
                 // إنشاء السند الأول (بالمبلغ الموزع أو المبلغ كامل إذا لم يكن هناك توزيع)
                 $first_voucher_amount = ($total_allocated > 0) ? $total_allocated : $amount;
@@ -696,10 +681,7 @@ $require_cost_center = !empty($settings['require_cost_center']);
                                 $is_reversed_pair = !empty($r['has_reversal']) || !empty($r['is_reversed']) || !empty($r['original_voucher_id']) || (($r['reference_type'] ?? '') === 'reversal');
                                 $show_delete = false;
                                 $delete_reversed_pair = false;
-                                if ($is_reversed_pair && can_delete_voucher($r)) {
-                                    $show_delete = true;
-                                    $delete_reversed_pair = true;
-                                } elseif (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$r['is_reversed'] && !$r['original_voucher_id']) {
+                                if (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$is_reversed_pair && !$r['is_reversed'] && !$r['original_voucher_id']) {
                                     $show_delete = true;
                                 }
                                 if ($show_delete): ?>

@@ -83,6 +83,9 @@ class LegacyFinanceService
             $stmt->execute([$dateOnly]);
             $period = $stmt->fetch(PDO::FETCH_ASSOC);
 
+            if (!$period) {
+                throw new Exception("No fiscal period found for {$dateOnly}");
+            }
             if ($period && !empty($period['is_closed'])) {
                 throw new Exception("ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© آ«{$period['period_name']}آ» ظ…ط؛ظ„ظ‚ط©. ظ„ط§ ظٹظ…ظƒظ† طھط³ط¬ظٹظ„ ط¹ظ…ظ„ظٹط§طھ ظ…ط§ظ„ظٹط© ط¯ط§ط®ظ„ظ‡ط§.");
             }
@@ -633,5 +636,4 @@ class LegacyFinanceService
         }
     }
 }
-
 

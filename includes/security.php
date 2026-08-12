@@ -1,6 +1,89 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
+/**
+ * Require an active authenticated user for sensitive financial endpoints.
+ * This is intentionally server-side and does not trust role/session labels
+ * without reloading the user record from the database.
+ */
+function require_active_financial_user(PDO $pdo, ?string $permission = null, ?int $requestedBranchId = null, ?int $recordBranchId = null): array
+{
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $userId = (int)($_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 0);
+    if ($userId <= 0) {
+        security_json_error('Authentication required', 401);
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT u.*, r.name AS role_name
+           FROM users u
+           LEFT JOIN roles r ON r.id = u.role_id
+          WHERE u.id = ?
+          LIMIT 1'
+    );
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user || strtolower((string)($user['status'] ?? '')) !== 'active') {
+        security_json_error('Active authenticated user required', 401);
+    }
+
+    $_SESSION['admin_id'] = $userId;
+    $_SESSION['user_id'] = $userId;
+    $_SESSION['role_id'] = (int)($user['role_id'] ?? 0);
+    $_SESSION['role_name'] = (string)($user['role_name'] ?? '');
+    $_SESSION['branch_id'] = $user['branch_id'] !== null ? (int)$user['branch_id'] : null;
+    $_SESSION['branch_scope'] = (string)($user['branch_scope'] ?? 'single_branch');
+
+    $role = strtolower((string)($user['role_name'] ?? ''));
+    $isGlobalRole = in_array($role, ['admin', 'developer'], true)
+        || strtolower((string)($user['user_type'] ?? '')) === 'developer';
+
+    if ($permission !== null && !$isGlobalRole && !has_permission($permission)) {
+        security_json_error('Permission denied', 403);
+    }
+
+    foreach ([$requestedBranchId, $recordBranchId] as $branchId) {
+        if ($branchId === null || $branchId <= 0 || $isGlobalRole) {
+            continue;
+        }
+        $allowed = false;
+        if ((string)($user['branch_scope'] ?? '') === 'all_branches') {
+            $allowed = true;
+        } elseif ((int)($user['branch_id'] ?? 0) === $branchId) {
+            $allowed = true;
+        } else {
+            $branchStmt = $pdo->prepare('SELECT 1 FROM user_branches WHERE user_id = ? AND branch_id = ? LIMIT 1');
+            $branchStmt->execute([$userId, $branchId]);
+            $allowed = (bool)$branchStmt->fetchColumn();
+        }
+        if (!$allowed) {
+            security_json_error('Branch access denied', 403);
+        }
+    }
+
+    return $user;
+}
+
+function require_open_financial_period(PDO $pdo, ?string $operationDate): void
+{
+    $date = substr((string)($operationDate ?: date('Y-m-d')), 0, 10);
+    $stmt = $pdo->prepare(
+        'SELECT period_name, is_closed
+           FROM fiscal_periods
+          WHERE ? BETWEEN start_date AND end_date
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $stmt->execute([$date]);
+    $period = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$period || (int)$period['is_closed'] === 1) {
+        security_json_error('Fiscal period is closed or unavailable', 403);
+    }
+}
+
 function security_json_error($message, $status_code = 400)
 {
     http_response_code($status_code);

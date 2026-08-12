@@ -468,7 +468,7 @@ function has_permission($perm_name)
     if (!$user_id) return false;
 
     if (!array_key_exists($user_id, $request_super_user_cache)) {
-        $stmt = $pdo->prepare("SELECT r.name, u.user_type FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+        $stmt = $pdo->prepare("SELECT r.name, u.user_type FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.status = 'active'");
         $stmt->execute([$user_id]);
         $user_info = $stmt->fetch();
 
@@ -1626,7 +1626,7 @@ function get_allowed_transitions($workflow_id, $from_step_id, $role_id = null, $
  * @param string $notes ملاحظات
  * @param array $extra_data بيانات إضافية (مثل رقم التذكرة، تاريخ السفر، إلخ)
  */
-function change_booking_status($booking_ids, $new_status_id, $user_id, $notes = '', $extra_data = [])
+function change_booking_status($booking_ids, $new_status_id, $user_id, $notes = '', $extra_data = [], $transition_id = null)
 {
     global $pdo;
     if (!is_array($booking_ids)) $booking_ids = [$booking_ids];
@@ -1644,26 +1644,35 @@ function change_booking_status($booking_ids, $new_status_id, $user_id, $notes = 
         $new_status_info = $stmt_status->fetch();
         if (!$new_status_info) return false;
 
+        // لا تفترض أعمدة مالية غير موجودة في جدول الحجوزات الحالي.
+        // الأسعار/المبالغ مصدرها invoices، بينما تحديث الحالة هنا يخص سجل الحجز وحقوله الإضافية فقط.
+        static $booking_columns = null;
+        if ($booking_columns === null) {
+            $booking_columns = $pdo->query("SHOW COLUMNS FROM `bus_flight_bookings`")->fetchAll(PDO::FETCH_COLUMN);
+        }
+
         foreach ($booking_ids as $id) {
             // جلب تفاصيل الحجز الحالي
-            $stmt_booking = $pdo->prepare("SELECT status_id, branch_id, agent_id, sale_price, purchase_price, amount_received FROM bus_flight_bookings WHERE id = ?");
+            $stmt_booking = $pdo->prepare("SELECT status_id, branch_id, agent_id FROM bus_flight_bookings WHERE id = ?");
             $stmt_booking->execute([$id]);
             $booking = $stmt_booking->fetch();
             if (!$booking) continue;
 
             $old_status_id = $booking['status_id'];
-            $current_sale_price = (float)$booking['sale_price'];
-            $current_purchase_price = (float)$booking['purchase_price'];
-            $current_received = (float)$booking['amount_received'];
 
             // بناء استعلام التحديث للحجز
             $update_fields = ["status_id = ?"];
             $params = [$new_status_id];
 
-            // معالجة الخصم إذا وجد في البيانات المرسلة
+            // دعم الخصم فقط في قواعد البيانات القديمة التي تحتوي على أعمدته فعليًا.
             if (isset($extra_data['discount_amount']) && (float)$extra_data['discount_amount'] > 0) {
+                if (!in_array('sale_price', $booking_columns, true) || !in_array('discount_amount', $booking_columns, true)) {
+                    throw new PDOException('حقول الخصم غير موجودة في Schema جدول الحجوزات الحالي');
+                }
                 $discount = (float)$extra_data['discount_amount'];
-                $current_sale_price -= $discount;
+                $stmt_price = $pdo->prepare("SELECT sale_price FROM bus_flight_bookings WHERE id = ?");
+                $stmt_price->execute([$id]);
+                $current_sale_price = (float)$stmt_price->fetchColumn() - $discount;
 
                 $update_fields[] = "sale_price = ?";
                 $params[] = $current_sale_price;
@@ -1701,7 +1710,7 @@ function change_booking_status($booking_ids, $new_status_id, $user_id, $notes = 
                     'reject_reason'
                 ];
                 foreach ($extra_data as $field => $value) {
-                    if (in_array($field, $allowed_extra_fields)) {
+                    if (in_array($field, $allowed_extra_fields, true) && in_array($field, $booking_columns, true)) {
                         $update_fields[] = "`$field` = ?";
                         $params[] = ($value === '') ? null : $value;
                     }
@@ -2298,6 +2307,10 @@ function get_all_workflow_fields()
 /**
  * جلب الحقول بناءً على نوع المعاملة (للمودالات والواجهات)
  * مع دعم الحقول المهاجرة التي قد تكون موجودة في الخطوات ولكنها غير مرتبطة بالمجموعات
+ *
+ * Modules Integration:
+ * - يتم الآن التحقق من تفعيل المديول قبل إرجاع حقوله
+ * - إذا كان المديول متوقفاً: يتم إرجاع الحقول العامة (general) فقط دون حقول المديول
  */
 function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
 {
@@ -2305,16 +2318,30 @@ function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
 
     $mapped_types = [$transaction_type];
     if ($transaction_type === 'visa' || $transaction_type == '5') $mapped_types[] = 'family_visit';
-    if ($transaction_type === 'passport_transactions' || $transaction_type == '2') $mapped_types[] = 'passport';
-    if ($transaction_type === 'bus_flight_bookings' || $transaction_type === 'booking' || $transaction_type == '3') $mapped_types[] = 'booking';
+    if ($transaction_type === 'passport_transactions' || $transaction_type == 'passport' || $transaction_type == '2') $mapped_types[] = 'passport';
+    if ($transaction_type === 'bus_flight_bookings' || $transaction_type === 'booking' || $transaction_type == '3' || $transaction_type === '1' || $transaction_type === 'bus_bookings' || $transaction_type === 'flight_bookings') $mapped_types[] = 'booking';
     if ($transaction_type === 'umrah' || $transaction_type == '4') {
         $mapped_types[] = 'umrah';
         $mapped_types[] = 'hajj';
     }
+    if ($transaction_type === 'hajj' || $transaction_type == '7') {
+        $mapped_types[] = 'hajj';
+        $mapped_types[] = 'umrah';
+    }
     if ($transaction_type === 'work_visa' || $transaction_type == '6') $mapped_types[] = 'work_visa';
+    if ($transaction_type === 'postal_services' || $transaction_type === 'postal' || $transaction_type == '8') $mapped_types[] = 'postal';
+    if ($transaction_type === 'crm') $mapped_types[] = 'crm';
 
-    $mapped_types[] = 'general';
-    $mapped_types = array_unique($mapped_types);
+    // ============ MODULE CHECK: Modules ↔ Workflow Integration ============
+    // إذا كان المديول متوقفاً → نحذف جميع مجموعات الحقول الخاصة به ونحتفظ فقط بـ general
+    $module_enabled = is_workflow_module_enabled($transaction_type);
+    if (!$module_enabled) {
+        error_log("[MODULE-WORKFLOW] Module disabled for transaction_type='$transaction_type' → returning general fields only");
+        $mapped_types = ['general'];
+    } else {
+        $mapped_types[] = 'general';
+    }
+        $mapped_types = array_values(array_unique($mapped_types));
 
     $placeholders = implode(',', array_fill(0, count($mapped_types), '?'));
 
@@ -2381,8 +2408,12 @@ function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
                 $whitelist_keys = array_merge($whitelist_keys, ['passport_no', 'passport_issue_date', 'passport_expiry_date', 'passport_issue_place', 'delivery_date_embassy', 'receipt_date_office', 'mofa_number', 'border_number']);
             } elseif ($gk === 'family_visit' || $gk === 'visa') {
                 $whitelist_keys = array_merge($whitelist_keys, ['visa_no', 'visa_number', 'visa_issue_date', 'visa_expiry_date', 'sponsor_name', 'visitor_name', 'relation', 'duration_days', 'embassy_exit_date']);
-            } elseif ($gk === 'booking' || $gk === 'bus_flight_bookings') {
+            } elseif ($gk === 'booking' || $gk === 'bus_flight_bookings' || $gk === 'bus_bookings' || $gk === 'flight_bookings') {
                 $whitelist_keys = array_merge($whitelist_keys, ['booking_ref', 'ticket_no', 'ticket_issue_date', 'departure_date', 'arrival_date', 'airline', 'pnr', 'seat_no', 'transport_delivery_date', 'arrival_office_date', 'embassy_exit_date']);
+            } elseif ($gk === 'postal' || $gk === 'postal_services') {
+                $whitelist_keys = array_merge($whitelist_keys, ['tracking_no', 'shipping_date', 'delivery_date', 'post_office_name', 'sender_name', 'receiver_name', 'package_weight', 'package_type', 'shipping_cost', 'insurance_amount', 'tracking_url', 'delivery_status']);
+            } elseif ($gk === 'crm') {
+                $whitelist_keys = array_merge($whitelist_keys, ['lead_source', 'lead_status', 'follow_up_date', 'customer_category', 'sales_person', 'opportunity_value', 'close_date', 'campaign_name', 'last_contact_date', 'next_action_date']);
             }
         }
         $whitelist_keys = array_unique($whitelist_keys);
@@ -2403,6 +2434,226 @@ function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
         return empty($filtered) ? $fallback : $filtered;
     }
 }
+
+/**
+ * ============================================================
+ *  Modules ↔ Workflow Integration
+ *  ربط إعدادات المديولات (settings.php) بسير العمل والحقول
+ * ============================================================
+ */
+
+if (!function_exists('get_workflow_module_mapping')) {
+    /**
+     * خريطة الربط بين:
+     * - module_key     → مفتاح المديول في جدول system_settings (enable_xxx)
+     * - transaction_type → نوع المعاملة في جدول workflows
+     * - group_key       → مفتاح مجموعة الحقول في جدول workflow_field_groups
+     * - module_label    → الاسم العربي للمديول (للعرض)
+     */
+    function get_workflow_module_mapping()
+    {
+        return [
+            'bus_bookings' => [
+                'module_key'       => 'enable_bus_bookings',
+                'transaction_types' => ['bus_bookings', 'bus_flight_bookings', 'booking', '1'],
+                'group_keys'       => ['booking'],
+                'module_label'     => 'حجوزات الباصات',
+            ],
+            'flight_bookings' => [
+                'module_key'       => 'enable_flight_bookings',
+                'transaction_types' => ['flight_bookings', 'bus_flight_bookings', 'booking', '3'],
+                'group_keys'       => ['booking'],
+                'module_label'     => 'حجوزات الطيران',
+            ],
+            'passport_transactions' => [
+                'module_key'       => 'enable_passport_transactions',
+                'transaction_types' => ['passport_transactions', 'passport', '2'],
+                'group_keys'       => ['passport'],
+                'module_label'     => 'معاملات الجوازات',
+            ],
+            'work_visa' => [
+                'module_key'       => 'enable_work_visa',
+                'transaction_types' => ['work_visa', '6'],
+                'group_keys'       => ['work_visa'],
+                'module_label'     => 'تأشيرة العمل',
+            ],
+            'family_visit' => [
+                'module_key'       => 'enable_family_visit',
+                'transaction_types' => ['family_visit', 'visa', '5'],
+                'group_keys'       => ['family_visit'],
+                'module_label'     => 'الزيارة العائلية',
+            ],
+            'postal_services' => [
+                'module_key'       => 'enable_postal_services',
+                'transaction_types' => ['postal_services', 'postal', '8'],
+                'group_keys'       => ['postal'],
+                'module_label'     => 'الخدمات البريدية',
+            ],
+            'umrah' => [
+                'module_key'       => 'enable_umrah',
+                'transaction_types' => ['umrah', '4'],
+                'group_keys'       => ['umrah', 'hajj'],
+                'module_label'     => 'العمرة',
+            ],
+            'hajj' => [
+                'module_key'       => 'enable_hajj',
+                'transaction_types' => ['hajj', '7'],
+                'group_keys'       => ['hajj', 'umrah'],
+                'module_label'     => 'الحج',
+            ],
+            'crm' => [
+                'module_key'       => 'enable_crm',
+                'transaction_types' => ['crm'],
+                'group_keys'       => ['crm'],
+                'module_label'     => 'CRM / إدارة علاقات العملاء',
+            ],
+        ];
+    }
+}
+
+if (!function_exists('is_workflow_module_enabled')) {
+    /**
+     * التحقق من تفعيل مديول معيّن بناءً على نوع المعاملة
+     *
+     * @param string $transaction_type نوع المعاملة من جدول workflows
+     * @return bool true إذا كان المديول مفعّلاً أو لم يتم التعرف على المديول (safe fallback)
+     */
+    function is_workflow_module_enabled($transaction_type)
+    {
+        global $pdo;
+
+        $transaction_type = (string)$transaction_type;
+        $mapping = get_workflow_module_mapping();
+
+        $matched_module_keys = [];
+        foreach ($mapping as $def) {
+            if (in_array($transaction_type, $def['transaction_types'], true)) {
+                $matched_module_keys[] = $def['module_key'];
+            }
+        }
+
+        $matched_module_keys = array_unique($matched_module_keys);
+        if (empty($matched_module_keys)) {
+            return true;
+        }
+
+        try {
+            $settings = getSettings($pdo);
+        } catch (Throwable $e) {
+            return true;
+        }
+
+        foreach ($matched_module_keys as $mk) {
+            $val = $settings[$mk] ?? '1';
+            if (is_string($val)) {
+                $val = trim($val);
+            }
+            $enabled = ($val === '1' || $val === 1 || $val === true || $val === 'on' || $val === 'yes' || $val === 'true');
+            if ($enabled) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('get_workflow_modules_overview')) {
+    /**
+     * إرجاع نظرة شاملة للمديولات:
+     * - من لديه سير عمل حالياً
+     * - من ليس لديه سير عمل
+     * - الحالة (مفعّل / متوقّف)
+     *
+     * @return array [
+     *   'with_workflow'    => [...],
+     *   'without_workflow' => [...],
+     *   'disabled_modules' => [...],
+     * ]
+     */
+    function get_workflow_modules_overview()
+    {
+        global $pdo;
+
+        $mapping = get_workflow_module_mapping();
+        $settings = [];
+        try {
+            $settings = getSettings($pdo);
+        } catch (Throwable $e) {
+        }
+
+        $all_workflows = [];
+        try {
+            $stmt = $pdo->query("SELECT id, name, transaction_type FROM workflows ORDER BY name");
+            $all_workflows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            $all_workflows = [];
+        }
+
+        $covered_transaction_types = [];
+        foreach ($all_workflows as $wf) {
+            $tt = (string)($wf['transaction_type'] ?? '');
+            if ($tt !== '') {
+                $covered_transaction_types[] = $tt;
+            }
+        }
+        $covered_transaction_types = array_unique($covered_transaction_types);
+
+        $with = [];
+        $without = [];
+        $disabled = [];
+
+        foreach ($mapping as $mod_id => $def) {
+            $mk = $def['module_key'];
+            $val = $settings[$mk] ?? '1';
+            if (is_string($val)) $val = trim($val);
+            $is_enabled = ($val === '1' || $val === 1 || $val === true || $val === 'on' || $val === 'yes' || $val === 'true');
+
+            if (!$is_enabled) {
+                $disabled[] = [
+                    'id'           => $mod_id,
+                    'module_label' => $def['module_label'],
+                    'module_key'   => $mk,
+                ];
+            }
+
+            $has_workflow = false;
+            foreach ($def['transaction_types'] as $tt) {
+                if (in_array((string)$tt, $covered_transaction_types, true)) {
+                    $has_workflow = true;
+                    break;
+                }
+            }
+
+            $record = [
+                'id'                => $mod_id,
+                'module_label'      => $def['module_label'],
+                'module_key'        => $mk,
+                'is_enabled'        => $is_enabled,
+                'transaction_types' => $def['transaction_types'],
+                'group_keys'        => $def['group_keys'],
+            ];
+
+            if ($has_workflow) {
+                $record['workflows'] = array_values(array_filter($all_workflows, static function ($wf) use ($def) {
+                    $tt = (string)($wf['transaction_type'] ?? '');
+                    return in_array($tt, $def['transaction_types'], true);
+                }));
+                $with[] = $record;
+            } else {
+                $without[] = $record;
+            }
+        }
+
+        return [
+            'with_workflow'    => $with,
+            'without_workflow' => $without,
+            'disabled_modules' => $disabled,
+            'all_workflows'    => $all_workflows,
+        ];
+    }
+}
+
 /**
  * Audit Log Function (Unified)
  */

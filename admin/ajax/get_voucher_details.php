@@ -1,6 +1,9 @@
 <?php
 require_once '../../includes/db.php';
+require_once '../../includes/security.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
+
+$authenticatedUser = require_active_financial_user($pdo, 'financial_hub_view');
 
 $id = $_GET['id'] ?? 0;
 
@@ -24,6 +27,7 @@ $stmt->execute([$id]);
 $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if ($voucher) {
+    require_active_financial_user($pdo, null, null, $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null);
     // جلب الفواتير المخصصة (المرحلة فقط أو إذا كان الطلب لعرض تفاصيل سند معين)
     $stmt_alloc = $pdo->prepare("
         SELECT pa.*, i.invoice_number, i.invoice_date, i.net_amount, ft.status as voucher_status

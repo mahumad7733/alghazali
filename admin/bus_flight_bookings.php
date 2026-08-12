@@ -583,7 +583,23 @@ while ($row = $suppliers_stmt->fetch()) {
     $suppliers_with_codes[] = $row;
 }
 
-$suppliers = $pdo->query("SELECT id, supplier_name FROM suppliers WHERE status = 'active' ORDER BY supplier_name ASC")->fetchAll();
+$service_code_map = ['bus' => 'bus_bookings', 'flight' => 'flight_bookings'];
+$current_service_code = $service_code_map[($_GET['service_type'] ?? $_POST['service_type'] ?? 'bus')] ?? 'bus_bookings';
+
+$suppliers_stmt = $pdo->prepare("
+    SELECT s.id,
+           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_name
+    FROM suppliers s
+    INNER JOIN supplier_services ss ON s.id = ss.supplier_id
+    INNER JOIN catalog_services cs ON ss.service_id = cs.id
+    WHERE s.status = 'active' AND s.deleted_at IS NULL
+      AND ss.is_active = 1
+      AND cs.service_code = ?
+    ORDER BY supplier_name ASC
+");
+$suppliers_stmt->execute([$current_service_code]);
+$suppliers = $suppliers_stmt->fetchAll();
+
 $countries = $pdo->query("SELECT id, country_name FROM countries ORDER BY country_name ASC")->fetchAll();
 $branches = $pdo->query("SELECT id, branch_name FROM branches ORDER BY branch_name ASC")->fetchAll();
 // جلب الكيانات مع حساباتها (مثل invoices.php)
@@ -801,7 +817,7 @@ $query = "
         ua_inv.account_name_ar AS invoice_account_name,
         ua_inv.account_code AS invoice_account_code,
         u.full_name AS created_by_user_full_name,
-        s.supplier_name,
+        COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_name,
         inv.id AS sales_invoice_id, inv.invoice_status AS sales_status, inv.invoice_number AS sales_invoice_number,
         inv_p.id AS purchase_invoice_id, inv_p.invoice_status AS purchase_status, inv_p.invoice_number AS purchase_invoice_number
     FROM bus_flight_bookings b

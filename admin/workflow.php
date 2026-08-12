@@ -216,6 +216,16 @@ if (isset($_POST['update_transition'])) {
 }
 
 $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflows w LEFT JOIN branches b ON w.branch_id = b.id LEFT JOIN services s ON w.transaction_type = s.id ORDER BY w.id ASC")->fetchAll();
+
+// ================================================
+// MODULES ↔ WORKFLOW INTEGRATION: Overview
+// ================================================
+$modules_overview = function_exists('get_workflow_modules_overview') ? get_workflow_modules_overview() : [
+    'with_workflow' => [],
+    'without_workflow' => [],
+    'disabled_modules' => [],
+    'all_workflows' => $workflows,
+];
 ?>
 
 <div class="container-fluid py-4">
@@ -254,6 +264,184 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
+
+    <!-- ================================================ -->
+    <!-- Modules ↔ Workflow Integration: Status Overview  -->
+    <!-- ================================================ -->
+    <div class="card border-0 shadow-sm rounded-4 mb-5 overflow-hidden">
+        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-th-large text-primary me-2"></i>
+                    حالة المديولات والربط بسير العمل
+                </h6>
+                <small class="text-muted d-block mt-1">
+                    الإعدادات متزامنة مع:
+                    <a href="settings.php?tab=modules#modules" target="_blank" rel="noopener" class="text-decoration-none fw-semibold">
+                        إعدادات تفعيل المديولات <i class="fas fa-external-link-alt ms-1 extra-small"></i>
+                    </a>
+                </small>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <span class="badge bg-success text-white rounded-pill px-3 py-2 shadow-sm">
+                    <i class="fas fa-check-circle me-1"></i>
+                    لديه سير عمل: <b><?= count($modules_overview['with_workflow']); ?></b>
+                </span>
+                <span class="badge bg-warning text-dark rounded-pill px-3 py-2 shadow-sm">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    بدون سير عمل: <b><?= count($modules_overview['without_workflow']); ?></b>
+                </span>
+                <?php if (!empty($modules_overview['disabled_modules'])): ?>
+                    <span class="badge bg-secondary text-white rounded-pill px-3 py-2 shadow-sm">
+                        <i class="fas fa-power-off me-1"></i>
+                        متوقفة: <b><?= count($modules_overview['disabled_modules']); ?></b>
+                    </span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="row g-0">
+                <!-- العمود الأول: خدمات لديها سير عمل -->
+                <div class="col-lg-4 border-end">
+                    <div class="p-4 bg-success-subtle border-bottom border-success">
+                        <h6 class="fw-bold text-success mb-0">
+                            <i class="fas fa-check-circle me-2"></i> خدمات لديها سير عمل (مفعّل)
+                        </h6>
+                    </div>
+                    <div class="p-4" style="max-height: 360px; overflow-y: auto;">
+                        <?php if (empty($modules_overview['with_workflow'])): ?>
+                            <div class="text-center py-4">
+                                <i class="fas fa-stream text-muted fa-3x mb-3 opacity-25"></i>
+                                <div class="text-muted small">لا توجد خدمات مرتبطة بسير عمل حالياً</div>
+                            </div>
+                        <?php else: ?>
+                            <div class="d-flex flex-column gap-2">
+                                <?php foreach ($modules_overview['with_workflow'] as $mod): ?>
+                                    <div class="d-flex justify-content-between align-items-center p-3 border rounded-4 <?php echo $mod['is_enabled'] ? 'bg-white' : 'bg-light opacity-60'; ?>">
+                                        <div>
+                                            <div class="fw-bold small">
+                                                <?= htmlspecialchars($mod['module_label']); ?>
+                                                <?php if (!$mod['is_enabled']): ?>
+                                                    <span class="badge bg-secondary ms-1 rounded-pill extra-small">متوقف</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success ms-1 rounded-pill extra-small">مفعّل</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php if (!empty($mod['workflows'])): ?>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-project-diagram me-1"></i>
+                                                    سير العمل:
+                                                    <?php
+                                                    $wf_names = array_map(static fn($w) => htmlspecialchars($w['name']), $mod['workflows']);
+                                                    echo implode('، ', $wf_names);
+                                                    ?>
+                                                </small>
+                                            <?php endif; ?>
+                                        </div>
+                                        <span class="badge bg-success rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 32px; height: 32px;">
+                                            <i class="fas fa-check text-white"></i>
+                                        </span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- العمود الثاني: خدمات بدون سير عمل -->
+                <div class="col-lg-4 border-end">
+                    <div class="p-4 bg-warning-subtle border-bottom border-warning">
+                        <h6 class="fw-bold text-warning mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i> خدمات بدون سير عمل (مطلوب إنشاؤها)
+                        </h6>
+                    </div>
+                    <div class="p-4" style="max-height: 360px; overflow-y: auto;">
+                        <?php if (empty($modules_overview['without_workflow'])): ?>
+                            <div class="text-center py-4">
+                                <i class="fas fa-trophy text-success fa-3x mb-3 opacity-25"></i>
+                                <div class="text-muted small">جميع الخدمات لديها سير عمل! 👏</div>
+                            </div>
+                        <?php else: ?>
+                            <div class="d-flex flex-column gap-2">
+                                <?php foreach ($modules_overview['without_workflow'] as $mod): ?>
+                                    <div class="d-flex justify-content-between align-items-center p-3 border rounded-4 <?php echo $mod['is_enabled'] ? 'bg-white' : 'bg-light opacity-60'; ?>">
+                                        <div>
+                                            <div class="fw-bold small">
+                                                <?= htmlspecialchars($mod['module_label']); ?>
+                                                <?php if (!$mod['is_enabled']): ?>
+                                                    <span class="badge bg-secondary ms-1 rounded-pill extra-small">متوقف</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-warning text-dark ms-1 rounded-pill extra-small">ينتظر</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-key me-1"></i>
+                                                Module: <code class="extra-small"><?= htmlspecialchars($mod['module_key']); ?></code>
+                                            </small>
+                                        </div>
+                                        <?php if ($mod['is_enabled'] && has_permission('create_workflow')): ?>
+                                            <button class="btn btn-sm btn-outline-warning rounded-pill py-1 px-3 shadow-sm"
+                                                data-bs-toggle="modal" data-bs-target="#addWorkflowModal"
+                                                onclick="window._suggested_module = '<?= htmlspecialchars($mod['id']); ?>';">
+                                                <i class="fas fa-plus me-1"></i> إنشاء
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 32px; height: 32px;">
+                                                <i class="fas fa-exclamation"></i>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- العمود الثالث: المديولات المتوقفة -->
+                <div class="col-lg-4">
+                    <div class="p-4 bg-secondary-subtle border-bottom border-secondary">
+                        <h6 class="fw-bold text-secondary mb-0">
+                            <i class="fas fa-power-off me-2"></i> المديولات المتوقفة حالياً
+                        </h6>
+                    </div>
+                    <div class="p-4" style="max-height: 360px; overflow-y: auto;">
+                        <?php if (empty($modules_overview['disabled_modules'])): ?>
+                            <div class="text-center py-4">
+                                <i class="fas fa-bolt text-success fa-3x mb-3 opacity-25"></i>
+                                <div class="text-muted small">جميع المديولات مفعّلة حالياً</div>
+                            </div>
+                        <?php else: ?>
+                            <div class="d-flex flex-column gap-2">
+                                <?php foreach ($modules_overview['disabled_modules'] as $mod): ?>
+                                    <div class="d-flex justify-content-between align-items-center p-3 border rounded-4 bg-light">
+                                        <div>
+                                            <div class="fw-bold small text-muted">
+                                                <i class="fas fa-ban me-1 text-secondary"></i>
+                                                <?= htmlspecialchars($mod['module_label']); ?>
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-eye-slash me-1"></i>
+                                                حقوق المديول مخفية تلقائياً من سير العمل
+                                            </small>
+                                        </div>
+                                        <a href="settings.php?tab=modules#modules" target="_blank" rel="noopener"
+                                            class="btn btn-sm btn-outline-secondary rounded-pill py-1 px-3 shadow-sm">
+                                            <i class="fas fa-cog me-1"></i> إعدادات
+                                        </a>
+                                    </div>
+                                <?php endforeach; ?>
+                                <div class="alert alert-info rounded-4 border-0 small mt-2 mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <b>ملاحظة:</b> عند إيقاف أي مديول من الإعدادات، تختفي تلقائياً جميع حقوله المرتبطة بسير العمل دون فقدان البيانات المحفوظة.
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /End Modules Overview -->
 
     <div class="row">
         <?php foreach ($workflows as $wf): ?>
@@ -459,7 +647,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
 
                 <!-- Modal إضافة مرحلة -->
                 <div class="modal fade" id="addStepModal<?php echo $wf['id']; ?>" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
                         <div class="modal-content border-0 shadow-lg rounded-4">
                             <form method="POST">
                                 <div class="modal-header bg-success text-white border-0 py-3">
@@ -561,9 +749,11 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                                 <?php else: ?>
                                                     <?php foreach ($available_fields as $key => $label): ?>
                                                         <div class="col-md-4">
-                                                            <div class="form-check">
-                                                                <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>">
-                                                                <label class="form-check-label small" for="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
+                                                            <div class="form-switch-container">
+                                                                <div class="form-switch">
+                                                                    <label class="form-check-label fw-bold small text-dark" for="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
+                                                                    <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$wf['id'] ?>">
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     <?php endforeach; ?>
@@ -583,7 +773,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
 
                 <!-- Modal إضافة انتقال -->
                 <div class="modal fade" id="addTransitionModal<?php echo $wf['id']; ?>" tabindex="-1">
-                    <div class="modal-dialog">
+                    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
                         <div class="modal-content border-0 shadow-lg rounded-4">
                             <form method="POST">
                                 <div class="modal-header bg-info text-white border-0 py-3">
@@ -682,22 +872,72 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
 
 <!-- Modal إضافة سير عمل -->
 <div class="modal fade" id="addWorkflowModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <form method="POST">
+            <form method="POST" id="addWorkflowForm">
                 <div class="modal-header bg-primary text-white border-0 py-3">
                     <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle me-2"></i> إضافة سير عمل جديد</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
+                    <!-- Modules ↔ Workflow Integration: Module Quick Select -->
+                    <div class="alert alert-primary rounded-4 border-0 small mb-4" role="alert">
+                        <i class="fas fa-th-large me-2"></i>
+                        <b>الربط السريع بالمديولات:</b> اختر المديول المرتبط بسير العمل ليتم تحديد نوع المعاملة تلقائياً وضمان ظهور الحقول الصحيحة.
+                    </div>
                     <div class="row g-3">
-                        <div class="col-md-12">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-th-large text-primary me-1"></i> اختر المديول (اختياري)
+                            </label>
+                            <select id="addWorkflowModuleSelect" class="form-select rounded-pill">
+                                <option value="">-- لا تربط بمديول محدد --</option>
+                                <?php
+                                $mapping = function_exists('get_workflow_module_mapping') ? get_workflow_module_mapping() : [];
+                                $current_sett = [];
+                                try {
+                                    $current_sett = getSettings($pdo);
+                                } catch (Throwable $e) {
+                                }
+                                foreach ($mapping as $mod_id => $def):
+                                    $mk = $def['module_key'];
+                                    $val = $current_sett[$mk] ?? '1';
+                                    if (is_string($val)) $val = trim($val);
+                                    $is_en = ($val === '1' || $val === 1 || $val === true || $val === 'on' || $val === 'yes');
+                                    $def_tt = $def['transaction_types'][0] ?? '';
+                                    $serv_id_for_mod = '';
+                                    foreach ($services as $svc) {
+                                        $svc_compare = strtolower(trim((string)($svc['service_name'] ?? '')));
+                                        $def_compare = strtolower(trim((string)($def['module_label'] ?? '')));
+                                        similar_text($svc_compare, $def_compare, $sim_pct);
+                                        if ($sim_pct > 45) {
+                                            $serv_id_for_mod = (string)$svc['id'];
+                                            break;
+                                        }
+                                    }
+                                ?>
+                                    <option value="<?= htmlspecialchars((string)$mod_id); ?>"
+                                        data-transaction-type="<?= htmlspecialchars((string)($serv_id_for_mod ?: $def_tt)); ?>"
+                                        data-default-name="<?= htmlspecialchars((string)$def['module_label']); ?> سير عمل"
+                                        data-enabled="<?= $is_en ? '1' : '0'; ?>"
+                                        <?= !$is_en ? 'data-disabled-module="true"' : ''; ?>>
+                                        <?= htmlspecialchars($def['module_label']); ?>
+                                        <?= $is_en ? '' : ' ⚠️ (متوقف حالياً)'; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text mt-1">
+                                <i class="fas fa-info-circle me-1"></i>
+                                الربط بالمديول يضمن إخفاء الحقول تلقائياً عند إيقاف المديول من الإعدادات
+                            </div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">اسم سير العمل</label>
-                            <input type="text" name="name" class="form-control rounded-pill" placeholder="مثلاً: سير عمل التأشيرات السياحية" required>
+                            <input type="text" name="name" id="addWorkflowName" class="form-control rounded-pill" placeholder="مثلاً: سير عمل التأشيرات السياحية" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">نوع المعاملة المرتبط بها</label>
-                            <select name="transaction_type" class="form-select rounded-pill">
+                            <select name="transaction_type" id="addWorkflowTransactionType" class="form-select rounded-pill">
                                 <option value="all">الكل (All Types)</option>
                                 <?php foreach ($services as $s): ?>
                                     <option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['service_name']); ?></option>
@@ -737,7 +977,7 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
 
     foreach ($wf_steps as $step): ?>
         <div class="modal fade" id="editStepModal<?php echo $step['id']; ?>" tabindex="-1">
-            <div class="modal-dialog modal-lg text-start">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered text-start">
                 <div class="modal-content border-0 shadow-lg rounded-4">
                     <form method="POST">
                         <div class="modal-header bg-primary text-white border-0 py-3">
@@ -840,9 +1080,11 @@ $workflows = $pdo->query("SELECT w.*, b.branch_name, s.service_name FROM workflo
                                         <?php else: ?>
                                             <?php foreach ($available_fields as $key => $label): ?>
                                                 <div class="col-md-4">
-                                                    <div class="form-check">
-                                                        <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>" <?= in_array($key, $selected_fields) ? 'checked' : '' ?>>
-                                                        <label class="form-check-label small" for="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
+                                                    <div class="form-switch-container">
+                                                        <div class="form-switch">
+                                                            <label class="form-check-label fw-bold small text-dark" for="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>"><?= htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') ?></label>
+                                                            <input class="form-check-input" type="checkbox" name="show_fields[]" value="<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>" id="edit_field_<?= htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') ?>_<?= (int)$step['id'] ?>" <?= in_array($key, $selected_fields) ? 'checked' : '' ?>>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             <?php endforeach; ?>

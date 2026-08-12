@@ -3,6 +3,7 @@ require_once '../../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
 require_once '../../core/FinanceService.php';
+require_once '../../includes/security.php';
 
 header('Content-Type: application/json');
 
@@ -22,6 +23,8 @@ if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
     echo json_encode(['success' => false, 'message' => 'خطأ في التحقق من الطلب (CSRF).']);
     exit;
 }
+
+$authenticatedUser = require_active_financial_user($pdo, 'voucher_post');
 
 function has_permission_v3_ajax($permission_code)
 {
@@ -56,6 +59,10 @@ try {
     ");
     $stmt->execute([$id]);
     $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($voucher) {
+        require_active_financial_user($pdo, 'voucher_post', null, $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null);
+        require_open_financial_period($pdo, $voucher['transaction_date']);
+    }
 
     if (!$voucher) throw new Exception("السند غير موجود أو مرحل مسبقاً.");
 

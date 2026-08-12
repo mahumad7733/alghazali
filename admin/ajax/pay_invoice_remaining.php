@@ -3,6 +3,7 @@ require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../core/FinanceService.php';
 require_once '../../core/Finance/FinancePostingAdapter.php';
+require_once '../../includes/security.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 header('Content-Type: application/json');
@@ -22,6 +23,8 @@ if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
     echo json_encode(['success' => false, 'message' => 'خطأ في التحقق من الطلب (CSRF).']);
     exit;
 }
+
+$authenticatedUser = require_active_financial_user($pdo, 'voucher_create');
 
 function has_permission_v3_ajax($permission_code)
 {
@@ -85,9 +88,12 @@ try {
     }
 
     // 2. تحديد نوع الطرف وحسابه المالي (1121 للعملاء)
-    $stmt_inv = $pdo->prepare("SELECT customer_id, agent_id, account_id, delivery_type, invoice_category FROM invoices WHERE id = ?");
+    $stmt_inv = $pdo->prepare("SELECT * FROM invoices WHERE id = ? FOR UPDATE");
     $stmt_inv->execute([$invoice_id]);
     $inv_data = $stmt_inv->fetch();
+    if (!$inv_data) throw new Exception('Invoice not found.');
+    require_active_financial_user($pdo, 'voucher_create', null, $inv_data['branch_id'] !== null ? (int)$inv_data['branch_id'] : null);
+    require_open_financial_period($pdo, $inv_data['invoice_date']);
 
     $party_account_id = null;
     $final_party_type = $party_type;

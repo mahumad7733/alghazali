@@ -694,10 +694,7 @@ $require_cost_center = !empty($settings['require_cost_center']);
                                 $is_reversed_pair = !empty($r['has_reversal']) || !empty($r['is_reversed']) || !empty($r['original_voucher_id']) || (($r['reference_type'] ?? '') === 'reversal');
                                 $show_delete = false;
                                 $delete_reversed_pair = false;
-                                if ($is_reversed_pair && can_delete_voucher($r)) {
-                                    $show_delete = true;
-                                    $delete_reversed_pair = true;
-                                } elseif (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$r['has_reversal']) {
+                                if (in_array($r['status'], ['draft', 'cancelled']) && can_delete_voucher($r) && !$is_reversed_pair && !$r['has_reversal']) {
                                     $show_delete = true;
                                 }
                                 if ($show_delete): ?>

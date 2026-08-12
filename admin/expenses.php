@@ -1,5 +1,6 @@
 <?php
 require_once 'header.php';
+require_once '../includes/security.php';
 require_once '../includes/accounting_functions.php';
 require_once '../core/Finance/FinancePostingAdapter.php';
 
@@ -187,10 +188,15 @@ function resolve_expense_branch_id(PDO $pdo, $paid_from_account_id = null, $fall
 
 // إضافة مصروف جديد
 if (isset($_POST['add_expense'])) {
-    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-        $error = "خطأ في التحقق من الطلب (CSRF).";
-    } else {
+    $errors = [];
+    try {
+        $brId = (int)(($_SESSION['branch_id'] ?? 0) ?: 1);
+        require_active_financial_user($pdo, 'expense_create', $brId);
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+            throw new Exception("خطأ في التحقق من الطلب (CSRF).");
+        }
         $expense_date = $_POST['expense_date'];
+        require_open_financial_period($pdo, $expense_date);
         $category_id = $_POST['category_id'];
         $amount = $_POST['amount'];
         $currency_id = $_POST['currency_id'];
@@ -202,15 +208,12 @@ if (isset($_POST['add_expense'])) {
         $created_by = (int)($_SESSION['admin_id'] ?? 0);
         $branch_id = resolve_expense_branch_id($pdo, $paid_from_account_id);
 
-        $errors = [];
-
         if (!$created_by) {
             $errors[] = "تعذر تحديد المستخدم الحالي. أعد تسجيل الدخول ثم حاول مرة أخرى.";
         }
 
         // تحديد حساب المصروف المستلم للمبلغ: الأولوية للحقل الجديد، إن لم يُحدد أخذ حساب الفئة وإنشاؤه إن لزم
         if ($expense_account_id) {
-            // تحقق من وجوده ونوعه expense
             $stmt_acc = $pdo->prepare("SELECT id FROM unified_accounts WHERE id = ? AND account_type = 'expense' AND account_status = 'active' AND deleted_at IS NULL");
             $stmt_acc->execute([$expense_account_id]);
             if (!$stmt_acc->fetchColumn()) {
@@ -218,7 +221,6 @@ if (isset($_POST['add_expense'])) {
             }
             $expense_chart_account_id = (int)$expense_account_id;
         } else {
-            // احتياطي: جلب حساب الفئة تلقائياً وإنشاؤه إن لم يكن
             $stmt_cat = $pdo->prepare("SELECT id, category_name_ar, account_id FROM expenses_categories WHERE id = ?");
             $stmt_cat->execute([$category_id]);
             $cat_row = $stmt_cat->fetch(PDO::FETCH_ASSOC);
@@ -247,26 +249,23 @@ if (isset($_POST['add_expense'])) {
         }
 
         if (empty($errors)) {
-            try {
-                // --- التحقق من إغلاق الفترة المالية ---
-                if (is_period_closed($pdo, $expense_date)) {
-                    throw new Exception("تنبيه: لا يمكن تسجيل مصروف. التاريخ المحدد ($expense_date) يقع ضمن فترة مالية مغلقة.");
-                }
-
-                // 1. تسجيل المصروف كمسودة (بدون قيد محاسبي)
-                $stmt = $pdo->prepare("INSERT INTO expenses (expense_date, category_id, expense_account_id, amount, currency_id, description, notes, payment_method, paid_from_account_id, created_by, branch_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
-                $stmt->execute([$expense_date, $category_id, $expense_chart_account_id, $amount, $currency_id, $description, $notes, $payment_method, $paid_from_account_id, $created_by, $branch_id]);
-                $expense_id = (int)$pdo->lastInsertId();
-
-                // 2. لا يتم إنشاء قيد محاسبي للمسودة، سيتم عند الترحيل
-
-                $_SESSION['flash_message'] = ['type' => 'success', 'body' => 'تمت إضافة المصروف بنجاح.'];
-                echo "<script>location.href='expenses.php';</script>";
-                exit();
-            } catch (Exception $e) {
-                $error = "حدث خطأ أثناء الإضافة: " . $e->getMessage();
+            if (is_period_closed($pdo, $expense_date)) {
+                throw new Exception("تنبيه: لا يمكن تسجيل مصروف. التاريخ المحدد ($expense_date) يقع ضمن فترة مالية مغلقة.");
             }
+
+            $stmt = $pdo->prepare("INSERT INTO expenses (expense_date, category_id, expense_account_id, amount, currency_id, description, notes, payment_method, paid_from_account_id, created_by, branch_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+            $stmt->execute([$expense_date, $category_id, $expense_chart_account_id, $amount, $currency_id, $description, $notes, $payment_method, $paid_from_account_id, $created_by, $branch_id]);
+            $expense_id = (int)$pdo->lastInsertId();
+
+            $_SESSION['flash_message'] = ['type' => 'success', 'body' => 'تمت إضافة المصروف بنجاح.'];
+            echo "<script>location.href='expenses.php';</script>";
+            exit();
         }
+    } catch (Exception $e) {
+        $errors[] = $e->getMessage();
+    }
+    if (!empty($errors)) {
+        $error = implode('<br>', array_map('htmlspecialchars', $errors));
     }
 }
 
@@ -430,7 +429,9 @@ if (isset($_POST['update_expense'])) {
                 $errors[] = "يجب تحديد الحساب المدفوع منه (صندوق/بنك).";
             }
 
-            if (empty($errors)) {
+            if (!empty($errors)) {
+                $error = implode('<br>', array_map('htmlspecialchars', $errors));
+            } elseif (empty($errors)) {
                 try {
                     $pdo->beginTransaction();
 

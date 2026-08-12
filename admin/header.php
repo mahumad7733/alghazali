@@ -2193,6 +2193,60 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
            System Wide - All pages
            ================================================ */
 
+        /* --- Form Switch Container (Main Wrapper) --- */
+        .form-switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0.35rem 0;
+            min-height: 38px;
+            direction: rtl;
+        }
+
+        .form-switch-container .form-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            gap: 0.75rem;
+            direction: rtl;
+        }
+
+        .form-switch-container .form-switch .form-check-label {
+            flex: 1;
+            text-align: right;
+            line-height: 1.3;
+            order: 1;
+        }
+
+        .form-switch-container .form-switch .form-check-input {
+            order: 2;
+            margin-right: auto !important;
+            margin-left: 0 !important;
+        }
+
+        /* RTL Support Fixes for native Bootstrap form-switch too */
+        html[dir="rtl"] .form-switch-container .form-switch .form-check-input,
+        body.rtl .form-switch-container .form-switch .form-check-input {
+            margin-right: 0 !important;
+            margin-left: auto !important;
+        }
+
+        html[dir="rtl"] .form-switch-container .form-switch .form-check-label,
+        body.rtl .form-switch-container .form-switch .form-check-label {
+            text-align: right;
+        }
+
+        /* Additional Fix: ensure proper switch alignment in grids like step-fields */
+        .step-fields-grid .form-switch-container,
+        .step-fields-grid .form-switch-container .form-switch {
+            min-height: 42px;
+            padding: 0.5rem 0.25rem;
+        }
+
         /* --- Premium Rectangular Toggle Track --- */
         .form-check.form-switch .form-check-input,
         .form-switch-container .form-switch .form-check-input,

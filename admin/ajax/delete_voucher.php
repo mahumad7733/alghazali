@@ -3,6 +3,7 @@ require_once '../../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../includes/functions.php';
 require_once '../../includes/accounting_functions.php';
+require_once '../../includes/security.php';
 require_once '../../core/FinanceService.php';
 
 header('Content-Type: application/json');
@@ -20,9 +21,12 @@ if (!isset($_SESSION['admin_id'])) {
 }
 
 if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'خطأ في التحقق من الطلب (CSRF).']);
     exit;
 }
+
+$authenticatedUser = require_active_financial_user($pdo);
 
 $id = $_POST['id'] ?? 0;
 $user_id = $_SESSION['admin_id'];
@@ -34,6 +38,11 @@ try {
     $stmt = $pdo->prepare("SELECT * FROM financial_transactions WHERE id = ?");
     $stmt->execute([$id]);
     $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($voucher) {
+        require_active_financial_user($pdo, null, null, $voucher['branch_id'] !== null ? (int)$voucher['branch_id'] : null);
+        require_open_financial_period($pdo, $voucher['transaction_date']);
+    }
 
     if (!$voucher) throw new Exception("السند غير موجود.");
 
@@ -53,6 +62,14 @@ try {
         // السند الحالي هو السند الأصلي الذي تم عكسه
         $is_part_of_reversal_pair = true;
         $paired_voucher_id = !empty($voucher['reversal_voucher_id']) ? (int)$voucher['reversal_voucher_id'] : 0;
+    }
+
+    // A reversal pair is permanent financial evidence.  The database guards
+    // intentionally prohibit deleting its posted side, so reject the request
+    // explicitly instead of starting a partial pair deletion that must fail.
+    if ($is_part_of_reversal_pair) {
+        http_response_code(409);
+        throw new Exception('لا يمكن حذف سند تم عكسه أو السند العكسي المرتبط به. تبقى السندات محفوظة كسجل محاسبي غير قابل للحذف.');
     }
 
     // ======================================================
@@ -86,6 +103,7 @@ try {
         if ($perm_needed && has_permission_v3($pdo, $user_role_id, $perm_needed)) $allowed = true;
 
         if (!$allowed) {
+            http_response_code(403);
             log_audit($pdo, 'delete_denied', 'financial_transactions', $id, $voucher, null, "محاولة حذف مرفوضة: المستخدم ليس لديه صلاحية {$perm_needed}");
             throw new Exception("ليس لديك صلاحية لحذف هذا السند ({$perm_needed}).");
         }
@@ -120,6 +138,12 @@ try {
         $stmt_del->execute([$del_id]);
         $del_voucher = $stmt_del->fetch(PDO::FETCH_ASSOC);
         if (!$del_voucher) continue;
+
+        require_active_financial_user($pdo, 'voucher_delete', null, $del_voucher['branch_id'] !== null ? (int)$del_voucher['branch_id'] : null);
+        if (in_array(strtolower((string)$del_voucher['status']), ['posted', 'approved', 'reversed', 'reconciled', 'completed'], true)) {
+            http_response_code(409);
+            throw new Exception('لا يمكن حذف سند مُرحّل أو معتمد. استخدم الإلغاء أو العكس مع الاحتفاظ بالسجل المحاسبي.');
+        }
 
         $deleted_numbers[] = $del_voucher['transaction_number'];
 

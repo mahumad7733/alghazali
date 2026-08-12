@@ -52,7 +52,7 @@ function apply_transaction_balances(PDO $pdo, int $financialTransactionId, int $
     $direction = $direction >= 0 ? 1 : -1;
 
     // First get the branch_id from financial_transactions
-    $stmt_branch = $pdo->prepare("SELECT COALESCE(branch_id, 1) as branch_id FROM financial_transactions WHERE id = ?");
+    $stmt_branch = $pdo->prepare("SELECT branch_id FROM financial_transactions WHERE id = ?");
     $stmt_branch->execute([$financialTransactionId]);
     $branch_id = $stmt_branch->fetchColumn() ?: 1;
 
@@ -125,6 +125,17 @@ function apply_transaction_balances(PDO $pdo, int $financialTransactionId, int $
  */
 function is_period_closed($pdo, $date)
 {
+    try {
+        $periodStmt = $pdo->prepare('SELECT is_closed FROM fiscal_periods WHERE ? BETWEEN start_date AND end_date ORDER BY id DESC LIMIT 1');
+        $periodStmt->execute([substr((string)$date, 0, 10)]);
+        $period = $periodStmt->fetchColumn();
+        if ($period === false || (int)$period === 1) {
+            return true;
+        }
+    } catch (Throwable $e) {
+        return true;
+    }
+
     $start_date = get_setting('fiscal_start_date');
     $end_date = get_setting('fiscal_end_date');
 
@@ -558,7 +569,7 @@ function php_post_invoice($pdo, $invoice_id, $posted_by = null, $use_outer_trans
             $trx_num = fn_get_next_sequence($pdo, 'invoice');
             
             // إنشاء المعاملة المالية
-            $stmt_trx = $pdo->prepare("INSERT INTO financial_transactions (transaction_number, transaction_date, reference_type, reference_id, description, transaction_type, amount, currency_id, branch_id, created_by, status) VALUES (?, ?, 'invoice', ?, ?, 'invoice', ?, ?, ?, ?, 'posted')");
+            $stmt_trx = $pdo->prepare("INSERT INTO financial_transactions (transaction_number, transaction_date, reference_type, reference_id, description, transaction_type, amount, currency_id, branch_id, created_by, status) VALUES (?, ?, 'invoice', ?, ?, 'invoice', ?, ?, ?, ?, 'draft')");
             $stmt_trx->execute([$trx_num, $invoice_date, $invoice_id, $description, $net_amount, $invoice['currency_id'], $invoice['branch_id'], $user_id]);
             $trx_id = $pdo->lastInsertId();
 
@@ -596,6 +607,7 @@ function php_post_invoice($pdo, $invoice_id, $posted_by = null, $use_outer_trans
 
             // التحقق من توازن القيد قبل تطبيق الأرصدة
             validate_journal_balance($pdo, (int)$trx_id);
+            $pdo->prepare("UPDATE financial_transactions SET status = 'posted', posted_by = ?, posted_at = NOW() WHERE id = ? AND status = 'draft'")->execute([$user_id, $trx_id]);
 
             if (!balances_triggers_enabled($pdo)) {
                 apply_transaction_balances($pdo, (int)$trx_id, 1);
@@ -656,7 +668,7 @@ function php_post_invoice($pdo, $invoice_id, $posted_by = null, $use_outer_trans
             $trx_num = fn_get_next_sequence($pdo, 'purchase');
             
             // إنشاء المعاملة المالية
-            $stmt_trx = $pdo->prepare("INSERT INTO financial_transactions (transaction_number, transaction_date, reference_type, reference_id, description, transaction_type, amount, currency_id, branch_id, created_by, status) VALUES (?, ?, 'invoice', ?, ?, 'purchase', ?, ?, ?, ?, 'posted')");
+            $stmt_trx = $pdo->prepare("INSERT INTO financial_transactions (transaction_number, transaction_date, reference_type, reference_id, description, transaction_type, amount, currency_id, branch_id, created_by, status) VALUES (?, ?, 'invoice', ?, ?, 'purchase', ?, ?, ?, ?, 'draft')");
             $stmt_trx->execute([$trx_num, $invoice_date, $invoice_id, $description, $total_amount, $invoice['currency_id'], $invoice['branch_id'], $user_id]);
             $trx_id = $pdo->lastInsertId();
 
@@ -676,6 +688,7 @@ function php_post_invoice($pdo, $invoice_id, $posted_by = null, $use_outer_trans
 
             // التحقق من توازن القيد قبل تطبيق الأرصدة
             validate_journal_balance($pdo, (int)$trx_id);
+            $pdo->prepare("UPDATE financial_transactions SET status = 'posted', posted_by = ?, posted_at = NOW() WHERE id = ? AND status = 'draft'")->execute([$user_id, $trx_id]);
 
             if (!balances_triggers_enabled($pdo)) {
                 apply_transaction_balances($pdo, (int)$trx_id, 1);
@@ -798,17 +811,9 @@ function php_create_voucher_and_post(
             $stmt_old->execute([$edit_id]);
             $old_data = $stmt_old->fetch(PDO::FETCH_ASSOC);
 
-            // إلغاء القيد القديم قبل التعديل (عكس الأرصدة)
-            // First, reverse the balances
             if ($old_data['status'] == 'posted') {
-                if (!balances_triggers_enabled($pdo)) {
-                    apply_transaction_balances($pdo, (int)$edit_id, -1);
-                }
-                $pdo->prepare("DELETE FROM journal_lines WHERE financial_transaction_id = ?")->execute([$edit_id]);
+                throw new Exception('لا يمكن تعديل سند مُرحّل. استخدم العكس لإنشاء سجل محاسبي مقابل ثم أنشئ سنداً جديداً عند الحاجة.');
             }
-
-            // تحديث حالة السند إلى مسودة
-            $pdo->prepare("UPDATE financial_transactions SET status = 'cancelled' WHERE id = ?")->execute([$edit_id]);
         }
 
         if ($type == 'receipt') {
@@ -1735,7 +1740,7 @@ function php_create_financial_entry(
             (transaction_number, transaction_date, branch_id, transaction_type, status,
              entity_type, entity_id, currency_id, amount, reference_type, reference_id,
              description, created_by, posted_at, posted_by, cost_center_id, created_at)
-            VALUES (?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, NOW())");
+            VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NOW())");
 
         $stmt_trx->execute([
             $trx_number,
@@ -1770,6 +1775,9 @@ function php_create_financial_entry(
         if ($credit_account_id) {
             $stmt_line->execute([$transaction_id, $credit_account_id, 0, $amount, $currency_id, $description, $cost_center_id]);
         }
+
+        validate_journal_balance($pdo, (int)$transaction_id);
+        $pdo->prepare("UPDATE financial_transactions SET status = 'posted', posted_at = NOW(), posted_by = ? WHERE id = ? AND status = 'draft'")->execute([$user_id, $transaction_id]);
 
         if (!$use_outer_transaction) {
             $pdo->commit();
@@ -1868,7 +1876,8 @@ function fn_get_next_sequence($pdo, $type) {
     ];
     $seq_name = strtolower($type);
     $prefix   = $prefixes[$seq_name] ?? strtoupper(substr($type, 0, 3));
-    $year     = date('y'); // السنة بخانتين
+    $year     = date('y'); // prefix السنة بخانتين
+    $full_year = (int)date('Y');
 
     try {
         // استخدام INSERT ... ON DUPLICATE KEY لتحديث ذري آمن
@@ -1876,15 +1885,25 @@ function fn_get_next_sequence($pdo, $type) {
             INSERT INTO sequence_numbers (sequence_name, last_number, year)
             VALUES (?, 1, ?)
             ON DUPLICATE KEY UPDATE
-                last_number = IF(year = ?, last_number + 1, 1),
+                last_number = IF(year IN (?, ?), last_number + 1, 1),
                 year        = ?
-        ")->execute([$seq_name, $year, $year, $year]);
+        ")->execute([$seq_name, $year, $year, $full_year, $year]);
 
         $stmt = $pdo->prepare("SELECT last_number FROM sequence_numbers WHERE sequence_name = ?");
         $stmt->execute([$seq_name]);
         $next = (int)$stmt->fetchColumn();
 
-        return $prefix . '-' . $year . '-' . str_pad($next, 5, '0', STR_PAD_LEFT);
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $candidate = $prefix . '-' . $year . '-' . str_pad($next, 5, '0', STR_PAD_LEFT);
+            $existsStmt = $pdo->prepare('SELECT COUNT(*) FROM financial_transactions WHERE transaction_number = ?');
+            $existsStmt->execute([$candidate]);
+            if ((int)$existsStmt->fetchColumn() === 0) {
+                return $candidate;
+            }
+            $pdo->prepare('UPDATE sequence_numbers SET last_number = last_number + 1 WHERE sequence_name = ?')->execute([$seq_name]);
+            $next++;
+        }
+        throw new RuntimeException("Unable to allocate a unique transaction number for {$seq_name}");
     } catch (Exception $e) {
         // Fallback آمن: استخدام timestamp+type لضمان الفريدية
         error_log('fn_get_next_sequence fallback: ' . $e->getMessage());

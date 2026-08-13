@@ -11,21 +11,148 @@ if (!isset($_SESSION['admin_id'])) {
 
 $action = $_GET['action'] ?? '';
 
+if ($action === 'edit') {
+    try {
+        $requestId = (int)($_POST['edit_request_id'] ?? $_POST['request_id'] ?? 0);
+        if ($requestId <= 0) {
+            throw new Exception('معرف طلب الزيارة غير صحيح');
+        }
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+            throw new Exception('خطأ في التحقق من الطلب (CSRF).');
+        }
+        $pdo->beginTransaction();
+
+        $requestExists = $pdo->prepare('SELECT id FROM family_visit_requests WHERE id = ? LIMIT 1');
+        $requestExists->execute([$requestId]);
+        if (!$requestExists->fetchColumn()) {
+            throw new Exception('طلب الزيارة غير موجود');
+        }
+
+        $requestColumns = $pdo->query('SHOW COLUMNS FROM family_visit_requests')->fetchAll(PDO::FETCH_COLUMN);
+        $requestFields = [
+            'document_no' => $_POST['document_no'] ?? null,
+            'issue_date' => $_POST['issue_date'] ?? null,
+            'date_type' => $_POST['date_type'] ?? 'gregorian',
+            'owner_name' => trim((string)($_POST['owner_name'] ?? '')),
+            'owner_id_no' => trim((string)($_POST['owner_id_no'] ?? '')),
+            'address' => $_POST['address'] ?? null,
+            'phone_no' => $_POST['phone_no'] ?? null,
+            'operation_date' => $_POST['operation_date'] ?? null,
+            'description' => $_POST['description'] ?? null,
+            'notes' => $_POST['notes'] ?? null,
+            'customer_id' => !empty($_POST['customer_id']) ? (int)$_POST['customer_id'] : null,
+        ];
+        if ($requestFields['owner_name'] === '' || $requestFields['owner_id_no'] === '') {
+            throw new Exception('اسم صاحب الطلب ورقم السجل/الإقامة مطلوبان');
+        }
+        if (in_array('visit_duration_months', $requestColumns, true)) {
+            $requestFields['visit_duration_months'] = max(1, (int)($_POST['visit_duration_months'] ?? 1));
+        }
+        if (in_array('visit_expiry_date', $requestColumns, true)) {
+            $requestFields['visit_expiry_date'] = ($_POST['visit_expiry_date'] ?? '') ?: null;
+        }
+        foreach (['iqama_image', 'document_pdf'] as $uploadField) {
+            if (!empty($_FILES[$uploadField]['name'])) {
+                $uploadDir = '../assets/uploads/family_visits/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+                $fileName = time() . '_' . $uploadField . '_' . basename($_FILES[$uploadField]['name']);
+                if (move_uploaded_file($_FILES[$uploadField]['tmp_name'], $uploadDir . $fileName) && in_array($uploadField, $requestColumns, true)) {
+                    $requestFields[$uploadField] = $fileName;
+                }
+            }
+        }
+        $setParts = [];
+        $setValues = [];
+        foreach ($requestFields as $field => $value) {
+            if (in_array($field, $requestColumns, true)) {
+                $setParts[] = "`$field` = ?";
+                $setValues[] = $value;
+            }
+        }
+        if ($setParts) {
+            $setValues[] = $requestId;
+            $pdo->prepare('UPDATE family_visit_requests SET ' . implode(', ', $setParts) . ' WHERE id = ?')->execute($setValues);
+        }
+
+        $individualColumns = $pdo->query('SHOW COLUMNS FROM family_visit_individuals')->fetchAll(PDO::FETCH_COLUMN);
+        $postedIds = array_values(array_filter(array_map('intval', $_POST['ind_id'] ?? [])));
+        $existingStmt = $pdo->prepare('SELECT id FROM family_visit_individuals WHERE request_id = ?');
+        $existingStmt->execute([$requestId]);
+        $existingIds = array_map('intval', $existingStmt->fetchAll(PDO::FETCH_COLUMN));
+        $idsToDelete = array_diff($existingIds, $postedIds);
+        if ($idsToDelete) {
+            $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
+            $pdo->prepare("DELETE FROM family_visit_individuals WHERE request_id = ? AND id IN ($placeholders)")->execute(array_merge([$requestId], $idsToDelete));
+        }
+
+        $names = $_POST['ind_name'] ?? [];
+        foreach ($names as $key => $name) {
+            $name = trim((string)$name);
+            if ($name === '') continue;
+            $purchase = (float)($_POST['ind_cost_amount'][$key] ?? $_POST['ind_purchase_price'][$key] ?? 0);
+            $sale = (float)($_POST['ind_line_total_amount'][$key] ?? $_POST['ind_sale_price'][$key] ?? 0);
+            $rowFields = [
+                'full_name' => $name,
+                'passport_no' => trim((string)($_POST['ind_passport'][$key] ?? '')),
+                'relationship_id' => !empty($_POST['ind_relationship'][$key]) ? (int)$_POST['ind_relationship'][$key] : null,
+                'gender' => $_POST['ind_gender'][$key] ?? null,
+                'birth_date' => ($_POST['ind_dob'][$key] ?? '') ?: null,
+                'age' => ($_POST['ind_age'][$key] ?? '') !== '' ? (int)$_POST['ind_age'][$key] : null,
+                'coming_from_city_id' => !empty($_POST['ind_coming_from_city_id'][$key]) ? (int)$_POST['ind_coming_from_city_id'][$key] : null,
+                'received_documents' => trim((string)($_POST['ind_received_documents'][$key] ?? '')) ?: null,
+                'sale_price' => $sale,
+            ];
+            $agentPrice = (float)($_POST['ind_agent_price'][$key] ?? 0);
+            $branchPrice = (float)($_POST['ind_branch_price'][$key] ?? 0);
+            if (in_array('agent_price', $individualColumns, true)) $rowFields['agent_price'] = $agentPrice > 0 || !in_array('branch_price', $individualColumns, true) ? $purchase : 0;
+            if (in_array('branch_price', $individualColumns, true)) $rowFields['branch_price'] = $branchPrice > 0 ? $purchase : ($agentPrice > 0 ? 0 : $purchase);
+
+            $rowFields = array_filter($rowFields, static fn($field) => true, ARRAY_FILTER_USE_KEY);
+            $rowFields = array_intersect_key($rowFields, array_flip($individualColumns));
+            $rowId = (int)($_POST['ind_id'][$key] ?? 0);
+            if ($rowId > 0 && in_array($rowId, $existingIds, true)) {
+                $updates = [];
+                $values = [];
+                foreach ($rowFields as $field => $value) { $updates[] = "`$field` = ?"; $values[] = $value; }
+                if ($updates) { $values[] = $rowId; $values[] = $requestId; $pdo->prepare('UPDATE family_visit_individuals SET ' . implode(', ', $updates) . ' WHERE id = ? AND request_id = ?')->execute($values); }
+            } else {
+                $rowFields['request_id'] = $requestId;
+                $rowFields['status_id'] = 1;
+                $cols = array_keys($rowFields);
+                $pdo->prepare('INSERT INTO family_visit_individuals (`' . implode('`, `', $cols) . '`) VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')')->execute(array_values($rowFields));
+            }
+        }
+
+        $pdo->commit();
+        $_SESSION['success'] = 'تم تعديل طلب الزيارة العائلية بنجاح';
+        header('Location: family_visit.php');
+        exit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Family visit edit error: ' . $e->getMessage());
+        $_SESSION['error'] = 'خطأ أثناء تعديل الطلب: ' . $e->getMessage();
+        header('Location: family_visit.php');
+        exit();
+    }
+}
+
 if ($action === 'add') {
     try {
         $pdo->beginTransaction();
         $auto_post = false;
         $settings = getSettings($pdo);
         $service_id = 5;
+        $requested_agent_id = !empty($_POST['agent_id']) ? (int)$_POST['agent_id'] : null;
+        $requested_branch_id = !empty($_POST['branch_id']) ? (int)$_POST['branch_id'] : null;
         $pricing_data = resolve_transaction_pricing(
             $pdo,
             $service_id,
-            $_POST['agent_id'] ?? null,
-            $_POST['branch_id'] ?? null,
+            $requested_agent_id,
+            $requested_branch_id,
             $_POST
         );
-        $agent_id = $pricing_data['target']['agent_id'];
-        $branch_id = $pricing_data['target']['branch_id'];
+        $agent_id = !empty($pricing_data['target']['agent_id']) ? (int)$pricing_data['target']['agent_id'] : null;
+        $branch_id = !empty($pricing_data['target']['branch_id']) ? (int)$pricing_data['target']['branch_id'] : null;
         $owner_type = $pricing_data['target']['owner_type'];
         $owner_id = $pricing_data['target']['owner_id'];
 
@@ -283,17 +410,24 @@ if ($action === 'add') {
                 $request_id
             ]);
 
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            // قد يكون المحرك المالي قد ألغى المعاملة؛ لا نكمل إلى commit بعد فشله.
             error_log("Error in financial posting for family visit: " . $e->getMessage());
+            throw $e;
         }
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
         $_SESSION['success'] = "تم إضافة المعاملة بنجاح" . ($auto_post ? " وتم الترحيل المالي" : "");
         header("Location: family_visit.php");
         exit();
 
-    } catch (Exception $e) {
-        $pdo->rollBack();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Family visit processing error: " . $e->getMessage());
         $_SESSION['error'] = "خطأ أثناء الحفظ: " . $e->getMessage();
         header("Location: family_visit.php");
         exit();

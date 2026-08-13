@@ -493,9 +493,9 @@ require_once 'header.php';
 ?>
 
 <div class="container-fluid py-4" dir="rtl">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 umrah-hero">
         <div>
-            <h3 class="fw-bold text-primary mb-1"><i class="fas fa-kaaba me-2"></i> <?php echo $page_title; ?></h3>
+            <h3 class="fw-bold text-primary mb-1 umrah-page-title"><i class="fas fa-kaaba me-2"></i> <?php echo $page_title; ?></h3>
             <p class="text-muted small">إدارة المعتمرين، المستضيفين، الضمانات والعمليات المالية</p>
         </div>
         <div class="d-flex gap-2">
@@ -704,9 +704,85 @@ require_once 'header.php';
                 margin-bottom: 0.35rem;
             }
         </style>
+        <style>
+            .umrah-hero {
+                position: relative;
+                padding: 1.35rem 1.5rem;
+                border-radius: 24px;
+                background: linear-gradient(135deg, rgba(14, 116, 144, .12), rgba(37, 99, 235, .06) 55%, rgba(255,255,255,.9));
+                border: 1px solid rgba(14, 116, 144, .12);
+                overflow: hidden;
+            }
+            .umrah-hero::after {
+                content: "";
+                position: absolute;
+                width: 180px;
+                height: 180px;
+                left: -65px;
+                top: -90px;
+                border-radius: 50%;
+                background: rgba(14, 116, 144, .08);
+            }
+            .umrah-page-title { position: relative; z-index: 1; letter-spacing: -.02em; }
+            .umrah-app-nav { border: 1px solid rgba(148,163,184,.14) !important; background: rgba(255,255,255,.82); }
+            #umrahReports .card {
+                border: 1px solid rgba(148,163,184,.14) !important;
+                background: linear-gradient(145deg, #fff, #f8fafc);
+                transition: transform .2s ease, box-shadow .2s ease;
+            }
+            #umrahReports .card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(15,23,42,.10) !important; }
+            #umrahTransactions { border: 1px solid rgba(148,163,184,.14) !important; box-shadow: 0 12px 34px rgba(15,23,42,.07) !important; }
+            #umrahTransactions > .card-header {
+                padding: 1rem 1.25rem !important;
+                background: linear-gradient(180deg, #fff, #f8fafc) !important;
+                border-bottom: 1px solid rgba(148,163,184,.16);
+            }
+            #umrahTransactions .card-header > div { min-width: min(100%, 430px); }
+            #umrahSearch, #statusFilter { min-height: 42px; border-color: rgba(148,163,184,.25); background-color: #fff; }
+            #umrahSearch:focus, #statusFilter:focus { border-color: #0e7490; box-shadow: 0 0 0 .2rem rgba(14,116,144,.12); }
+            .umrah-data-table thead th { white-space: nowrap; font-size: .76rem; letter-spacing: .01em; }
+            .umrah-data-table tbody tr { transition: background-color .18s ease, transform .18s ease; }
+            .umrah-data-table tbody tr:hover { background: rgba(14,116,144,.035); }
+            .umrah-data-table tbody td { padding-top: 1rem; padding-bottom: 1rem; border-color: rgba(148,163,184,.12); }
+            .umrah-data-table .finance-mini-card, .umrah-data-table .payment-box { box-shadow: 0 5px 16px rgba(15,23,42,.045); }
+            body.theme-dark .umrah-hero { background: linear-gradient(135deg, rgba(14,116,144,.2), rgba(30,41,59,.85)); border-color: rgba(148,163,184,.14); }
+            body.theme-dark .umrah-app-nav, body.theme-dark #umrahTransactions > .card-header, body.theme-dark #umrahReports .card { background: #172033 !important; }
+            body.theme-dark #umrahSearch, body.theme-dark #statusFilter { background: #111827; color: #e5e7eb; border-color: rgba(148,163,184,.24); }
+            @media (max-width: 768px) {
+                .umrah-hero { align-items: stretch !important; flex-direction: column; gap: 1rem; padding: 1.1rem; }
+                .umrah-page-title { font-size: 1.2rem; }
+                .umrah-hero .btn { width: 100%; }
+                .umrah-app-nav .card-body { padding: .75rem !important; }
+                .umrah-app-nav a { flex: 1 1 calc(50% - .5rem); text-align: center; }
+                #umrahTransactions > .card-header { align-items: stretch !important; flex-direction: column; gap: .75rem; }
+                #umrahTransactions .card-header > div { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; }
+                #umrahSearch, #statusFilter { width: 100% !important; }
+                .umrah-data-table thead { display: none; }
+                .umrah-data-table, .umrah-data-table tbody, .umrah-data-table tr, .umrah-data-table td { display: block; width: 100%; }
+                .umrah-data-table tbody tr { margin: .75rem; width: calc(100% - 1.5rem); border: 1px solid rgba(148,163,184,.17); border-radius: 18px; overflow: hidden; box-shadow: 0 7px 20px rgba(15,23,42,.06); background: #fff; }
+                .umrah-data-table tbody td { display: flex; justify-content: space-between; align-items: center; gap: .75rem; text-align: right !important; min-height: 52px; padding: .75rem 1rem !important; }
+                .umrah-data-table tbody td::before { content: attr(data-label); color: #64748b; font-size: .72rem; font-weight: 800; flex: 0 0 auto; }
+                .umrah-data-table tbody td:first-child { display: block; background: rgba(14,116,144,.045); }
+                .umrah-data-table tbody td:first-child::before { display: block; margin-bottom: .35rem; }
+                .umrah-data-table .payment-stack { min-width: 0; width: 100%; }
+            #addUmrahModal .umrah-primary-fields > div,
+            #editUmrahModal .umrah-primary-fields > div { order: 20; }
+            #addUmrahModal .umrah-primary-fields .umrah-arabic-name-field,
+            #editUmrahModal .umrah-primary-fields .umrah-arabic-name-field { order: 1; }
+            #addUmrahModal .umrah-primary-fields .umrah-english-name-field,
+            #editUmrahModal .umrah-primary-fields .umrah-english-name-field { order: 2; }
+            #addUmrahModal .umrah-primary-fields .umrah-passport-number-field,
+            #editUmrahModal .umrah-primary-fields .umrah-passport-number-field { order: 3; }
+            #addUmrahModal .umrah-primary-fields .umrah-phone-field,
+            #editUmrahModal .umrah-primary-fields .umrah-phone-field { order: 4; }
+            #addUmrahModal .umrah-primary-fields .umrah-passport-scan-field { order: 10; }
+            #addUmrahModal .umrah-primary-fields .umrah-secondary-field,
+            #editUmrahModal .umrah-primary-fields .umrah-secondary-field { order: 20; }
+            }
+        </style>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 text-center">
+                <table class="table table-hover align-middle mb-0 text-center umrah-data-table">
                     <thead class="bg-light text-muted small text-uppercase">
                         <tr>
                             <th class="px-4 py-3">المعاملة / الاسم</th>
@@ -721,10 +797,10 @@ require_once 'header.php';
                     <tbody id="umrahTableBody">
                         <?php foreach ($passports as $p): ?>
                             <tr class="umrah-row" data-status="<?php echo $p['status_id']; ?>">
-                                <td class="px-4 text-start">
+                                <td class="px-4 text-start" data-label="المعاملة / الاسم">
                                     <div class="fw-bold"><?php echo htmlspecialchars($p['full_name'] ?: $p['full_name_en']); ?></div>
                                 </td>
-                                <td>
+                                <td data-label="الجواز والحالة">
                                     <span class="badge bg-light text-dark border px-2 py-1 font-monospace"><?php echo htmlspecialchars($p['passport_number']); ?></span>
                                     <div class="mt-2">
                                         <span class="badge rounded-pill px-3 py-2 mb-1 shadow-sm" style="background-color: <?php echo htmlspecialchars($p['status_color']); ?>; color: #fff;">
@@ -732,7 +808,7 @@ require_once 'header.php';
                                         </span>
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="التأشيرة والتنبيه">
                                     <?php if ($p['visa_number']): ?>
                                         <div class="small fw-bold font-monospace"><?php echo $p['visa_number']; ?></div>
                                         <?php if (!$p['is_outside_ksa']): ?>
@@ -765,7 +841,7 @@ require_once 'header.php';
                                         <span class="text-muted small opacity-50"><i class="fas fa-hourglass-start me-1"></i> بانتظار التأشيرة</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="small text-start">
+                                <td class="small text-start" data-label="المورد والشراء">
                                     <div class="finance-mini-card">
                                         <div class="mini-label">المورد</div>
                                         <div class="mini-name clamp-2"><?php echo htmlspecialchars(($p['supplier_name'] ?? '') !== '' ? $p['supplier_name'] : '---'); ?></div>
@@ -780,7 +856,7 @@ require_once 'header.php';
                                         </div>
                                     </div>
                                 </td>
-                                <td class="small text-start">
+                                <td class="small text-start" data-label="الحساب والبيع">
                                     <?php
                                     $impactedCode = trim((string)($p['invoice_account_code'] ?? ''));
                                     $impactedName = trim((string)($p['invoice_account_name_ar'] ?? ''));
@@ -800,7 +876,7 @@ require_once 'header.php';
                                         </div>
                                     </div>
                                 </td>
-                                <td class="text-start">
+                                <td class="text-start" data-label="حالة الدفع والترحيل">
                                     <?php
                                     $pay_badges = [
                                         'unpaid' => '<span class="badge bg-danger-subtle text-danger rounded-pill">غير مدفوع</span>',
@@ -863,7 +939,7 @@ require_once 'header.php';
                                         </div>
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="الإجراءات">
                                     <div class="btn-group">
                                         <!-- عرض التفاصيل - تبويب سير العمل مباشرة -->
                                         <button class="btn btn-sm bg-indigo text-white shadow-sm view-umrah" data-id="<?php echo $p['id']; ?>" data-tab="workflow" title="سير العمل والمراحل" style="background-color:#6366f1 !important;">
@@ -1101,31 +1177,31 @@ require_once 'header.php';
                                     <h6>1. بيانات المعتمر والجواز</h6>
                                 </div>
                                 <div class="form-section-body">
-                                    <div class="row g-3">
-                                        <div class="col-md-4">
+                                    <div class="row g-3 umrah-primary-fields">
+                                        <div class="col-md-4 umrah-passport-scan-field">
                                             <label class="form-label">قراءة الجواز (OCR)</label>
                                             <div class="input-group">
                                                 <input type="file" name="passport_image" id="passportOCR" class="form-control" accept="image/*">
                                                 <button class="btn btn-primary btn-sm" type="button" id="scan_passport_btn"><i class="fas fa-qrcode"></i></button>
                                             </div>
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-4 umrah-passport-number-field">
                                             <label class="form-label">رقم الهوية</label>
                                             <input type="text" name="passport_number" id="ocr_passport" class="form-control font-monospace" required>
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-4 umrah-phone-field">
                                             <label class="form-label">رقم التواصل</label>
                                             <input type="text" name="phone_number" class="form-control" placeholder="00966...">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-4 umrah-arabic-name-field">
                                             <label class="form-label">الاسم (عربي)</label>
                                             <input type="text" name="full_name" id="ocr_name" class="form-control" required>
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-4 umrah-english-name-field">
                                             <label class="form-label">الاسم (EN)</label>
                                             <input type="text" name="full_name_en" id="ocr_name_en" class="form-control font-monospace">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-4 umrah-secondary-field">
                                             <label class="form-label">الجنس</label>
                                             <select name="gender" id="ocr_gender" class="form-select">
                                                 <option value="">اختر...</option>
@@ -1133,7 +1209,7 @@ require_once 'header.php';
                                                 <option value="Female">أنثى</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-3 umrah-secondary-field">
                                             <label class="form-label">الجنسية</label>
                                             <select name="nationality" id="ocr_nationality" class="form-select">
                                                 <option value="">اختر...</option>
@@ -1157,8 +1233,8 @@ require_once 'header.php';
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
+                                                        </div>
+                            <div id="umrah_mobile_supplier_slot" class="col-12 d-none mobile-booking-supplier-slot"></div>
                             <!-- القسم 2: البيانات المالية (الفاتورة) at the bottom -->
                             <?php
                             // إعداد بيانات الفاتورة الحالية
@@ -1186,6 +1262,8 @@ require_once 'header.php';
                             $financial_fields_show_cost_amount = has_permission('umrah_show_cost_amount');
                             $financial_fields_show_discount = has_permission('umrah_show_discount');
                             $financial_fields_show_notes_field = true;
+                            $financial_fields_mobile_layout = true;
+                            $financial_fields_mobile_supplier_target = 'umrah_mobile_supplier_slot';
                             include '../includes/financial_fields.php';
                             ?>
                         </div>
@@ -2566,22 +2644,36 @@ require_once 'header.php';
         return arabicWords.join(' ').replace(/\s+/g, ' ').replace(/ال /g, 'ال').replace(/اا/g, 'ا').replace(/وو/g, 'و').replace(/يي/g, 'ي').trim();
     }
 
-    // دالة تحليل MRZ (TD3 Standard)
+    // دالة تحليل MRZ (TD3 Standard) مع تصحيح أخطاء OCR الشائعة
     function parseMRZ(text) {
         if (!text) return null;
 
-        let rawText = text.toUpperCase().replace(/K/g, '<');
-        const lines = rawText.split('\n')
-            .map(l => l.replace(/[^A-Z0-9<]/g, '').trim())
-            .filter(l => l.length >= 40);
+        const normalizeMrzLine = (line) => {
+            let value = String(line || '').toUpperCase()
+                .replace(/[\r\n]/g, '')
+                .replace(/[\s|]/g, '')
+                .replace(/[^A-Z0-9<]/g, '');
+            // Tesseract يقرأ أحيانًا < على شكل K أو O، خصوصًا في بداية السطر.
+            value = value.replace(/^P0/, 'P<').replace(/^PO/, 'P<');
+            if (value.length < 44) value = value.padEnd(44, '<');
+            return value.substring(0, 44);
+        };
 
-        let l1 = lines.find(l => l.startsWith('P<'));
-        let l2 = lines.find(l => !l.startsWith('P<') && l.length >= 40);
+        const rawLines = String(text).toUpperCase().split(/\r?\n/)
+            .map(l => l.replace(/[\s|]/g, '').replace(/[^A-Z0-9<]/g, '').trim())
+            .filter(l => l.length >= 30);
 
-        if (!l1 || !l2) return null;
+        // قبول خطوط OCR التي تكون أقصر من 44 حرفًا ثم استكمالها، بدل رفضها بالكامل.
+        let firstIndex = rawLines.findIndex(l => /^P[<0O]/.test(l) || /^P[A-Z0-9]/.test(l));
+        if (firstIndex < 0) firstIndex = 0;
+        let l1Candidate = rawLines[firstIndex];
+        let l2Candidate = rawLines.slice(firstIndex + 1).find(l => /[0-9]{2,}/.test(l));
+        if (!l2Candidate && rawLines.length >= 2) l2Candidate = rawLines[rawLines.length - 1];
+        if (!l1Candidate || !l2Candidate) return null;
 
-        l1 = l1.substring(0, 44);
-        l2 = l2.substring(0, 44);
+        let l1 = normalizeMrzLine(l1Candidate);
+        let l2 = normalizeMrzLine(l2Candidate);
+        if (!/^P</.test(l1) || l2.length < 30) return null;
 
         try {
             const data = {
@@ -2637,17 +2729,16 @@ require_once 'header.php';
         }
     }
 
-    // دالة استخراج سطر MRZ
+    // دالة استخراج سطر MRZ للاستخدام مع نتائج OCR المختلفة
     function extractMRZ(text) {
         if (!text) return null;
-        const lines = text.toUpperCase().split('\n').map(l => l.replace(/[^A-Z0-9<]/g, '').trim()).filter(l => l.length >= 40);
-        // Find lines that look like MRZ. MRZ lines are typically 44 chars long for TD3
-        // We are looking for two lines.
-        const mrzLines = lines.filter(l => l.length === 44);
-        if (mrzLines.length >= 2) {
-            return mrzLines[0] + '\n' + mrzLines[1];
-        }
-        return null;
+        const lines = String(text).toUpperCase().split(/\r?\n/)
+            .map(l => l.replace(/[\s|]/g, '').replace(/[^A-Z0-9<]/g, '').trim())
+            .filter(l => l.length >= 30);
+        const first = lines.findIndex(l => /^P[<0O]/.test(l) || /^P[A-Z0-9]/.test(l));
+        if (first < 0) return null;
+        const second = lines.slice(first + 1).find(l => /[0-9]{2,}/.test(l));
+        return second ? `${lines[first]}\n${second}` : null;
     }
 
 
@@ -3548,15 +3639,17 @@ require_once 'header.php';
                     umrahOcrDebugReport('B', 'Tesseract worker ready');
                     // #endregion
 
-                    const angles = [0, -2, 2, -4, 4, -6, 6];
+                    const angles = [0, -2, 2, -4, 4];
                     let data = null;
                     let finalMRZImage = null;
+                    const ocrStatus = document.getElementById('ocr-status');
                     for (const angle of angles) {
                         // #region debug-point C:angle-start
                         umrahOcrDebugReport('C', 'Starting OCR angle attempt', {
                             angle
                         });
                         // #endregion
+                        if (ocrStatus) ocrStatus.textContent = `جاري قراءة منطقة البصمة... المحاولة ${angles.indexOf(angle) + 1} من ${angles.length}`;
                         const processedImage = await preprocessPassportImage(fileInput.files[0], angle);
                         const {
                             data: {
@@ -3587,6 +3680,15 @@ require_once 'header.php';
                         }
                     }
 
+                    // بعض صور الجواز لا تكون البصمة في آخر 35% من الصورة؛ نجرب الصورة الأصلية كاملة مرة أخيرة.
+                    if (!data) {
+                        if (ocrStatus) ocrStatus.textContent = 'جاري قراءة الصورة كاملة...';
+                        const fullResult = await worker.recognize(fileInput.files[0]);
+                        const fullText = fullResult?.data?.text || '';
+                        data = parseMRZ(fullText);
+                        if (data) finalMRZImage = await preprocessPassportImage(fileInput.files[0], 0);
+                    }
+
                     await worker.terminate();
                     // #region debug-point B:worker-terminated
                     umrahOcrDebugReport('B', 'Tesseract worker terminated', {
@@ -3595,6 +3697,16 @@ require_once 'header.php';
                     // #endregion
 
                     if (data) {
+                        // تعبئة البيانات في الفورم، مع عدم استبدال قيمة موجودة بفراغ.
+                        const setOcrValue = (id, value) => {
+                            const field = document.getElementById(id);
+                            if (field && value !== undefined && value !== null && String(value).trim() !== '') field.value = value;
+                        };
+                        setOcrValue('ocr_passport', data.passport_number);
+                        setOcrValue('ocr_dob', data.date_of_birth);
+                        setOcrValue('ocr_expiry', data.passport_expiry_date);
+                        setOcrValue('ocr_name', data.full_name);
+                        setOcrValue('ocr_name_en', data.full_name_en);
                         // تعبئة البيانات في الفورم
                         document.getElementById('ocr_passport').value = data.passport_number || '';
 

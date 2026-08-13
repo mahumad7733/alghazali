@@ -46,6 +46,15 @@ function isWorkVisaTransaction($transactionType): bool
     return in_array((string)$transactionType, ['work_visa', '6'], true);
 }
 
+// حماية مركزية: الحقول الرقمية الاختيارية يجب أن ترسل NULL لا نصاً فارغاً إلى MariaDB.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    foreach (['agent_id', 'agent_id_hidden', 'branch_id', 'customer_id', 'profession_id', 'status_id', 'batch_id'] as $numericField) {
+        if (array_key_exists($numericField, $_POST)) {
+            $_POST[$numericField] = emptyToNull($_POST[$numericField]);
+        }
+    }
+}
+
 function syncWorkVisaProfile(PDO $pdo, int $passportId, array $data, ?int $userId = null): void
 {
     $stmt = $pdo->prepare("
@@ -410,11 +419,11 @@ if (isset($_POST['change_status'])) {
 // معالجة الإضافة
 if (isset($_POST['add_passport'])) {
     $user_id = $_SESSION['admin_id'];
-    $branch_id = $_POST['branch_id'] ?? $currentUser['branch_id'];
-    $agent_id = $_POST['agent_id'] ?? null;
+    $branch_id = emptyToNull($_POST['branch_id'] ?? ($currentUser['branch_id'] ?? null));
+    $agent_id = emptyToNull($_POST['agent_id'] ?? null);
 
     $transaction_type = $_POST['transaction_type'] ?? 'visa';
-    $status_id = $_POST['status_id'] ?? null;
+    $status_id = emptyToNull($_POST['status_id'] ?? null);
     $passport_number = $_POST['passport_number'];
     $full_name = $_POST['full_name'];
     $customer_id = null;

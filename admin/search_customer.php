@@ -15,15 +15,14 @@
 </head>
 <body>
 <?php
-// Search for أحمد علي
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '738155';
-$db   = 'ghazali';
-
+// Diagnostic page: use the centralized application connection and require an authenticated admin session.
+require_once __DIR__ . '/../includes/db.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (empty($_SESSION['admin_id'])) {
+    http_response_code(401);
+    exit('Unauthorized');
+}
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     echo "<h2>بحث عن: أحمد علي</h2>";
     

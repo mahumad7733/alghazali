@@ -38,7 +38,7 @@ class BookingWorkflowService
         return change_booking_status($bookingId, $toStatusId, $this->userId, $notes, $extraFields, $transitionId);
     }
 
-    public function requestApproval(int $bookingId, int $toStatusId, float $discountAmount, string $notes = '', ?int $requestedRoleId = null): void
+    public function requestApproval(int $bookingId, int $toStatusId, float $discountAmount, string $notes = '', ?int $requestedRoleId = null, ?float $discountPercent = null, array $extraFields = []): void
     {
         $this->pdo->beginTransaction();
 
@@ -67,6 +67,18 @@ class BookingWorkflowService
                 (request_number, booking_id, from_step_id, to_step_id, requested_by, requested_role_id, notes, extra_data, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
             ");
+            $extraData = ['discount_amount' => round(max(0, $discountAmount), 2)];
+            if (isset($extraFields['requested_mod_date']) && !empty($booking['departure_date'])) {
+                $extraData['current_departure_date'] = $booking['departure_date'];
+            }
+            if ($discountPercent !== null) {
+                $extraData['discount_percent'] = round(max(0, min(100, $discountPercent)), 2);
+            }
+            foreach ($extraFields as $field => $value) {
+                if (in_array($field, ['mod_reason', 'requested_mod_date', 'ticket_number', 'cancel_reason', 'refund_amount', 'refund_method', 'discount_percent', 'discount_amount', 'net_amount', 'modification_type', 'requested_from_city_id', 'requested_to_city_id', 'requested_departure_time', 'charge_penalty', 'modification_penalty_percent', 'modification_penalty_amount', 'collect_penalty', 'penalty_payment_method', 'penalty_cash_bank_account_id'], true)) {
+                    $extraData[$field] = is_string($value) ? trim($value) : $value;
+                }
+            }
             $stmt->execute([
                 $requestNumber,
                 $bookingId,
@@ -75,7 +87,7 @@ class BookingWorkflowService
                 $this->userId,
                 $requestedRoleId,
                 $notes,
-                json_encode(['discount_amount' => $discountAmount], JSON_UNESCAPED_UNICODE),
+                json_encode($extraData, JSON_UNESCAPED_UNICODE),
             ]);
 
             $this->notifyApprovalTargets($requestNumber, $booking, $discountAmount, $notes);
@@ -85,6 +97,33 @@ class BookingWorkflowService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            throw $e;
+        }
+    }
+
+    public function requestTicketApproval(int $bookingId, array $ticketData, string $notes = '', ?int $requestedRoleId = null): void
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $this->ensureNoPendingApproval($bookingId);
+            $booking = $this->getBookingStatusContext($bookingId);
+            if (!$booking) {
+                throw new Exception('الحجز غير موجود');
+            }
+            $fromStepId = $this->resolveWorkflowStepId((int)$booking['branch_id'], (int)$booking['status_id']);
+            $requestNumber = $this->generateRequestNumber();
+            $extraData = ['action' => 'issue_ticket'];
+            foreach (['seat_number', 'pnr', 'supplier_reference', 'bus_flight_number', 'public_base_url'] as $field) {
+                if (array_key_exists($field, $ticketData)) {
+                    $extraData[$field] = trim((string)$ticketData[$field]);
+                }
+            }
+            $stmt = $this->pdo->prepare("INSERT INTO workflow_approval_requests (request_number, booking_id, from_step_id, to_step_id, requested_by, requested_role_id, notes, extra_data, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt->execute([$requestNumber, $bookingId, $fromStepId, $fromStepId, $this->userId, $requestedRoleId, $notes, json_encode($extraData, JSON_UNESCAPED_UNICODE)]);
+            $this->notifyApprovalTargets($requestNumber, $booking, 0, $notes, 'إصدار تذكرة رقمية');
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             throw $e;
         }
     }
@@ -147,7 +186,7 @@ class BookingWorkflowService
     private function getBookingStatusContext(int $bookingId): ?array
     {
         $stmt = $this->pdo->prepare("
-            SELECT b.status_id, b.branch_id, b.traveler_name, b.booking_number, s.status_name
+            SELECT b.status_id, b.branch_id, b.traveler_name, b.booking_number, b.departure_date, s.status_name
             FROM bus_flight_bookings b
             JOIN statuses s ON b.status_id = s.id
             WHERE b.id = ?
@@ -180,12 +219,12 @@ class BookingWorkflowService
         return 'REQ-' . date('Ymd') . '-' . str_pad((string)$count, 4, '0', STR_PAD_LEFT);
     }
 
-    private function notifyApprovalTargets(string $requestNumber, array $booking, float $discountAmount, string $notes): void
+    private function notifyApprovalTargets(string $requestNumber, array $booking, float $discountAmount, string $notes, string $requestTitle = 'تعديل حجز'): void
     {
-        $title = "طلب اعتماد جديد ({$requestNumber}): تعديل حجز";
+        $title = "طلب اعتماد جديد ({$requestNumber}): {$requestTitle}";
         $message = "المسافر: {$booking['traveler_name']}\n";
         $message .= "رقم الحجز: {$booking['booking_number']}\n";
-        $message .= 'الغرامة المقترحة: ' . number_format($discountAmount, 2) . "\n";
+            $message .= 'الغرامة المقترحة: ' . number_format($discountAmount, 2) . "\n";
         $message .= 'ملاحظات: ' . $notes;
         $link = 'workflow_approvals.php?status=pending';
 

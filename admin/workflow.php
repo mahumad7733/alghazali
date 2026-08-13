@@ -462,7 +462,11 @@ $modules_overview = function_exists('get_workflow_modules_overview') ? get_workf
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 workflow-details-toggle" data-bs-toggle="collapse" data-bs-target="#workflowDetails<?php echo $wf['id']; ?>" aria-expanded="false" aria-controls="workflowDetails<?php echo $wf['id']; ?>">
+                                <i class="fas fa-chevron-down me-1"></i> عرض التفاصيل
+                            </button>
+                            <div class="btn-group shadow-sm rounded-pill overflow-hidden">
                             <?php if (has_permission('edit_workflow')): ?>
                                 <button class="btn btn-success btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addStepModal<?php echo $wf['id']; ?>">
                                     <i class="fas fa-plus me-1"></i> إضافة مرحلة
@@ -471,8 +475,10 @@ $modules_overview = function_exists('get_workflow_modules_overview') ? get_workf
                                     <i class="fas fa-random me-1"></i> إضافة انتقال
                                 </button>
                             <?php endif; ?>
+                            </div>
                         </div>
                     </div>
+                    <div id="workflowDetails<?php echo $wf['id']; ?>" class="collapse">
                     <div class="card-body px-4 pb-4">
                         <p class="text-muted small mb-4"><?php echo htmlspecialchars($wf['description']); ?></p>
 
@@ -642,10 +648,11 @@ $modules_overview = function_exists('get_workflow_modules_overview') ? get_workf
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
-                </div>
+                    </div>
 
-                <!-- Modal إضافة مرحلة -->
+                    <!-- Modal إضافة مرحلة -->
                 <div class="modal fade" id="addStepModal<?php echo $wf['id']; ?>" tabindex="-1">
                     <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
                         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -1314,6 +1321,20 @@ $modules_overview = function_exists('get_workflow_modules_overview') ? get_workf
                     }
                 });
             }
+
+            document.querySelectorAll('.workflow-details-toggle').forEach(function(btn) {
+                var targetSelector = btn.getAttribute('data-bs-target');
+                var target = targetSelector ? document.querySelector(targetSelector) : null;
+                if (!target) return;
+                target.addEventListener('shown.bs.collapse', function() {
+                    btn.innerHTML = '<i class="fas fa-chevron-up me-1"></i> إخفاء التفاصيل';
+                    btn.setAttribute('aria-expanded', 'true');
+                });
+                target.addEventListener('hidden.bs.collapse', function() {
+                    btn.innerHTML = '<i class="fas fa-chevron-down me-1"></i> عرض التفاصيل';
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
 
             document.addEventListener('click', function(ev) {
                 var btn = ev.target.closest('.btn-open-step-fields');

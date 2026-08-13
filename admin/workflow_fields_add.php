@@ -84,6 +84,7 @@ if (isset($_POST['add_field'])) {
                                     <option value="text">نص قصير (Text)</option>
                                     <option value="number">رقم (Number)</option>
                                     <option value="date">تاريخ (Date)</option>
+                                    <option value="time">وقت (Time)</option>
                                     <option value="datetime">تاريخ ووقت</option>
                                     <option value="textarea">نص طويل (Textarea)</option>
                                     <option value="select">قائمة منسدلة (Select)</option>

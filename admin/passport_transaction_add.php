@@ -62,8 +62,11 @@ if ($suppliers_parent_id) {
     $suppliers_stmt = $pdo->prepare("
         SELECT coa.*, s.id as supplier_id, s.supplier_name, coa.id as account_id
         FROM unified_accounts coa
-        LEFT JOIN suppliers s ON s.account_id = coa.id
+        INNER JOIN suppliers s ON s.account_id = coa.id
+        INNER JOIN supplier_services ss ON ss.supplier_id = s.id AND ss.is_active = 1
+        INNER JOIN catalog_services cs ON cs.id = ss.service_id AND cs.service_code = 'passport_transactions'
         WHERE coa.parent_id = ? AND (coa.account_status = 'active' OR coa.account_status = 'dormant')
+          AND s.deleted_at IS NULL AND s.status = 'active'
         ORDER BY coa.account_code ASC
     ");
     $suppliers_stmt->execute([$suppliers_parent_id]);

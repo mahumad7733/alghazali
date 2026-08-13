@@ -8,10 +8,10 @@ echo "==========================================================\n";
 echo "  تطبيق باتش sp_create_invoice المصحح (نسخة مبسطة)\n";
 echo "==========================================================\n\n";
 
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '';
-$db   = 'alghazali';
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$user = getenv('DB_USER') ?: 'alghazali_app';
+$pass = getenv('DB_PASS') ?: 'localdev';
+$db   = getenv('DB_NAME') ?: 'ghazali';
 
 // 1) اتصال مباشر بدون أي ملفات خارجية
 try {
@@ -54,7 +54,9 @@ try {
 // 3) التحقق من وجود الدوال الأساسية
 echo "\n[2/4] التحقق من الدوال المطلوبة...\n";
 foreach (['fn_sanitize_safe','fn_get_next_sequence'] as $fn) {
-    $exists = $pdo->query("SELECT COUNT(*) FROM mysql.proc WHERE db='$db' AND name='$fn' AND type='FUNCTION'")->fetchColumn();
+    $check = $pdo->prepare("SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = ? AND routine_name = ? AND routine_type = 'FUNCTION'");
+    $check->execute([$db, $fn]);
+    $exists = $check->fetchColumn();
     echo ($exists ? "      ✅ الدالة $fn موجودة\n" : "      ❌ الدالة $fn مفقودة!\n");
     if (!$exists) { exit(1); }
 }
@@ -122,7 +124,11 @@ sp_create_invoice_body:BEGIN
         SET v_party_account_id = (SELECT account_id FROM suppliers WHERE id = p_supplier_id);
     END IF;
 
-    SET v_account_id        = v_party_account_id;
+    SET v_account_id = CASE
+        WHEN p_payment_type IN ('cash', 'bank_transfer') AND p_branch_entity_id IS NOT NULL
+            THEN p_branch_entity_id
+        ELSE v_party_account_id
+    END;
     SET v_customer_acct_id  = CASE WHEN p_invoice_category='sales'    THEN v_party_account_id ELSE NULL END;
     SET v_supplier_acct_id  = CASE WHEN p_invoice_category='purchase' THEN v_party_account_id ELSE NULL END;
 
@@ -165,8 +171,12 @@ sp_create_invoice_body:BEGIN
       - COALESCE(p_discount,   0)
       + v_tax_amount, 2);
 
-    IF COALESCE(p_total_amount, 0) - COALESCE(p_discount, 0) > 0 THEN
+    IF p_payment_type IN ('cash', 'bank_transfer') THEN
+        SET v_payment_status = 'paid';
+    ELSEIF COALESCE(p_total_amount, 0) - COALESCE(p_discount, 0) > 0 THEN
         SET v_payment_status = 'unpaid';
+    ELSE
+        SET v_payment_status = 'paid';
     END IF;
 
     SET p_invoice_number = NULLIF(TRIM(p_invoice_number), '');
@@ -207,9 +217,9 @@ sp_create_invoice_body:BEGIN
         p_customer_id, p_supplier_id, p_agent_id, p_cost_center_id,
         p_currency_id, COALESCE(p_total_amount, 0), COALESCE(p_discount, 0), v_tax_amount, 0,
         v_net_amount, COALESCE(p_cost_amount, 0), p_payment_type,
-        CASE WHEN p_payment_type='cash' THEN 'cash' ELSE 'credit' END,
+        CASE WHEN p_payment_type IN ('cash', 'bank_transfer') THEN p_payment_type ELSE 'credit' END,
         v_account_id, v_customer_acct_id, v_supplier_acct_id,
-        0, v_payment_status, 'draft',
+        CASE WHEN p_payment_type IN ('cash', 'bank_transfer') THEN v_net_amount ELSE 0 END, v_payment_status, 'draft',
         p_description, p_created_by, NOW(),
         v_created_ip, v_created_ua
     );

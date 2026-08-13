@@ -276,7 +276,7 @@ DELIMITER $$
 -- (1) sp_confirm_booking — تأكيد الحجز
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_confirm_booking`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_confirm_booking`(
+CREATE PROCEDURE `sp_confirm_booking`(
     IN `p_booking_id`           INT,
     IN `p_user_id`              INT,
     IN `p_confirmation_method`  VARCHAR(50)
@@ -457,7 +457,7 @@ END$$
 -- (2) sp_request_booking_modification — تقديم طلب تعديل
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_request_booking_modification`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_request_booking_modification`(
+CREATE PROCEDURE `sp_request_booking_modification`(
     IN `p_booking_id`            INT,
     IN `p_requested_by`          INT,
     IN `p_modification_reason`   TEXT,
@@ -592,7 +592,7 @@ END$$
 -- (3) sp_approve_booking_modification — الموافقة على التعديل
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_approve_booking_modification`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_approve_booking_modification`(
+CREATE PROCEDURE `sp_approve_booking_modification`(
     IN `p_modification_id`   INT,
     IN `p_reviewer_id`       INT,
     IN `p_review_notes`      TEXT,
@@ -800,7 +800,7 @@ END$$
 -- (4) sp_cancel_booking — الإلغاء مع دعم الاسترداد المالي
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_cancel_booking`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_cancel_booking`(
+CREATE PROCEDURE `sp_cancel_booking`(
     IN `p_booking_id`              INT,
     IN `p_user_id`                 INT,
     IN `p_cancel_reason`           TEXT,
@@ -1046,7 +1046,7 @@ END$$
 -- (5) sp_update_booking_stage — تحديث مرحلة سير عمل الحجز
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_update_booking_stage`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_update_booking_stage`(
+CREATE PROCEDURE `sp_update_booking_stage`(
     IN `p_booking_id`   INT,
     IN `p_user_id`      INT,
     IN `p_new_stage`    VARCHAR(30),
@@ -1219,7 +1219,7 @@ END$$
 -- (6) sp_generate_ticket — إنشاء تذكرة رقمية
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_generate_ticket`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_generate_ticket`(
+CREATE PROCEDURE `sp_generate_ticket`(
     IN `p_booking_id`       INT,
     IN `p_issued_by`        INT,
     IN `p_seat_number`      VARCHAR(30),
@@ -1433,7 +1433,7 @@ END$$
 -- (7) sp_create_booking_notification — إرسال إشعارات الحجز يدويًا
 -- =============================================================
 DROP PROCEDURE IF EXISTS `sp_create_booking_notification`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_create_booking_notification`(
+CREATE PROCEDURE `sp_create_booking_notification`(
     IN `p_booking_id`          INT,
     IN `p_user_id`             INT,
     IN `p_notification_type`   VARCHAR(30),
@@ -1819,36 +1819,36 @@ LIMIT 1;
 --       $out = $pdo->query("SELECT @refund_id AS refund_id, @tx_id AS tx_id")->fetch();
 --
 --    c) في صفحة إدارة التذاكر:
-//       $stmt = $pdo->prepare("CALL sp_generate_ticket(?,?,?,?,?,?,?, @tid, @tnum)");
-//       $stmt->execute([
-//           $booking_id,
-//           $_SESSION['admin_id'],
-//           $_POST['seat']      ?? '',
-//           $_POST['pnr']       ?? '',
-//           $_POST['supp_ref']  ?? '',
-//           $_POST['bf_num']    ?? '',
-//           'https://your-domain.com/ticket/verify'
-//       ]);
-//       $stmt->closeCursor();
-//       $ticket = $pdo->query("SELECT @tid AS id, @tnum AS number")->fetch();
-//       // بعد ذلك احفظ id واستخدم مكتبة PHP QR لإنتاج صورة الـ QR
-//       // من البيانات booking_tickets.qr_code_data
+--       $stmt = $pdo->prepare("CALL sp_generate_ticket(?,?,?,?,?,?,?, @tid, @tnum)");
+--       $stmt->execute([
+--           $booking_id,
+--           $_SESSION['admin_id'],
+--           $_POST['seat']      ?? '',
+--           $_POST['pnr']       ?? '',
+--           $_POST['supp_ref']  ?? '',
+--           $_POST['bf_num']    ?? '',
+--           'https://your-domain.com/ticket/verify'
+--       ]);
+--       $stmt->closeCursor();
+--       $ticket = $pdo->query("SELECT @tid AS id, @tnum AS number")->fetch();
+--       // بعد ذلك احفظ id واستخدم مكتبة PHP QR لإنتاج صورة الـ QR
+--       // من البيانات booking_tickets.qr_code_data
 --
 --    d) وحدة إشعارات الخلفية (cron job كل 5 دقائق):
-//       SELECT id, booking_id, delivery_channel, subject_text, body_text
-//       FROM   booking_notifications
-//       WHERE  (status='pending' OR status='scheduled')
-//         AND  (scheduled_at IS NULL OR scheduled_at <= NOW())
-//       ORDER BY scheduled_at ASC, id ASC
-//       LIMIT 50;
+--       SELECT id, booking_id, delivery_channel, subject_text, body_text
+--       FROM   booking_notifications
+--       WHERE  (status='pending' OR status='scheduled')
+--         AND  (scheduled_at IS NULL OR scheduled_at <= NOW())
+--       ORDER BY scheduled_at ASC, id ASC
+--       LIMIT 50;
 --
 -- ✅ الخطوة 4: إضافة الأيقونات في admin/header.php إلى القائمة اليمنى:
-//    ❯ الحجوزات → التذاكر الرقمية  → /admin/booking_tickets.php
-//    ❯ الحجوزات → طلبات الاسترداد → /admin/booking_refunds.php
+--    ❯ الحجوزات → التذاكر الرقمية  → /admin/booking_tickets.php
+--    ❯ الحجوزات → طلبات الاسترداد → /admin/booking_refunds.php
 --    ❯ الحجوزات → طلبات التعديل → /admin/booking_modifications.php
 --    ❯ المراسلات → إشعارات الحجوزات → /admin/booking_notifications.php
 --
-*/
+-- */
 -- =============================================================
 -- ✅ الخطوة 5: إضافة صلاحيات الجداول الجديدة إلى unified_permissions
 -- =============================================================

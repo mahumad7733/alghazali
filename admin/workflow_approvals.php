@@ -38,6 +38,27 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                 $extra_data = json_decode($request['extra_data'], true) ?: [];
                 $booking_id = $request['booking_id'];
                 
+                $new_payment_id = null;
+                $ticket_number = null;
+
+                if (($extra_data['action'] ?? '') === 'issue_ticket') {
+                    $stmt_ticket = $pdo->prepare("CALL sp_generate_ticket(?,?,?,?,?,?,?, @tid, @tnum)");
+                    $stmt_ticket->execute([
+                        $booking_id,
+                        $processor_id,
+                        trim((string)($extra_data['seat_number'] ?? '')),
+                        trim((string)($extra_data['pnr'] ?? '')),
+                        trim((string)($extra_data['supplier_reference'] ?? '')),
+                        trim((string)($extra_data['bus_flight_number'] ?? '')),
+                        rtrim(trim((string)($extra_data['public_base_url'] ?? '')), '/')
+                    ]);
+                    $stmt_ticket->closeCursor();
+                    $ticket_row = $pdo->query("SELECT @tid AS id, @tnum AS number")->fetch(PDO::FETCH_ASSOC);
+                    $ticket_number = (string)($ticket_row['number'] ?? '');
+                    if ($ticket_number === '') {
+                        throw new Exception('تعذر إصدار التذكرة الرقمية.');
+                    }
+                } else {
                 // جلب الـ status_id الصحيح من خطوة سير العمل
                 $stmt_step = $pdo->prepare("SELECT status_id FROM workflow_steps WHERE id = ?");
                 $stmt_step->execute([$request['to_step_id']]);
@@ -57,9 +78,15 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                 
                 // جلب بيانات الحجز الحالية + القيم المالية من الفاتورة الموحدة أولاً
                 $stmt_b = $pdo->prepare("
-                    SELECT b.*, inv.currency_id AS currency_id, inv.amount_received AS amount_received, inv.total_amount AS sale_price
+                    SELECT b.*,
+                           COALESCE(inv.currency_id, 1) AS currency_id,
+                           COALESCE(inv.amount_received, 0) AS amount_received,
+                           COALESCE(inv.total_amount, b.sale_price, 0) AS sale_price,
+                           COALESCE(inv.account_id, b.account_id) AS cash_bank_account_id,
+                           inv.customer_account_id AS invoice_customer_account_id,
+                           inv.delivery_type AS invoice_delivery_type
                     FROM bus_flight_bookings b
-                    LEFT JOIN invoices inv ON inv.id = b.invoice_id
+                    LEFT JOIN invoices inv ON inv.id = COALESCE(b.sales_invoice_id, b.invoice_id)
                     WHERE b.id = ?
                 ");
                 $stmt_b->execute([$booking_id]);
@@ -67,9 +94,40 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
 
                 if (!$booking) throw new Exception("الحجز غير موجود");
 
-                // تنفيذ الخصم والاسترداد المالي إذا كان هناك مبلغ مخصوم
-                $discount_amount = isset($extra_data['discount_amount']) ? (float)$extra_data['discount_amount'] : 0;
-                $new_payment_id = null;
+                // تطبيق تفاصيل تعديل الحجز بعد الموافقة فقط.
+                if (($extra_data['modification_type'] ?? '') === 'route') {
+                    $requestedFrom = (int)($extra_data['requested_from_city_id'] ?? 0);
+                    $requestedTo = (int)($extra_data['requested_to_city_id'] ?? 0);
+                    if ($requestedFrom <= 0 || $requestedTo <= 0 || $requestedFrom === $requestedTo) {
+                        throw new Exception('بيانات المسار المطلوب غير صحيحة.');
+                    }
+                    $stmt_route = $pdo->prepare('SELECT COUNT(*) FROM cities WHERE id IN (?, ?)');
+                    $stmt_route->execute([$requestedFrom, $requestedTo]);
+                    if ((int)$stmt_route->fetchColumn() !== 2) {
+                        throw new Exception('إحدى مدن المسار المطلوب غير موجودة.');
+                    }
+                    $pdo->prepare('UPDATE bus_flight_bookings SET from_city_id = ?, to_city_id = ?, mod_reason = ?, mod_datetime = NOW() WHERE id = ?')
+                        ->execute([$requestedFrom, $requestedTo, $extra_data['mod_reason'] ?? $request['notes'], $booking_id]);
+                } elseif (($extra_data['modification_type'] ?? '') === 'time') {
+                    $requestedTime = trim((string)($extra_data['requested_departure_time'] ?? ''));
+                    $time = DateTime::createFromFormat('H:i', $requestedTime);
+                    if (!$time || $time->format('H:i') !== $requestedTime) {
+                        throw new Exception('وقت المغادرة المطلوب غير صحيح.');
+                    }
+                    $pdo->prepare('UPDATE bus_flight_bookings SET departure_time = ?, mod_reason = ?, mod_datetime = NOW() WHERE id = ?')
+                        ->execute([$requestedTime, $extra_data['mod_reason'] ?? $request['notes'], $booking_id]);
+                }
+                if (!empty($extra_data['requested_mod_date'])) {
+                    $requestedDate = DateTime::createFromFormat('Y-m-d', (string)$extra_data['requested_mod_date']);
+                    if ($requestedDate && $requestedDate->format('Y-m-d') === $extra_data['requested_mod_date']) {
+                        $pdo->prepare('UPDATE bus_flight_bookings SET departure_date = ? WHERE id = ?')->execute([$extra_data['requested_mod_date'], $booking_id]);
+                    }
+                }
+
+                // تنفيذ الخصم والاسترداد المالي إذا كان هناك مبلغ مخصوم.
+                // discount_amount is calculated from the sale price by the request form.
+                $discount_amount = max(0, (float)($extra_data['discount_amount'] ?? 0));
+                $discount_percent = isset($extra_data['discount_percent']) ? max(0, min(100, (float)$extra_data['discount_percent'])) : null;
 
                 if ($discount_amount > 0) {
                     // تحديث مبلغ الخصم على الفاتورة الموحدة بدل جدول التشغيل
@@ -78,31 +136,40 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                         $stmt_upd_discount->execute([$discount_amount, (int)$booking['invoice_id']]);
                     }
 
-                    // حساب المبلغ المستحق استرداده للعميل
-                    // المبلغ المدفوع - الغرامة
-                    $refund_amount = $booking['amount_received'] - $discount_amount;
+                    // المبلغ المسترد = المدفوع فعليًا - الغرامة، ولا يتجاوز المدفوع.
+                    $paid_amount = max(0, (float)$booking['amount_received']);
+                    $refund_amount = max(0, min($paid_amount, $paid_amount - $discount_amount));
 
                     if ($refund_amount > 0) {
-                        // إنشاء سند صرف (استرداد) والقيد المالي الموحد (نظام ERP الجديد)
-                        $account_id = $booking['account_id']; // أو حساب محدد من الإعدادات
+                        // منع إنشاء قيد استرداد مكرر لنفس الحجز.
+                        $stmt_existing_refund = $pdo->prepare("SELECT id FROM financial_transactions WHERE reference_type = 'bus_flight_booking' AND reference_id = ? AND transaction_type = 'payment' AND status = 'posted' AND description LIKE 'استرداد مبلغ بعد خصم الغرامة%' LIMIT 1");
+                        $stmt_existing_refund->execute([$booking_id]);
+                        $new_payment_id = (int)($stmt_existing_refund->fetchColumn() ?: 0);
 
-                        // جلب حساب العميل كحساب مدين (استرداد)
-                        $stmt_cust_coa = $pdo->prepare("SELECT account_id FROM customers WHERE id = ?");
-                        $stmt_cust_coa->execute([$booking['customer_id']]);
-                        $debit_account_id = $stmt_cust_coa->fetchColumn();
+                        // حساب العميل مدين، وحساب الصندوق/البنك المرتبط بالفاتورة دائن.
+                        $debit_account_id = $booking['invoice_customer_account_id'];
+                        if (!$debit_account_id && !empty($booking['customer_id'])) {
+                            $stmt_cust_coa = $pdo->prepare("SELECT account_id FROM customers WHERE id = ?");
+                            $stmt_cust_coa->execute([$booking['customer_id']]);
+                            $debit_account_id = $stmt_cust_coa->fetchColumn();
+                        }
+                        $cash_bank_account_id = (int)($booking['cash_bank_account_id'] ?? 0);
 
-                        if ($account_id && $debit_account_id) {
+                        if (!$new_payment_id) {
+                            if (!$cash_bank_account_id || !$debit_account_id) {
+                                throw new Exception('لا يمكن تنفيذ الاسترداد: حساب العميل أو حساب الصندوق/البنك غير محدد في الفاتورة.');
+                            }
                             $new_payment_id = \Core\Finance\FinancePostingAdapter::createFinancialEntry(
                                 $pdo,
                                 date('Y-m-d'),
                                 'payment',
                                 'customer',
                                 $booking['customer_id'],
-                                $debit_account_id, // حساب العميل مدين
-                                $account_id, // حساب الصندوق دائن
+                                $debit_account_id,
+                                $cash_bank_account_id,
                                 $refund_amount,
                                 $booking['currency_id'],
-                                "استرداد مبلغ بعد خصم الغرامة (" . $discount_amount . ") للمسافر " . $booking['traveler_name'],
+                                "استرداد مبلغ بعد خصم الغرامة (" . $discount_amount . ($discount_percent !== null ? " / {$discount_percent}%" : '') . ") للمسافر " . $booking['traveler_name'],
                                 $processor_id,
                                 $booking['branch_id'],
                                 null,
@@ -110,9 +177,15 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                                 'bus_flight_booking',
                                 $booking_id
                             );
-                        }
 
-                        // تحديث المقبوض ليكون مساوياً للغرامة فقط على الفاتورة الموحدة
+                            // حفظ سجل استرداد تشغيلي مرتبط بالقيد المحاسبي.
+                            $refund_method = in_array(strtolower((string)($booking['invoice_delivery_type'] ?? '')), ['bank', 'transfer', 'bank_transfer'], true) ? 'bank' : 'cash';
+                            $stmt_refund = $pdo->prepare("INSERT INTO booking_refunds (booking_id, refund_amount, refund_currency_id, customer_account_id, cash_bank_account_id, refund_method, refund_reason, is_partial, requested_by, requested_at, status, approved_by, approved_at, processed_by, processed_at, financial_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'processed', ?, NOW(), ?, NOW(), ?)");
+                            $stmt_refund->execute([$booking_id, $refund_amount, $booking['currency_id'], $debit_account_id, $cash_bank_account_id, $refund_method, $request['notes'] ?: 'إلغاء الحجز واسترداد المبلغ بعد الخصم', $refund_amount < $paid_amount ? 1 : 0, $request['requested_by'], $processor_id, $processor_id, $new_payment_id]);
+                        }
+                    }
+
+                    // تحديث المقبوض ليكون مساوياً للغرامة فقط على الفاتورة الموحدة
                         if (!empty($booking['invoice_id'])) {
                             $new_amount_received = (float)$discount_amount;
                             $payment_status = 'unpaid';
@@ -126,7 +199,6 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
                             $stmt_upd_received->execute([$new_amount_received, $payment_status, (int)$booking['invoice_id']]);
                         }
                     }
-                }
 
                 // تحديث حالة الحجز
                 $stmt_status_upd = $pdo->prepare("UPDATE bus_flight_bookings SET status_id = ? WHERE id = ?");
@@ -141,6 +213,7 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
 
                 // إضافة سجل في تاريخ الحالات
                 change_booking_status($booking_id, $to_status_id, $processor_id, "تم الاعتماد من المدير: " . $admin_notes);
+                }
 
             } else {
                 // تنفيذ النقل الفعلي للحالة للمعاملات (القديم)
@@ -158,7 +231,9 @@ if (isset($_POST['action']) && isset($_POST['request_id'])) {
 
             // إرسال إشعار
             $title = "تم اعتماد طلبك";
-            $msg_body = "تمت الموافقة على طلبك بنجاح.";
+            $msg_body = $ticket_number
+                ? "تمت الموافقة وإصدار التذكرة الرقمية. رقم التذكرة: {$ticket_number}"
+                : "تمت الموافقة على طلبك بنجاح.";
             $link = $request['booking_id'] ? "bus_flight_bookings.php" : "work_visa.php?id=" . $request['passport_id'];
             
             $stmt_n = $pdo->prepare("INSERT INTO notifications (user_id, title, message, link, type, created_by) VALUES (?, ?, ?, ?, 'success', ?)");
@@ -361,7 +436,24 @@ $requests = $pdo->query("
                                     <div class="row g-1">
                                         <?php foreach($extra as $k => $v): 
                                             $label = $k;
+                                            if ($k === 'action') {
+                                                $label = 'نوع الطلب';
+                                                $v = ($v === 'issue_ticket') ? 'إصدار تذكرة رقمية' : $v;
+                                            }
                                             if ($k === 'discount_amount') $label = 'المبلغ المخصوم';
+                                            if ($k === 'discount_percent') $label = 'نسبة الغرامة %';
+                                            if ($k === 'net_amount') $label = 'المبلغ الصافي بعد الخصم';
+                                            if ($k === 'modification_type') {
+                                                $label = 'نوع التعديل';
+                                                $v = ($v === 'route') ? 'تعديل المسار' : (($v === 'time') ? 'تعديل وقت الرحلة' : $v);
+                                            }
+                                            if ($k === 'requested_from_city_id') $label = 'مدينة المغادرة المطلوبة';
+                                            if ($k === 'requested_to_city_id') $label = 'مدينة الوصول المطلوبة';
+                                            if ($k === 'requested_departure_time') $label = 'وقت المغادرة المطلوب';
+                                            if ($k === 'modification_penalty_percent') $label = 'نسبة غرامة التعديل %';
+                                            if ($k === 'modification_penalty_amount') $label = 'مبلغ غرامة التعديل';
+                                            if ($k === 'current_departure_date') $label = 'تاريخ المغادرة الحالي';
+                                            if ($k === 'requested_mod_date') $label = 'تاريخ المغادرة المطلوب';
                                             if ($k === 'mod_reason') $label = 'سبب التعديل';
                                             if ($k === 'cancel_reason') $label = 'سبب الإلغاء';
                                             if ($k === 'ticket_number') $label = 'رقم التذكرة';

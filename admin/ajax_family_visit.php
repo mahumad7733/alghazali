@@ -11,8 +11,12 @@ if (!isset($_SESSION['admin_id'])) {
 
 $action = $_GET['action'] ?? '';
 header('Content-Type: application/json; charset=utf-8');
+if ($action === 'get_request_details') {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+}
 rate_limit('ajax_family_visit:' . $action, 60, 60);
-require_csrf_for_actions(['update_request_status', 'update_visa_info', 'process_transition', 'post_finance', 'unpost_finance', 'cancel_invoices']);
+require_csrf_for_actions(['update_request_status', 'update_visa_info', 'update_individual', 'process_transition', 'post_finance', 'unpost_finance', 'cancel_invoices']);
 
 function family_visit_collect_invoice_ids_by_scope(array $requestRow, string $scope): array
 {
@@ -233,8 +237,15 @@ elseif ($action === 'get_request_details') {
 
     $hasComingFromCity = !empty($pdo->query("SHOW COLUMNS FROM family_visit_individuals LIKE 'coming_from_city_id'")->fetchAll(PDO::FETCH_ASSOC));
     $hasReceivedDocs = !empty($pdo->query("SHOW COLUMNS FROM family_visit_individuals LIKE 'received_documents'")->fetchAll(PDO::FETCH_ASSOC));
+    $hasAgentPrice = !empty($pdo->query("SHOW COLUMNS FROM family_visit_individuals LIKE 'agent_price'")->fetchAll(PDO::FETCH_ASSOC));
+    $hasBranchPrice = !empty($pdo->query("SHOW COLUMNS FROM family_visit_individuals LIKE 'branch_price'")->fetchAll(PDO::FETCH_ASSOC));
+    $purchaseParts = [];
+    if ($hasAgentPrice) $purchaseParts[] = 'NULLIF(i.agent_price, 0)';
+    if ($hasBranchPrice) $purchaseParts[] = 'NULLIF(i.branch_price, 0)';
+    $purchaseExpression = $purchaseParts ? 'COALESCE(' . implode(', ', $purchaseParts) . ', 0)' : '0';
 
-    $selectCols = "i.*, rel.name_ar as relationship_name, s.status_name as individual_status";
+    // توحيد أسماء الأسعار التي يقرأها نموذج التعديل؛ سعر الشراء محفوظ إما في agent_price أو branch_price.
+    $selectCols = "i.*, {$purchaseExpression} AS purchase_price, rel.name_ar as relationship_name, s.status_name as individual_status";
     $joins = "";
     if ($hasComingFromCity) {
         $selectCols .= ", c.city_name as coming_from_city_name";
@@ -321,31 +332,114 @@ elseif ($action === 'get_service_price') {
 }
 
 elseif ($action === 'update_request_status') {
-    $id = $_POST['id'] ?? $_GET['id'] ?? null;
-    $status_id = $_POST['status_id'] ?? $_GET['status_id'] ?? null;
+    $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+    $statusId = (int)($_POST['status_id'] ?? $_GET['status_id'] ?? 0);
+    $scope = strtolower(trim((string)($_POST['scope'] ?? 'all')));
+    $individualId = (int)($_POST['individual_id'] ?? 0);
 
-    if (!$id || !$status_id) {
-        echo json_encode(['status' => 'error', 'message' => 'Missing ID or Status']);
+    if ($id <= 0 || $statusId <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'معرف الطلب أو الحالة غير صحيح']);
         exit();
+    }
+    if (!in_array($scope, ['all', 'individual'], true)) {
+        $scope = 'all';
     }
 
     try {
         $pdo->beginTransaction();
 
-        // Update Request
-        $stmt = $pdo->prepare("UPDATE family_visit_requests SET status_id = ? WHERE id = ?");
-        $stmt->execute([$status_id, $id]);
+        $statusCheck = $pdo->prepare("SELECT id FROM statuses WHERE id = ? LIMIT 1");
+        $statusCheck->execute([$statusId]);
+        if (!$statusCheck->fetchColumn()) {
+            throw new Exception('الحالة المحددة غير موجودة');
+        }
 
-        // Update all individuals in this request
-        $stmt_ind = $pdo->prepare("UPDATE family_visit_individuals SET status_id = ? WHERE request_id = ?");
-        $stmt_ind->execute([$status_id, $id]);
+        $requestCheck = $pdo->prepare("SELECT id FROM family_visit_requests WHERE id = ? LIMIT 1");
+        $requestCheck->execute([$id]);
+        if (!$requestCheck->fetchColumn()) {
+            throw new Exception('طلب الزيارة غير موجود');
+        }
+
+        if ($scope === 'individual') {
+            if ($individualId <= 0) {
+                throw new Exception('معرف الفرد غير صحيح');
+            }
+            $stmtIndividual = $pdo->prepare("UPDATE family_visit_individuals SET status_id = ? WHERE id = ? AND request_id = ?");
+            $stmtIndividual->execute([$statusId, $individualId, $id]);
+            if ($stmtIndividual->rowCount() === 0) {
+                throw new Exception('الفرد غير مرتبط بهذا الطلب أو لم يتم العثور عليه');
+            }
+        } else {
+            $pdo->prepare("UPDATE family_visit_requests SET status_id = ? WHERE id = ?")->execute([$statusId, $id]);
+            $pdo->prepare("UPDATE family_visit_individuals SET status_id = ? WHERE request_id = ?")->execute([$statusId, $id]);
+        }
 
         $pdo->commit();
-        echo json_encode(['status' => 'success']);
-    } catch (Exception $e) {
-        $pdo->rollBack();
+        echo json_encode(['status' => 'success', 'scope' => $scope]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log(basename(__FILE__) . ': ' . $e->getMessage());
-        echo json_encode(['status' => 'error', 'message' => 'حدث خطأ داخلي في النظام']);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+
+elseif ($action === 'update_individual') {
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'معرف الفرد غير صحيح']);
+        exit();
+    }
+
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM family_visit_individuals WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $individual = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$individual) {
+            throw new Exception('الفرد غير موجود');
+        }
+
+        $fullName = trim((string)($_POST['full_name'] ?? ''));
+        $passportNo = trim((string)($_POST['passport_no'] ?? ''));
+        if ($fullName === '' || $passportNo === '') {
+            throw new Exception('الاسم ورقم الجواز مطلوبان');
+        }
+
+        $columns = $pdo->query("SHOW COLUMNS FROM family_visit_individuals")->fetchAll(PDO::FETCH_COLUMN);
+        $updates = ['full_name = ?', 'passport_no = ?', 'gender = ?', 'birth_date = ?', 'age = ?'];
+        $values = [
+            $fullName,
+            $passportNo,
+            trim((string)($_POST['gender'] ?? '')) ?: null,
+            ($_POST['birth_date'] ?? '') !== '' ? $_POST['birth_date'] : null,
+            ($_POST['age'] ?? '') !== '' ? (int)$_POST['age'] : null,
+        ];
+
+        if (in_array('coming_from_city_id', $columns, true)) {
+            $updates[] = 'coming_from_city_id = ?';
+            $values[] = ($_POST['coming_from_city_id'] ?? '') !== '' ? (int)$_POST['coming_from_city_id'] : null;
+        }
+        if (in_array('received_documents', $columns, true)) {
+            $updates[] = 'received_documents = ?';
+            $values[] = trim((string)($_POST['received_documents'] ?? '')) ?: null;
+        }
+        if (in_array('sale_price', $columns, true)) {
+            $updates[] = 'sale_price = ?';
+            $values[] = max(0, (float)($_POST['sale_price'] ?? 0));
+        }
+
+        $purchasePrice = max(0, (float)($_POST['purchase_price'] ?? 0));
+        $purchaseColumn = ((float)($individual['agent_price'] ?? 0) > 0 || !in_array('branch_price', $columns, true)) ? 'agent_price' : 'branch_price';
+        if (in_array($purchaseColumn, $columns, true)) {
+            $updates[] = $purchaseColumn . ' = ?';
+            $values[] = $purchasePrice;
+        }
+
+        $values[] = $id;
+        $pdo->prepare('UPDATE family_visit_individuals SET ' . implode(', ', $updates) . ' WHERE id = ?')->execute($values);
+        echo json_encode(['status' => 'success', 'message' => 'تم تحديث بيانات الفرد بنجاح']);
+    } catch (Throwable $e) {
+        error_log('family_visit update_individual: ' . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
 }
 

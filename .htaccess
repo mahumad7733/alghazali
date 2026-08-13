@@ -1,12 +1,50 @@
+# Production security policy for Apache 2.4 and Apache 2.2
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+</IfModule>
+
+# Never serve hidden files, environment files, logs, database dumps, or local configuration.
 <IfModule mod_authz_core.c>
-    <FilesMatch "^(fix.*|debug.*|check.*)\.php$">
+    <FilesMatch "^\.|(\.env|\.log|\.ini|\.sql|\.sql\.gz|\.sqlite|\.bak|\.backup|\.old|\.orig|\.tmp|\.swp)$">
+        Require all denied
+    </FilesMatch>
+    <FilesMatch "^(debug|check|fix|apply|restore|test|_.*|tmp_|query_result)\.php$">
         Require all denied
     </FilesMatch>
 </IfModule>
-
 <IfModule !mod_authz_core.c>
-    <FilesMatch "^(fix.*|debug.*|check.*)\.php$">
-        Order allow,deny
+    <FilesMatch "^\.|(\.env|\.log|\.ini|\.sql|\.sql\.gz|\.sqlite|\.bak|\.backup|\.old|\.orig|\.tmp|\.swp)$">
+        Order Allow,Deny
         Deny from all
     </FilesMatch>
+    <FilesMatch "^(debug|check|fix|apply|restore|test|_.*|tmp_|query_result)\.php$">
+        Order Allow,Deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+# Keep operational/database tooling outside the public web root in production.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(?:tools|database|supabase|sessions|storage|logs)(?:/|$) - [F,L,NC]
+    RewriteRule ^(?:.*\.(?:env|log|ini|sql|sql\.gz|sqlite|bak|backup|old|orig|tmp|swp))$ - [F,L,NC]
+</IfModule>
+
+AddDefaultCharset UTF-8
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/css application/javascript application/json application/xml
+</IfModule>
+
+<IfModule mod_php.c>
+    php_flag expose_php Off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag expose_php Off
 </IfModule>

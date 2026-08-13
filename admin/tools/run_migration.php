@@ -1,13 +1,12 @@
 <?php
-// Use default XAMPP MySQL settings
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '738155';
-$db   = 'ghazali';
+// Migration runner is intentionally CLI-only; never expose schema changes over HTTP.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+require_once __DIR__ . '/../../includes/db.php';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     echo "✅ تم الاتصال بقاعدة البيانات بنجاح!\n\n";
     
@@ -54,6 +53,5 @@ try {
     echo "\n🎉 تم تطبيق جميع التحديثات بنجاح!\n";
     
 } catch (PDOException $e) {
-    echo "❌ خطأ: " . $e->getMessage() . "\n";
-    echo "يرجى التأكد من تشغيل MySQL في XAMPP!\n";
+    echo "❌ تعذر تنفيذ الترحيلات. راجع سجل التشغيل الداخلي.\n";
 }

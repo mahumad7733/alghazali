@@ -2,6 +2,13 @@
 ob_start();
 require_once 'header.php';
 
+// العرض الموحد للتذكرة الرقمية أصبح من خلال صفحة طباعة الحجز.
+$id = (int)($_GET['id'] ?? 0);
+if ($id > 0) {
+    header('Location: bus_flight_bookings_print.php?id=' . $id);
+    exit();
+}
+
 $id = $_GET['id'] ?? null;
 if (!$id) {
     echo "خطأ: لم يتم تحديد الحجز.";

@@ -8,6 +8,7 @@
 ob_start();
 define('SYSTEM_ACCESS', true);
 require_once __DIR__ . '/header.php';
+require_once __DIR__ . '/../core/bookings/BookingWorkflowService.php';
 
 if (!has_permission('bookings_view')) {
     echo "<script>alert('ليس لديك صلاحية للوصول لهذه الصفحة'); location.href='index.php';</script>";
@@ -31,19 +32,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['issue_ticket'])) {
     } else {
         try {
             $booking_id = (int)($_POST['booking_id'] ?? 0);
-            $stmt = $pdo->prepare("CALL sp_generate_ticket(?,?,?,?,?,?,?, @tid, @tnum)");
-            $stmt->execute([
-                $booking_id,
-                $user_id,
-                trim($_POST['seat_number'] ?? ''),
-                trim($_POST['pnr'] ?? ''),
-                trim($_POST['supplier_reference'] ?? ''),
-                trim($_POST['bus_flight_number'] ?? ''),
-                rtrim(trim($_POST['public_base_url'] ?? (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/alghazali/ticket/verify'), '/')
-            ]);
-            $stmt->closeCursor();
-            $ticket = $pdo->query("SELECT @tid AS id, @tnum AS number")->fetch();
-            $success = "✅ تم إصدار التذكرة بنجاح — رقم التذكرة: <b>{$ticket['number']}</b>";
+            $ticketData = [
+                'seat_number' => $_POST['seat_number'] ?? '',
+                'pnr' => $_POST['pnr'] ?? '',
+                'supplier_reference' => $_POST['supplier_reference'] ?? '',
+                'bus_flight_number' => $_POST['bus_flight_number'] ?? '',
+                'public_base_url' => rtrim(trim($_POST['public_base_url'] ?? ((isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/alghazali/ticket/verify')), '/'),
+            ];
+            $stmt_booking_type = $pdo->prepare('SELECT service_type FROM bus_flight_bookings WHERE id = ? LIMIT 1');
+            $stmt_booking_type->execute([$booking_id]);
+            $bookingServiceType = $stmt_booking_type->fetchColumn();
+            $bookingWorkflowType = ($bookingServiceType === 'bus') ? 'bus_bookings' : 'flight_bookings';
+            $workflowService = new BookingWorkflowService($pdo, $user_id, $bookingWorkflowType);
+            $workflowService->requestTicketApproval($booking_id, $ticketData, 'طلب إصدار تذكرة رقمية للحجز', null);
+            $success = '✅ تم إرسال طلب إصدار التذكرة إلى طلبات اعتماد العمليات.';
         } catch (Throwable $e) {
             $error = 'خطأ: ' . $e->getMessage();
         }
@@ -201,7 +203,7 @@ $pages = ceil($total / $perPage);
                         <td><small><?= h(date('Y-m-d', strtotime($t['issued_at']))) ?></small></td>
                         <td>
                             <div class="d-flex gap-1">
-                                <a class="btn btn-sm btn-outline-info rounded-3" href="bus_flight_bookings_ticket.php?id=<?= (int)$t['booking_id'] ?>&ticket=<?= (int)$t['id'] ?>" target="_blank">
+                                <a class="btn btn-sm btn-outline-info rounded-3" href="bus_flight_bookings_print.php?id=<?= (int)$t['booking_id'] ?>" target="_blank">
                                     <i class="fas fa-print me-1"></i> طباعة
                                 </a>
                                 <?php if (!$t['is_void'] && (has_permission('booking_ticket_issue') || $is_admin)): ?>

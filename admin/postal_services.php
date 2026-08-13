@@ -483,7 +483,7 @@ $financial_fields_select2_parent = '#addPostalShipmentModal';
 $financial_fields_show_service_select = false;
 $financial_fields_form_selector = '#addPostalShipmentForm';
 $financial_fields_hide_service_accounts = true;
-
+$financial_fields_show_discount = (bool)($settings['postal_services_allow_discount'] ?? 1);
 $successMessage = $_SESSION['success'] ?? null;
 $errorMessage = $_SESSION['error'] ?? null;
 unset($_SESSION['success'], $_SESSION['error']);

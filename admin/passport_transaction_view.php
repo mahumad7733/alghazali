@@ -208,6 +208,9 @@ function getJournalEntryDetails($pdo, $sale_id, $pur_id)
 }
 
 // Fetch transaction details
+// تدعم الفواتير القديمة والجديدة التي تستخدم أسماء source_type المختلفة.
+$passportSourceTypes = ['passport_transaction', 'معاملات جوازات', 'معاملات جواز'];
+$passportSourcePlaceholders = implode(',', array_fill(0, count($passportSourceTypes), '?'));
 $stmt = $pdo->prepare("
     SELECT pt.*,
            inv.id AS invoice_id,
@@ -266,11 +269,11 @@ $stmt = $pdo->prepare("
            cust.phone as customer_phone
     FROM passport_transactions pt
     LEFT JOIN invoices inv
-        ON inv.source_type = 'passport_transaction'
+        ON inv.source_type IN ($passportSourcePlaceholders)
        AND inv.source_id = pt.id
        AND inv.invoice_category = 'sales'
     LEFT JOIN invoices pur
-        ON pur.source_type = 'passport_transaction'
+        ON pur.source_type IN ($passportSourcePlaceholders)
        AND pur.source_id = pt.id
        AND pur.invoice_category = 'purchase'
     LEFT JOIN suppliers sup ON inv.supplier_id = sup.id
@@ -286,7 +289,7 @@ $stmt = $pdo->prepare("
     LEFT JOIN customers cust ON pt.customer_id = cust.id
     WHERE pt.id = ?
 ");
-$stmt->execute([$id]);
+$stmt->execute(array_merge($passportSourceTypes, $passportSourceTypes, [$id]));
 $trx = $stmt->fetch();
 
 // إعادة حساب المتبقي والربح بناءً على المبلغ المقبوض المحسوب
@@ -585,9 +588,54 @@ if ($workflow) {
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded-3">
                                 <label class="text-muted small d-block mb-1">تاريخ العملية</label>
-                                <span class="fw-bold"><?php echo $trx['operation_date']; ?></span>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['operation_date'] ?: 'غير محدد'); ?></span>
                             </div>
                         </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">رقم الهوية</label>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['id_number'] ?: 'غير محدد'); ?></span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">تاريخ انتهاء الجواز</label>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['passport_expiry_date'] ?: 'غير محدد'); ?></span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">المستلم</label>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['delivery_receiver_name'] ?: 'غير محدد'); ?></span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">الفرع</label>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['branch_name'] ?: 'غير محدد'); ?></span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">أنشأها</label>
+                                <span class="fw-bold"><?php echo htmlspecialchars($trx['created_by_name'] ?: 'غير محدد'); ?></span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">نوع المعاملة</label>
+                                <span class="fw-bold"><?php echo $trx['transaction_type'] === 'card_only' ? 'بطاقة فقط' : ($trx['transaction_type'] === 'passport_only' ? 'جواز فقط' : 'بطاقة وجواز'); ?></span>
+                            </div>
+                        </div>
+                        <?php if (!empty($trx['description']) || !empty($trx['notes'])): ?>
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3">
+                                <label class="text-muted small d-block mb-1">الوصف والملاحظات</label>
+                                <?php if (!empty($trx['description'])): ?><div class="fw-bold"><?php echo nl2br(htmlspecialchars($trx['description'])); ?></div><?php endif; ?>
+                                <?php if (!empty($trx['notes'])): ?><div class="small text-muted mt-1"><?php echo nl2br(htmlspecialchars($trx['notes'])); ?></div><?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                         <?php if ($trx['customer_name'] || $trx['agent_name']): ?>
                         <div class="col-md-12">
                             <div class="p-3 bg-light rounded-3 border-start border-4 border-primary">

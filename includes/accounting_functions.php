@@ -366,7 +366,9 @@ function php_create_invoice(
             WHERE id = ?
         ";
         $account_id_for_update = null;
-        if ($category == 'sales') {
+        if (in_array($payment_type, ['cash', 'bank_transfer'], true) && $branch_entity_id) {
+            $account_id_for_update = (int)$branch_entity_id;
+        } elseif ($category == 'sales') {
             $account_id_for_update = $customer_account_id ?: $branch_entity_id;
         } else {
             $account_id_for_update = $supplier_account_id ?: $branch_entity_id;
@@ -1754,7 +1756,6 @@ function php_create_financial_entry(
             $ref_type,
             $ref_id,
             $description,
-            $user_id,
             $user_id,
             $cost_center_id
         ]);

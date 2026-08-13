@@ -3,13 +3,14 @@
  * فحوصات التحقق النهائية بعد تطبيق إصلاحات قاعدة البيانات
  */
 
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '738155';
-$db   = 'ghazali';
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$port = getenv('DB_PORT') ?: '3306';
+$user = getenv('DB_USER') ?: 'root';
+$pass = getenv('DB_PASS') ?: '';
+$db   = getenv('DB_NAME') ?: 'ghazali';
 $charset = 'utf8mb4';
 
-$pdo = new PDO("mysql:host=$host;dbname=$db;charset=$charset", $user, $pass, [
+$pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=$charset", $user, $pass, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
@@ -68,17 +69,19 @@ $requiredObjects = [
 
 $countInvoker = 0;
 foreach ($requiredObjects as $obj) {
-    $row = $pdo->query("
-        SELECT security_type, definer
-          FROM mysql.proc
-         WHERE db = DATABASE()
-           AND type = '{$obj['type']}'
-           AND name = '{$obj['name']}'
+    $stmtObject = $pdo->prepare("
+        SELECT SECURITY_TYPE AS security_type, DEFINER AS definer
+          FROM information_schema.ROUTINES
+         WHERE ROUTINE_SCHEMA = DATABASE()
+           AND ROUTINE_TYPE = ?
+           AND ROUTINE_NAME = ?
          LIMIT 1
-    ")->fetch();
+    ");
+    $stmtObject->execute([$obj['type'], $obj['name']]);
+    $row = $stmtObject->fetch();
 
     $exists = (bool)$row;
-    $isInvoker = $exists && $row['security_type'] === 'INVOKER';
+    $isInvoker = $exists && strtoupper((string)$row['security_type']) === 'INVOKER';
     if ($isInvoker) $countInvoker++;
 
     testResult(

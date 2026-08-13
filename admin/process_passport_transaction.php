@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $passport_transaction_date = !empty($_POST['passport_transaction_date']) ? $_POST['passport_transaction_date'] : null;
                 $passport_number = htmlspecialchars($_POST['passport_number'] ?? null);
                 $passport_issue_date = !empty($_POST['passport_issue_date']) ? $_POST['passport_issue_date'] : null;
+                $passport_expiry_date = !empty($_POST['passport_expiry_date']) ? $_POST['passport_expiry_date'] : null;
                 $travel_date = !empty($_POST['travel_date']) ? $_POST['travel_date'] : null;
                 $today = date('Y-m-d');
 
@@ -156,6 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 // Insert into passport_transactions
+                // توليد placeholders من عدد الأعمدة يمنع اختلاف العدد عند إضافة أعمدة اختيارية أو ثابتة.
+                $passportInsertColumnCount = 32;
+                $passportInsertPlaceholders = implode(', ', array_fill(0, $passportInsertColumnCount, '?'));
                 $stmt = $pdo->prepare("
                     INSERT INTO `passport_transactions` (
                         `transaction_number`, `full_name`, `phone_number`, `place_of_birth`, `date_of_birth`, 
@@ -166,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         `description`, `notes`, `status_id`, `workflow_id`, `created_by`, `branch_id`,
                         `service_id`
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        {$passportInsertPlaceholders}
                     )
                 ");
 
@@ -244,7 +248,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $transaction_id
                 ]);
 
-                $pdo->commit();
+                // المحرك المالي يستخدم Savepoints وقد ينهي المعاملة الخارجية في بعض المسارات.
+                // لا تستدعِ commit على PDO إذا لم تعد هناك معاملة نشطة.
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
                 $_SESSION['flash_message'] = ['type' => 'success', 'title' => 'تم بنجاح', 'body' => 'تم إضافة معاملة الجوازات بنجاح.'];
                 header('Location: ' . $redirect_to);
                 exit();
@@ -298,6 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $passport_transaction_date = !empty($_POST['passport_transaction_date']) ? $_POST['passport_transaction_date'] : null;
                 $passport_number = htmlspecialchars($_POST['passport_number'] ?? null);
                 $passport_issue_date = !empty($_POST['passport_issue_date']) ? $_POST['passport_issue_date'] : null;
+                $passport_expiry_date = !empty($_POST['passport_expiry_date']) ? $_POST['passport_expiry_date'] : null;
                 $travel_date = !empty($_POST['travel_date']) ? $_POST['travel_date'] : null;
                 $today = date('Y-m-d');
 
@@ -359,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         `transaction_number` = ?, `full_name` = ?, `phone_number` = ?, `place_of_birth` = ?, `date_of_birth` = ?, 
                         `id_type` = ?, `id_number` = ?, `from_city_id` = ?, `to_city_id` = ?, `travel_date` = ?, `transaction_type_id` = ?, `transaction_type` = ?, 
                         `card_transaction_number` = ?, `card_transaction_date` = ?, `card_number` = ?, `card_issue_date` = ?, 
-                        `passport_transaction_number` = ?, `passport_transaction_date` = ?, `passport_number` = ?, `passport_issue_date` = ?, 
+                        `passport_transaction_number` = ?, `passport_transaction_date` = ?, `passport_number` = ?, `passport_issue_date` = ?, `passport_expiry_date` = ?,
                         `delivery_receiver_name` = ?, `operation_date` = ?, `customer_id` = ?, `agent_id` = ?,
                         `description` = ?, `notes` = ?, `service_id` = ?
                     WHERE `id` = ?
@@ -369,14 +378,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $transaction_number, $full_name, $phone_number, $place_of_birth, $date_of_birth,
                     $id_type, $id_number, $from_city_id, $to_city_id, $travel_date, $transaction_type_id, $transaction_type,
                     $card_transaction_number, $card_transaction_date, $card_number, $card_issue_date,
-                    $passport_transaction_number, $passport_transaction_date, $passport_number, $passport_issue_date,
+                    $passport_transaction_number, $passport_transaction_date, $passport_number, $passport_issue_date, $passport_expiry_date,
                     $delivery_receiver_name, $operation_date, $customer_id, $agent_id_from_post,
                     $description, $notes, $service_id, $id
                 ]);
                 
                 // حذف الفواتير القديمة والترحيلات المالية
-                $stmt_old_invoices = $pdo->prepare("SELECT id FROM invoices WHERE source_type = 'passport_transaction' AND source_id = ?");
-                $stmt_old_invoices->execute([$id]);
+                $oldSourceTypes = ['passport_transaction', 'معاملات جوازات', 'معاملات جواز'];
+                $oldSourcePlaceholders = implode(',', array_fill(0, count($oldSourceTypes), '?'));
+                $stmt_old_invoices = $pdo->prepare("SELECT id FROM invoices WHERE source_type IN ($oldSourcePlaceholders) AND source_id = ?");
+                $stmt_old_invoices->execute(array_merge($oldSourceTypes, [$id]));
                 $old_invoices = $stmt_old_invoices->fetchAll(PDO::FETCH_COLUMN);
                 
                 foreach ($old_invoices as $old_inv_id) {

@@ -1220,24 +1220,24 @@ if ($method === 'GET') {
                         </button>
                     </div>
                 </div>
-                <div class="row g-3 mt-2">
-                    <div class="col-md-4">
+                <div class="row g-3 mt-2 umrah-primary-fields">
+                    <div class="col-md-4 umrah-passport-number-field">
                         <label class="form-label">رقم الجواز</label>
                         <input type="text" name="passport_number" id="edit_ocr_passport" class="form-control font-monospace" required value="<?php echo htmlspecialchars($p['passport_number'] ?? ''); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 umrah-phone-field">
                         <label class="form-label">رقم الجوال</label>
                         <input type="text" name="phone_number" id="edit_ocr_phone" class="form-control" value="<?php echo htmlspecialchars($p['phone_number'] ?? ''); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 umrah-arabic-name-field">
                         <label class="form-label">الاسم (عربي)</label>
                         <input type="text" name="full_name" id="edit_ocr_name" class="form-control" required value="<?php echo htmlspecialchars($p['full_name'] ?? ''); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 umrah-english-name-field">
                         <label class="form-label">الاسم (EN)</label>
                         <input type="text" name="full_name_en" id="edit_ocr_name_en" class="form-control font-monospace" value="<?php echo htmlspecialchars($p['full_name_en'] ?? ''); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 umrah-secondary-field">
                         <label class="form-label">الجنس</label>
                         <select name="gender" id="edit_ocr_gender" class="form-select">
                             <option value="">اختر...</option>
@@ -1245,7 +1245,7 @@ if ($method === 'GET') {
                             <option value="Female" <?php echo ($p['gender'] ?? '') === 'Female' ? ' selected' : ''; ?>>أنثى</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3 umrah-secondary-field">
                         <label class="form-label">الجنسية</label>
                         <select name="nationality" id="edit_ocr_nationality" class="form-select">
                             <option value="">اختر...</option>

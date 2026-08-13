@@ -1,9 +1,12 @@
 <?php
 ob_start();
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/php_errors.log');
-error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+$logDir = getenv('APP_LOG_DIR') ?: sys_get_temp_dir();
+if (is_dir($logDir) && is_writable($logDir)) {
+    ini_set('error_log', rtrim($logDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'alghazali_php_errors.log');
+}
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';

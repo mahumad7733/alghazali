@@ -1437,6 +1437,7 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
                             JOIN financial_transactions ft ON pa.financial_transaction_id = ft.id
                             WHERE pa.invoice_id = ?
                             AND ft.status = 'posted'
+                            AND ft.transaction_type IN ('receipt', 'payment')
                             AND NOT (ft.reference_id = ? AND ft.reference_type = 'invoice')
                         ");
                         $stmt_vouchers->execute([$del_id, $del_id]);
@@ -1445,14 +1446,17 @@ if (isset($_POST['invoice_action']) && $_POST['invoice_action'] === 'delete_invo
                         if (!empty($external_vouchers)) {
                             $links = [];
                             foreach ($external_vouchers as $v) {
-                                $v_num = $v['transaction_number'];
-                                $v_id = $v['id'];
-                                $v_type = $v['transaction_type'];
-                                $target_page = ($v_type == 'receipt' || substr($v_num, 0, 3) == 'RCT') ? 'receipts.php' : 'payments.php';
-                                $links[] = "<a href='$target_page' class='fw-bold text-danger' target='_blank'>$v_num</a>";
+                                $v_num = (string)$v['transaction_number'];
+                                $v_id = (int)$v['id'];
+                                $v_type = (string)$v['transaction_type'];
+                                $target_page = ($v_type === 'receipt' || substr($v_num, 0, 3) === 'RCT') ? 'receipts.php' : 'payments.php';
+                                $target_url = $target_page . '?search_num=' . rawurlencode($v_num);
+                                $safe_v_num = htmlspecialchars($v_num, ENT_QUOTES, 'UTF-8');
+                                $safe_target_url = htmlspecialchars($target_url, ENT_QUOTES, 'UTF-8');
+                                $links[] = "<a href=\"$safe_target_url\" class=\"fw-bold text-danger\" target=\"_blank\" rel=\"noopener\">$safe_v_num</a>";
                             }
                             $v_list = implode('، ', $links);
-                            $error_msg = "لا يمكن الحذف: توجد سندات خارجية مرحلة مرتبطة بهذه الفاتورة: ($v_list). يرجى إلغاء ترحيل هذه السندات أولاً.";
+                            $error_msg = "لا يمكن الحذف: توجد سندات خارجية مرحلة مرتبطة بهذه الفاتورة: $v_list. انقر على رقم السند لفتحه مباشرة، ثم ألغِ ترحيله قبل حذف الفاتورة.";
                             break;
                         }
 
@@ -1999,6 +2003,22 @@ if ($exchange_loss_id) {
 }
 
 $services = $pdo->query("SELECT id, service_name FROM services WHERE status = 'active' ORDER BY service_name ASC")->fetchAll();
+// ربط أسماء الخدمات القديمة بأكواد الخدمات الموحدة المستخدمة في supplier_services.
+$serviceCatalogMap = [
+    'النقل البري' => 'bus_bookings',
+    'تذاكر طيران' => 'flight_bookings',
+    'خدمات العمرة' => 'umrah',
+    'خدمات الحج' => 'hajj',
+    'فيز العمل' => 'work_visa',
+    'الزيارة العائلية' => 'family_visit',
+    'جوازت السفر' => 'passport_transactions',
+    'خدمات البريد' => 'postal_services',
+];
+$supplierServiceMap = [];
+$supplierServiceStmt = $pdo->query("SELECT ss.supplier_id, cs.service_code FROM supplier_services ss JOIN catalog_services cs ON cs.id = ss.service_id WHERE ss.is_active = 1 AND cs.is_active = 1 AND cs.deleted_at IS NULL");
+foreach ($supplierServiceStmt->fetchAll(PDO::FETCH_ASSOC) as $supplierService) {
+    $supplierServiceMap[(int)$supplierService['supplier_id']][] = $supplierService['service_code'];
+}
 
 try {
     $stmt = $pdo->prepare($query);
@@ -3021,7 +3041,7 @@ try {
                             <select name="supplier_id" id="edit_supplier_id" class="form-select select2-modal-edit">
                                 <option value="">-- اختر المورد --</option>
                                 <?php foreach ($suppliers_with_codes as $s): ?>
-                                    <option value="<?php echo $s['supplier_id']; ?>" data-account="<?php echo $s['id']; ?>"><?php echo $s['display_name']; ?></option>
+                                    <option value="<?php echo $s['supplier_id']; ?>" data-account="<?php echo $s['id']; ?>" data-services="<?php echo htmlspecialchars(json_encode($supplierServiceMap[(int)$s['supplier_id']] ?? [], JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"><?php echo $s['display_name']; ?></option>
                                 <?php endforeach; ?>
                             </select>
 
@@ -3187,7 +3207,7 @@ try {
                             <select name="supplier_id" id="supplier_id" class="form-select select2-modal">
                                 <option value="">-- اختر المورد --</option>
                                 <?php foreach ($suppliers_with_codes as $s): ?>
-                                    <option value="<?php echo $s['supplier_id']; ?>" data-account="<?php echo $s['id']; ?>"><?php echo $s['display_name']; ?></option>
+                                    <option value="<?php echo $s['supplier_id']; ?>" data-account="<?php echo $s['id']; ?>" data-services="<?php echo htmlspecialchars(json_encode($supplierServiceMap[(int)$s['supplier_id']] ?? [], JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"><?php echo $s['display_name']; ?></option>
                                 <?php endforeach; ?>
                             </select>
 
@@ -3446,10 +3466,29 @@ try {
         }
 
         // Event listener for service type change
+        function filterSuppliersByService(selectId, serviceSelectId) {
+            const serviceName = $('#' + serviceSelectId).val() || '';
+            const serviceCode = <?php echo json_encode($serviceCatalogMap, JSON_UNESCAPED_UNICODE); ?>[serviceName] || '';
+            const $select = $('#' + selectId);
+            const currentValue = $select.val();
+            $select.find('option').each(function() {
+                if (!this.value) return;
+                let supported = [];
+                try { supported = JSON.parse($(this).attr('data-services') || '[]'); } catch (e) {}
+                const visible = !!serviceCode && supported.includes(serviceCode);
+                $(this).prop('hidden', !visible).prop('disabled', !visible);
+            });
+            if (currentValue && $select.find('option[value="' + currentValue + '"]:not(:disabled)').length === 0) {
+                $select.val('').trigger('change');
+            }
+            $select.trigger('change.select2');
+        }
+
         $('#service_id').change(function() {
             const serviceName = $(this).val();
             const serviceId = $(this).find(':selected').data('id') || null;
             updateServiceAccounts(serviceName, '', serviceId);
+            filterSuppliersByService('supplier_id', 'service_id');
         });
 
         // Initialize service accounts for edit modal as well
@@ -3457,7 +3496,11 @@ try {
             const serviceName = $(this).val();
             const serviceId = $(this).find(':selected').data('id') || null;
             updateServiceAccounts(serviceName, 'edit_', serviceId);
+            filterSuppliersByService('edit_supplier_id', 'edit_service_id_select');
         });
+
+        filterSuppliersByService('supplier_id', 'service_id');
+        filterSuppliersByService('edit_supplier_id', 'edit_service_id_select');
 
         // Function to update a currency dropdown with active currencies for an account
         function updateCurrencyDropdown(currencySelectId, accountId, prefix = '') {

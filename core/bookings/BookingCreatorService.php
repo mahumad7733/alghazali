@@ -27,6 +27,13 @@ class BookingCreatorService
 
     public function createBooking(array $bookingData, array $financeData): array
     {
+        // Optional foreign keys must be NULL, never an empty string or boolean false.
+        foreach (['passport_id', 'nationality_id', 'supplier_id', 'customer_id', 'account_id', 'agent_id', 'branch_id'] as $field) {
+            if (array_key_exists($field, $bookingData)) {
+                $bookingData[$field] = $this->nullableInt($bookingData[$field]);
+            }
+        }
+
         return $this->financeService->executeAtomically(function () use ($bookingData, $financeData) {
             $bookingNumber = generateBookingNumber($bookingData['service_type']);
             $initialStatusId = $this->resolveInitialStatusId();
@@ -109,6 +116,15 @@ class BookingCreatorService
 
             $bookingId = (int)$this->pdo->lastInsertId();
 
+            // ربط الحجز الجديد بسير العمل المستقل حسب نوع الخدمة.
+            $workflowType = ($bookingData['service_type'] ?? '') === 'bus' ? 'bus_bookings' : 'flight_bookings';
+            $workflowStmt = $this->pdo->prepare("SELECT id FROM workflows WHERE transaction_type = ? AND is_active = 1 AND (branch_id = ? OR branch_id IS NULL) ORDER BY branch_id DESC, id ASC LIMIT 1");
+            $workflowStmt->execute([$workflowType, $branchId]);
+            $workflowId = (int)($workflowStmt->fetchColumn() ?: 0);
+            if ($workflowId > 0) {
+                $this->pdo->prepare('UPDATE bus_flight_bookings SET workflow_id = ? WHERE id = ?')->execute([$workflowId, $bookingId]);
+            }
+
             if ($passportId !== null) {
                 customer_profile_record_service($this->pdo, [
                     'passport_id' => $passportId,
@@ -164,6 +180,16 @@ class BookingCreatorService
                 'purchase_invoice_id' => $financeResults['purchase_invoice_id'] ?? null,
             ];
         });
+    }
+
+    private function nullableInt($value): ?int
+    {
+        if ($value === null || $value === '' || $value === false) {
+            return null;
+        }
+
+        $value = filter_var($value, FILTER_VALIDATE_INT);
+        return ($value === false || (int)$value <= 0) ? null : (int)$value;
     }
 
     private function resolveInitialStatusId(): int

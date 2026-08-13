@@ -32,8 +32,9 @@ $where_clauses = ["1=1"];
 $params = [];
 
 // جلب فلاتر البحث من الرابط (للمدراء)
-$agent_filter = $_GET['agent_filter'] ?? '';
-$branch_filter = $_GET['branch_filter'] ?? '';
+// لا توجد فلاتر وكلاء أو فروع في واجهة العرض؛ تبقى قيود العزل الداخلية فعالة للمستخدم غير المصرح له.
+$agent_filter = '';
+$branch_filter = '';
 
 // التحقق من هوية المستخدم لفرض العزل
 $is_super_user = in_array(strtolower($currentUser['role_name'] ?? ''), ['admin', 'developer', 'accountant', 'relayer']) || has_permission('view_all_agents_branches');
@@ -45,9 +46,9 @@ if (!$is_super_user && !$can_view_all) {
     if (!empty($currentUser['agent_id'])) {
         $agent_filter = $currentUser['agent_id'];
         $branch_filter = '';
-    } elseif (!empty($currentUser['branch_id'])) {
+        } elseif (!empty($currentUser['branch_id'])) {
         $branch_filter = $currentUser['branch_id'];
-        $agent_filter = $_GET['agent_filter'] ?? '';
+        $agent_filter = '';
     }
 }
 
@@ -219,7 +220,7 @@ $p_supp->execute();
 $p_id = $p_supp->fetchColumn();
 $suppliers_with_codes = [];
 if ($p_id) {
-    $s_stmt = $pdo->prepare("SELECT coa.*, (SELECT id FROM suppliers WHERE account_id = coa.id LIMIT 1) as supplier_id FROM unified_accounts coa WHERE coa.parent_id = ? AND coa.account_status = 'active' ORDER BY coa.account_code ASC");
+    $s_stmt = $pdo->prepare("SELECT coa.*, s.id as supplier_id FROM unified_accounts coa INNER JOIN suppliers s ON s.account_id = coa.id INNER JOIN supplier_services ss ON ss.supplier_id = s.id AND ss.is_active = 1 INNER JOIN catalog_services cs ON cs.id = ss.service_id AND cs.service_code = 'family_visit' WHERE coa.parent_id = ? AND coa.account_status = 'active' AND s.deleted_at IS NULL AND s.status = 'active' ORDER BY coa.account_code ASC");
     $s_stmt->execute([$p_id]);
     while ($row = $s_stmt->fetch()) {
         $row['display_name'] = $row['account_code'] . ' - ' . $row['account_name_ar'];
@@ -355,6 +356,19 @@ require_once 'header.php';
         overflow-y: auto !important;
     }
 
+    .family-visit-filter-form,
+    .family-visit-search-box {
+        min-height: 42px;
+    }
+
+    .family-visit-status-filter,
+    .family-visit-search-box .form-control,
+    .family-visit-search-box .input-group-text {
+        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06) !important;
+        background: var(--card-bg, #fff) !important;
+    }
+
     @media (max-width: 768px) {
         .page-header-actions {
             flex-direction: column !important;
@@ -386,6 +400,25 @@ require_once 'header.php';
 
         .stat-label {
             font-size: 0.85rem !important;
+        }
+
+        .family-visit-filter-form,
+        .family-visit-search-box {
+            width: 100% !important;
+        }
+
+        .family-visit-status-filter {
+            width: 100% !important;
+            min-height: 44px;
+        }
+
+        .family-visit-search-box {
+            min-height: 44px;
+        }
+
+        .family-visit-search-box .form-control,
+        .family-visit-search-box .input-group-text {
+            min-height: 44px;
         }
 
         .table-responsive {
@@ -462,26 +495,20 @@ require_once 'header.php';
         <h3 class="fw-bold mb-0"><i class="fas fa-users me-2 text-info"></i> <?php echo $page_title; ?></h3>
 
         <div class="d-flex gap-2 align-items-center header-controls">
-            <form method="GET" class="d-flex gap-2 align-items-center">
-                <?php if ($is_super_user || $can_view_all): ?>
-                    <select name="agent_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
-                        <option value="">كل الوكلاء</option>
-                        <?php foreach ($agents as $ag): ?>
-                            <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="branch_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0" style="width: 150px;" onchange="this.form.submit()">
-                        <option value="">كل الفروع</option>
-                        <?php foreach ($branches as $br): ?>
-                            <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                <?php endif; ?>
+            <form method="GET" class="d-flex gap-2 align-items-center family-visit-filter-form">
+                <select name="status_filter" class="form-select form-select-sm rounded-pill shadow-sm border-0 family-visit-status-filter" onchange="this.form.submit()">
+                    <option value="">كل الحالات</option>
+                    <?php foreach ($statuses as $status): ?>
+                        <option value="<?php echo (int)$status['id']; ?>" <?php echo (string)($_GET['status_filter'] ?? '') === (string)$status['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($status['status_name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </form>
 
-            <div class="input-group" style="width: 250px;">
+            <div class="input-group family-visit-search-box" style="width: 250px;">
                 <span class="input-group-text bg-white border-0 shadow-sm rounded-start-pill"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث سريع...">
+                <input type="search" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث بالاسم أو رقم الطلب..." autocomplete="off">
             </div>
 
             <?php if (has_permission($permission_prefix . '_create')): ?>
@@ -511,50 +538,11 @@ require_once 'header.php';
 
 
 
-    <!-- الإحصائيات (البطاقات العلوية) -->
-    <div class="row g-2 mb-4 overflow-auto flex-nowrap pb-3 custom-scrollbar px-1">
-        <!-- بطاقة الإجمالي العام -->
-        <div class="col-auto">
-            <div class="card border-0 shadow-sm rounded-4 p-3 bg-primary text-white h-100 mini-card position-relative overflow-hidden" style="min-width: 200px;">
-                <div class="position-absolute end-0 top-0 opacity-10" style="font-size: 3.5rem; transform: translate(15%, -15%);"><i class="fas fa-globe"></i></div>
-                <div class="stat-label text-white opacity-75">إجمالي الطلبات</div>
-                <div class="stat-value mb-2"><?php echo count($requests); ?></div>
-                <div class="sub-stat text-white opacity-75 mt-auto">اليوم: <span class="fw-bold"><?php echo array_sum(array_column($status_stats, 'today')); ?></span></div>
-                <a href="family_visit.php" class="stretched-link"></a>
-            </div>
-        </div>
-
-        <?php foreach ($status_stats as $stat):
-            $isActive = isset($_GET['status_filter']) && $_GET['status_filter'] == $stat['id'];
-        ?>
-            <div class="col-auto">
-                <div class="card border-0 shadow-sm rounded-4 p-3 h-100 mini-card transition-all <?php echo $isActive ? 'ring-2 ring-primary shadow-lg' : ''; ?>"
-                    style="min-width: 180px; border-top: 4px solid <?php echo $stat['status_color']; ?> !important;">
-                    <div class="stat-label text-truncate"><?php echo $stat['status_name']; ?></div>
-                    <div class="stat-value mb-2" style="color: <?php echo $stat['status_color']; ?>;"><?php echo $stat['total']; ?></div>
-
-                    <div class="d-flex justify-content-between align-items-center mt-auto">
-                        <div class="sub-stat">اليوم: <span class="sub-stat-value"><?php echo $stat['today']; ?></span></div>
-                        <?php
-                        $diff = $stat['this_month'] - $stat['last_month'];
-                        if ($diff != 0):
-                            $color = $diff > 0 ? 'text-success' : 'text-danger';
-                            $icon = $diff > 0 ? 'fa-caret-up' : 'fa-caret-down';
-                        ?>
-                            <div class="sub-stat <?php echo $color; ?>"><i class="fas <?php echo $icon; ?>"></i> <?php echo abs($diff); ?></div>
-                        <?php endif; ?>
-                    </div>
-                    <a href="family_visit.php?status_filter=<?php echo $stat['id']; ?><?php echo !empty($agent_filter) ? '&agent_filter=' . $agent_filter : ''; ?><?php echo !empty($branch_filter) ? '&branch_filter=' . $branch_filter : ''; ?>" class="stretched-link"></a>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
     <!-- جدول الطلبات -->
-    <div class="card border-0 shadow-sm rounded-4">
+    <div class="card border-0 shadow-sm rounded-4 family-visit-list-card">
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+            <div class="table-responsive family-visit-table-wrap">
+                <table class="table table-hover align-middle mb-0 family-visit-table">
                     <thead class="bg-light">
                         <tr>
                             <th class="px-4 py-3">رقم المستند</th>
@@ -826,6 +814,7 @@ require_once 'header.php';
         <div class="modal-content border-0 shadow-lg rounded-4">
             <form id="addRequestForm" method="POST" enctype="multipart/form-data" action="process_family_visit.php?action=add" data-customer-profile-form="1">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                <input type="hidden" name="edit_request_id" id="edit_request_id" value="">
                 <div class="modal-header bg-info text-white border-0 py-3">
                     <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle me-2"></i> إضافة طلب زيارة عائلية</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1057,6 +1046,7 @@ require_once 'header.php';
                     $financial_fields_show_service_select = false;
                     $financial_fields_form_selector = '#addRequestForm';
                     $financial_fields_hide_service_accounts = true;
+                    $financial_fields_show_discount = (bool)($settings['family_visit_allow_discount'] ?? 1);
                     include '../includes/financial_fields.php';
                     ?>
 
@@ -1093,6 +1083,7 @@ require_once 'header.php';
                 <button type="button" class="btn btn-link text-danger remove-individual" title="حذف"><i class="fas fa-times"></i></button>
             </div>
             <!-- Hidden inputs for form submission -->
+            <input type="hidden" name="ind_id[]" class="input-id">
             <input type="hidden" name="ind_name[]" class="input-name">
             <input type="hidden" name="ind_passport[]" class="input-passport">
             <input type="hidden" name="ind_relationship[]" class="input-relationship">
@@ -1135,6 +1126,38 @@ require_once 'header.php';
             <div class="modal-footer border-0 p-4 pt-0">
                 <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal تعديل بيانات فرد -->
+<div class="modal fade" id="editIndividualModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-0">
+                <h5 class="modal-title fw-bold"><i class="fas fa-user-edit me-2 text-info"></i>تعديل بيانات الفرد</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editIndividualForm">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="edit_individual_id">
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label fw-bold">الاسم</label><input class="form-control rounded-3" name="full_name" id="edit_individual_name" required></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">رقم الجواز</label><input class="form-control rounded-3" name="passport_no" id="edit_individual_passport" required></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">الجنس</label><input class="form-control rounded-3" name="gender" id="edit_individual_gender"></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">العمر</label><input type="number" class="form-control rounded-3" name="age" id="edit_individual_age" min="0"></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">تاريخ الميلاد</label><input type="date" class="form-control rounded-3" name="birth_date" id="edit_individual_birth_date"></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">مدينة القدوم</label><select class="form-select rounded-3" name="coming_from_city_id" id="edit_individual_city"><option value="">غير محدد</option><?php foreach ($cities as $city): ?><option value="<?php echo (int)$city['id']; ?>"><?php echo htmlspecialchars($city['city_name']); ?></option><?php endforeach; ?></select></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">سعر الشراء</label><input type="number" step="0.01" min="0" class="form-control rounded-3" name="purchase_price" id="edit_individual_purchase" required></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">سعر البيع</label><input type="number" step="0.01" min="0" class="form-control rounded-3" name="sale_price" id="edit_individual_sale" required></div>
+                        <div class="col-12"><label class="form-label fw-bold">الوثائق المستلمة</label><textarea class="form-control rounded-3" name="received_documents" id="edit_individual_documents" rows="2"></textarea></div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-info text-white rounded-pill px-4"><i class="fas fa-save me-1"></i>حفظ التعديل</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -2164,6 +2187,7 @@ require_once 'header.php';
         document.querySelectorAll('.view-request').forEach(btn => {
             btn.onclick = async function() {
                 const id = this.dataset.id;
+                window.currentFamilyVisitRequestId = String(id);
                 const modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
                 modal.show();
 
@@ -2171,11 +2195,12 @@ require_once 'header.php';
                 content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-info"></div></div>';
 
                 try {
-                    const res = await fetch(`ajax_family_visit.php?action=get_request_details&id=${id}`);
+                    const res = await fetch(`ajax_family_visit.php?action=get_request_details&id=${id}&_=${Date.now()}`, { cache: 'no-store' });
                     const result = await res.json();
 
                     if (result.status === 'success') {
                         const req = result.data;
+                        window.familyVisitIndividualsById = Object.fromEntries((req.individuals || []).map(ind => [String(ind.id), ind]));
                         const formatDateParts = (value) => {
                             const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value || '').trim());
                             if (!m) return null;
@@ -2243,39 +2268,44 @@ require_once 'header.php';
                             <!-- بيانات الأفراد -->
                             <div class="col-md-8">
                                 <h6 class="fw-bold border-bottom pb-2 mb-3"><i class="fas fa-user-friends me-1 text-info"></i> بيانات الأفراد (${req.individuals.length})</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle">
-                                        <thead class="bg-light x-small">
-                                            <tr>
-                                                <th>الاسم</th>
-                                                <th>الجواز</th>
-                                                <th>الصلة</th>
-                                                <th>جهة القدوم</th>
-                                                <th>الوثائق المستلمة</th>
-                                                <th>الحالة</th>
-                                                <th>سعر الشراء</th>
-                                                <th>سعر البيع</th>
-                                                <th class="text-center">إجراء</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="small">
-                                            ${req.individuals.map(ind => `
-                                                <tr>
-                                                    <td class="fw-bold">${ind.full_name}</td>
-                                                    <td>${ind.passport_no}</td>
-                                                    <td>${ind.relationship_name}</td>
-                                                    <td>${ind.coming_from_city_name || '---'}</td>
-                                                    <td>${(ind.received_documents || '').trim() || '---'}</td>
-                                                    <td><span class="badge bg-light text-dark border">${ind.individual_status}</span></td>
-                                                    <td class="text-primary fw-bold">${parseFloat(ind.purchase_price || ind.agent_price).toFixed(2)}</td>
-                                                    <td class="text-success fw-bold">${parseFloat(ind.sale_price).toFixed(2)}</td>
-                                                    <td class="text-center">
-                                                        <button class="btn btn-sm btn-link p-0 update-ind-status" data-id="${ind.id}"><i class="fas fa-sync-alt"></i></button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+                                <div class="family-individuals-grid">
+                                    ${req.individuals.map(ind => {
+                                        const purchaseAmount = Number(ind.purchase_price ?? ind.agent_price ?? ind.branch_price ?? 0);
+                                        const saleAmount = Number(ind.sale_price ?? 0);
+                                        const attachmentCount = Array.isArray(ind.attachments) ? ind.attachments.length : 0;
+                                        return `
+                                            <article class="family-individual-card">
+                                                <div class="family-individual-card-head">
+                                                    <div>
+                                                        <div class="family-individual-name">${ind.full_name || '---'}</div>
+                                                        <div class="family-individual-passport">${ind.passport_no || 'بدون رقم جواز'}</div>
+                                                    </div>
+                                                    <span class="badge rounded-pill bg-light text-dark border">${ind.individual_status || '---'}</span>
+                                                </div>
+                                                <div class="family-individual-fields">
+                                                    <div><span>صلة القرابة</span><strong>${ind.relationship_name || '---'}</strong></div>
+                                                    <div><span>الجنس</span><strong>${ind.gender || '---'}</strong></div>
+                                                    <div><span>تاريخ الميلاد</span><strong>${ind.birth_date ? formatDateArabic(ind.birth_date) : '---'}</strong></div>
+                                                    <div><span>العمر</span><strong>${ind.age || '---'}</strong></div>
+                                                    <div><span>جهة القدوم</span><strong>${ind.coming_from_city_name || '---'}</strong></div>
+                                                    <div><span>الوثائق المستلمة</span><strong>${(ind.received_documents || '').trim() || '---'}</strong></div>
+                                                    <div><span>سعر الشراء</span><strong class="text-primary">${purchaseAmount.toFixed(2)}</strong></div>
+                                                    <div><span>سعر البيع</span><strong class="text-success">${saleAmount.toFixed(2)}</strong></div>
+                                                </div>
+                                                <div class="family-individual-card-footer">
+                                                    <span class="small text-muted"><i class="fas fa-paperclip me-1"></i> المرفقات: ${attachmentCount}</span>
+                                                    <div class="d-flex gap-1 flex-wrap justify-content-end align-items-center">
+                                                        <select class="form-select form-select-sm rounded-pill individual-status-select" data-request-id="${req.id}" data-individual-id="${ind.id}" title="تغيير حالة هذا الفرد">
+                                                            ${<?php echo json_encode($statuses); ?>.map(s => `<option value="${s.id}" ${s.id == ind.status_id ? 'selected' : ''}>${s.status_name}</option>`).join('')}
+                                                        </select>
+                                                        <button class="btn btn-sm btn-outline-info rounded-pill edit-individual" data-id="${ind.id}">
+                                                            <i class="fas fa-pen me-1"></i> تعديل
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </article>
+                                        `;
+                                    }).join('')}
                                 </div>
                                 <div class="mt-3 p-3 bg-light rounded-3 small">
                                     <div class="fw-bold mb-1 text-muted">ملاحظات:</div>
@@ -2291,14 +2321,129 @@ require_once 'header.php';
             };
         });
 
-        // زر التعديل (فتح مودال التفاصيل حالياً كحل مؤقت للمراجعة والتعديل)
+        // تعديل بيانات فرد محدد من بطاقة الفرد نفسها.
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.edit-individual');
+            if (!btn) return;
+            const ind = window.familyVisitIndividualsById?.[String(btn.dataset.id)];
+            if (!ind) return;
+            document.getElementById('edit_individual_id').value = ind.id || '';
+            document.getElementById('edit_individual_name').value = ind.full_name || '';
+            document.getElementById('edit_individual_passport').value = ind.passport_no || '';
+            document.getElementById('edit_individual_gender').value = ind.gender || '';
+            document.getElementById('edit_individual_age').value = ind.age || '';
+            document.getElementById('edit_individual_birth_date').value = ind.birth_date || '';
+            document.getElementById('edit_individual_city').value = ind.coming_from_city_id || '';
+            document.getElementById('edit_individual_purchase').value = Number(ind.purchase_price ?? ind.agent_price ?? ind.branch_price ?? 0).toFixed(2);
+            document.getElementById('edit_individual_sale').value = Number(ind.sale_price ?? 0).toFixed(2);
+            document.getElementById('edit_individual_documents').value = ind.received_documents || '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('editIndividualModal')).show();
+        });
+
+        document.getElementById('editIndividualForm')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = this;
+            const body = new URLSearchParams(new FormData(form));
+            body.set('csrf_token', CSRF_TOKEN);
+            try {
+                const res = await fetch('ajax_family_visit.php?action=update_individual', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message || 'تعذر حفظ التعديل');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('editIndividualModal')).hide();
+                const viewModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('viewRequestModal'));
+                viewModal.hide();
+                setTimeout(() => {
+                    const currentId = window.currentFamilyVisitRequestId;
+                    const currentView = document.querySelector(`.view-request[data-id="${currentId}"]`);
+                    if (currentView) currentView.click();
+                }, 250);
+            } catch (err) {
+                alert(err.message || 'حدث خطأ أثناء تحديث بيانات الفرد');
+            }
+        });
+
+        // فتح نفس نموذج الإضافة في وضع التعديل مع تعبئة الطلب والأفراد الحاليين.
+        async function openFamilyVisitEdit(requestId) {
+            try {
+                const res = await fetch(`ajax_family_visit.php?action=get_request_details&id=${requestId}&_=${Date.now()}`, { cache: 'no-store' });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message || 'تعذر تحميل بيانات الطلب');
+                const req = result.data;
+                const form = document.getElementById('addRequestForm');
+                const modalEl = document.getElementById('addRequestModal');
+                const setField = (name, value) => {
+                    const field = form.elements[name];
+                    if (field) field.value = value ?? '';
+                };
+                setField('edit_request_id', req.id);
+                setField('document_no', req.document_no);
+                setField('issue_date', req.issue_date);
+                setField('date_type', req.date_type || 'gregorian');
+                setField('owner_name', req.owner_name);
+                setField('owner_id_no', req.owner_id_no);
+                setField('phone_no', req.phone_no);
+                setField('address', req.address);
+                setField('visit_duration_months', req.visit_duration_months || 1);
+                setField('visit_expiry_date', req.visit_expiry_date || '');
+                setField('notes', req.notes);
+                setField('operation_date', req.operation_date || '');
+                ['total_amount', 'cost_amount', 'discount', 'amount_received', 'invoice_date', 'description', 'delivery_type', 'payment_type', 'account_id', 'currency_id'].forEach(name => {
+                    if (Object.prototype.hasOwnProperty.call(req, name)) setField(name, req[name]);
+                });
+                const issueGreg = document.getElementById('issue_date_greg');
+                if (issueGreg) issueGreg.value = req.issue_date || '';
+                const dateType = document.getElementById('date_type');
+                if (dateType) dateType.dispatchEvent(new Event('change', {bubbles: true}));
+
+                individualsList.innerHTML = '';
+                (req.individuals || []).forEach(ind => {
+                    const clone = template.content.cloneNode(true);
+                    const row = clone.querySelector('.individual-row');
+                    const purchase = Number(ind.purchase_price ?? ind.agent_price ?? ind.branch_price ?? 0);
+                    const sale = Number(ind.sale_price ?? 0);
+                    row.querySelector('.display-name').innerText = ind.full_name || '';
+                    row.querySelector('.display-passport').innerText = ind.passport_no || '';
+                    row.querySelector('.display-relationship').innerText = ind.relationship_name || '---';
+                    row.querySelector('.display-gender').innerText = ind.gender || '---';
+                    row.querySelector('.display-dob').innerText = ind.birth_date || '---';
+                    row.querySelector('.display-age').innerText = ind.age || '---';
+                    row.querySelector('.display-coming-from').innerText = ind.coming_from_city_name || '---';
+                    row.querySelector('.display-purchase').innerText = purchase.toFixed(2);
+                    row.querySelector('.display-sale').innerText = sale.toFixed(2);
+                    row.querySelector('.display-received-docs').innerText = ind.received_documents || '---';
+                    row.querySelector('.input-id').value = ind.id || '';
+                    row.querySelector('.input-name').value = ind.full_name || '';
+                    row.querySelector('.input-passport').value = ind.passport_no || '';
+                    row.querySelector('.input-relationship').value = ind.relationship_id || '';
+                    row.querySelector('.input-gender').value = ind.gender || 'male';
+                    row.querySelector('.input-dob').value = ind.birth_date || '';
+                    row.querySelector('.input-age').value = ind.age || '';
+                    row.querySelector('.input-coming-from-city').value = ind.coming_from_city_id || '';
+                    row.querySelector('.input-received-docs').value = ind.received_documents || '';
+                    row.querySelector('.input-purchase').value = purchase.toFixed(2);
+                    row.querySelector('.input-sale').value = sale.toFixed(2);
+                    individualsList.appendChild(clone);
+                });
+                calculateTotals();
+                document.querySelector('#addRequestModal .modal-title').innerHTML = '<i class="fas fa-edit me-2"></i> تعديل طلب زيارة عائلية';
+                document.querySelector('#addRequestModal button[type="submit"]').textContent = 'حفظ التعديل';
+                form.action = 'process_family_visit.php?action=edit';
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            } catch (err) {
+                alert(err.message || 'تعذر تحميل بيانات التعديل');
+            }
+        }
+
         document.querySelectorAll('.edit-request').forEach(btn => {
-            btn.onclick = function() {
-                const id = this.dataset.id;
-                // توجيه لزر العرض لأن واجهة العرض تدعم التعديل (الحالة، التأشيرة)
-                const viewBtn = document.querySelector(`.view-request[data-id="${id}"]`);
-                if (viewBtn) viewBtn.click();
-            };
+            btn.onclick = function() { openFamilyVisitEdit(this.dataset.id); };
+        });
+
+        document.getElementById('addRequestModal')?.addEventListener('hidden.bs.modal', function() {
+            const form = document.getElementById('addRequestForm');
+            form.action = 'process_family_visit.php?action=add';
+            document.getElementById('edit_request_id').value = '';
+            document.querySelector('#addRequestModal .modal-title').innerHTML = '<i class="fas fa-plus-circle me-2"></i> إضافة طلب زيارة عائلية';
+            document.querySelector('#addRequestModal button[type="submit"]').textContent = 'حفظ الطلب';
         });
 
         // تحديث حالة الطلب عبر AJAX
@@ -2311,6 +2456,7 @@ require_once 'header.php';
                         const body = new URLSearchParams({
                             id,
                             status_id: statusId,
+                            scope: 'all',
                             csrf_token: CSRF_TOKEN
                         });
                         const res = await fetch('ajax_family_visit.php?action=update_request_status', {
@@ -2329,6 +2475,35 @@ require_once 'header.php';
                 }
             }
         });
+        // تغيير حالة فرد واحد فقط دون تعديل حالة الطلب أو بقية الأفراد.
+        document.addEventListener('change', async function(e) {
+            if (!e.target.classList.contains('individual-status-select')) return;
+            const select = e.target;
+            const previousValue = select.dataset.previousValue || select.value;
+            if (!confirm('هل تريد تغيير حالة هذا الفرد فقط؟')) {
+                select.value = previousValue;
+                return;
+            }
+            try {
+                const body = new URLSearchParams({
+                    id: select.dataset.requestId,
+                    individual_id: select.dataset.individualId,
+                    status_id: select.value,
+                    scope: 'individual',
+                    csrf_token: CSRF_TOKEN
+                });
+                const res = await fetch('ajax_family_visit.php?action=update_request_status', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message || 'تعذر تحديث حالة الفرد');
+                select.dataset.previousValue = select.value;
+                const currentView = document.querySelector(`.view-request[data-id="${window.currentFamilyVisitRequestId}"]`);
+                if (currentView) currentView.click();
+            } catch (err) {
+                select.value = previousValue;
+                alert(err.message || 'حدث خطأ أثناء تحديث حالة الفرد');
+            }
+        });
+
         // حفظ بيانات التأشيرة
         document.addEventListener('click', async function(e) {
             if (e.target.classList.contains('save-visa-info')) {
@@ -2616,6 +2791,213 @@ require_once 'header.php';
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
+    }
+
+    .family-individuals-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .family-individual-card {
+        min-width: 0;
+        padding: 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 1rem;
+        background: var(--card-bg, #fff);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    }
+
+    .family-individual-card-head,
+    .family-individual-card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+    }
+
+    .family-individual-card-head {
+        padding-bottom: 0.65rem;
+        border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+    }
+
+    .family-individual-name {
+        color: var(--text-color, #0f172a);
+        font-size: 0.9rem;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+    }
+
+    .family-individual-passport {
+        margin-top: 0.15rem;
+        color: #64748b;
+        font-size: 0.74rem;
+        overflow-wrap: anywhere;
+    }
+
+    .family-individual-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+        padding: 0.75rem 0;
+    }
+
+    .family-individual-fields > div {
+        min-width: 0;
+    }
+
+    .family-individual-fields span {
+        display: block;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 800;
+        margin-bottom: 0.15rem;
+    }
+
+    .family-individual-fields strong {
+        display: block;
+        color: var(--text-color, #1e293b);
+        font-size: 0.77rem;
+        overflow-wrap: anywhere;
+    }
+
+    .family-individual-card-footer {
+        padding-top: 0.65rem;
+        border-top: 1px dashed rgba(148, 163, 184, 0.25);
+    }
+
+    body.theme-dark .family-individual-card {
+        background: #111827;
+        border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    body.theme-dark .family-individual-name,
+    body.theme-dark .family-individual-fields strong {
+        color: #e2e8f0;
+    }
+
+    @media (max-width: 768px) {
+        .family-individuals-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .family-visit-list-card {
+        overflow: visible;
+        border: 1px solid rgba(148, 163, 184, 0.16) !important;
+        background: var(--card-bg, #fff);
+    }
+
+    .family-visit-table-wrap {
+        border-radius: 1rem;
+    }
+
+    .family-visit-table thead th {
+        white-space: nowrap;
+        color: #475569;
+        font-size: 0.76rem;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .family-visit-table tbody tr {
+        transition: background-color 0.18s ease, transform 0.18s ease;
+    }
+
+    .family-visit-table tbody tr:hover {
+        background: rgba(14, 165, 233, 0.045);
+    }
+
+    .family-visit-table tbody td {
+        border-color: rgba(148, 163, 184, 0.12);
+    }
+
+    .family-visit-table .btn-outline-info {
+        border-width: 1px;
+        font-weight: 800;
+        box-shadow: 0 3px 10px rgba(14, 165, 233, 0.10);
+    }
+
+    body.theme-dark .family-visit-list-card,
+    body.theme-dark .family-visit-table thead {
+        background: var(--card-bg, #111827) !important;
+    }
+
+    body.theme-dark .family-visit-table thead th {
+        color: #cbd5e1;
+    }
+
+    @media (max-width: 768px) {
+        .family-visit-list-card {
+            border-radius: 1rem !important;
+            background: transparent;
+            box-shadow: none !important;
+        }
+
+        .family-visit-table-wrap {
+            overflow: visible;
+        }
+
+        .family-visit-table,
+        .family-visit-table tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .family-visit-table thead {
+            display: none;
+        }
+
+        .family-visit-table tbody tr {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem;
+            margin-bottom: 0.85rem;
+            padding: 0.9rem;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 1rem;
+            background: var(--card-bg, #fff);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+        }
+
+        .family-visit-table tbody td {
+            display: block;
+            padding: 0.2rem 0.15rem !important;
+            border: 0;
+            min-width: 0;
+        }
+
+        .family-visit-table tbody td::before {
+            display: block;
+            content: attr(data-label);
+            margin-bottom: 0.2rem;
+            color: #64748b;
+            font-size: 0.68rem;
+            font-weight: 900;
+        }
+
+        .family-visit-table tbody td[data-label="الإجراءات"] {
+            grid-column: 1 / -1;
+            padding-top: 0.55rem !important;
+            border-top: 1px dashed rgba(148, 163, 184, 0.22);
+        }
+
+        .family-visit-table .financial-actions-wrap {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .family-visit-table .financial-action-menu {
+            inset-inline-start: 0;
+            inset-inline-end: auto;
+            max-width: calc(100vw - 3rem);
+        }
+
+        .family-visit-table .finance-mini-card,
+        .family-visit-table .payment-box {
+            min-height: 100%;
+        }
     }
 
     .finance-mini-card {

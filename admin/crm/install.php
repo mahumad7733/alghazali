@@ -1,5 +1,10 @@
 
 <?php
+// CRM is already provisioned by the deployment migration. Never expose the installer publicly.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 require_once __DIR__ . '/../../includes/db.php';
 
 echo "<h1>CRM Installation</h1>";

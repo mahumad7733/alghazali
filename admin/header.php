@@ -341,13 +341,15 @@ if (isset($_SESSION['admin_id'])) {
         $where_clause = implode(" OR ", $where_conditions);
     }
 
-    $stmt_n = $pdo->prepare("SELECT * FROM notifications WHERE ($where_clause) AND is_read = 0 ORDER BY created_at DESC LIMIT 20");
+    // عرض جميع إشعارات المستخدم في رأس التطبيق، وليس غير المقروءة فقط.
+    $stmt_n = $pdo->prepare("SELECT * FROM notifications WHERE ($where_clause) ORDER BY created_at DESC LIMIT 50");
     $stmt_n->execute($params);
     $recent_notifs = $stmt_n->fetchAll();
+    $recent_notif_count = count($recent_notifs);
 
     $stmt_nc = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE ($where_clause) AND is_read = 0");
     $stmt_nc->execute($params);
-    $notif_count = $stmt_nc->fetchColumn();
+    $notif_count = (int)$stmt_nc->fetchColumn();
 
     // إضافة عدد المشاكل غير المحلولة في تأشيرات العمل
     try {
@@ -2467,10 +2469,6 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
             <?php endif; ?>
 
             <?php if (has_permission('bookings_view') && (get_module_status($pdo, 'enable_bus_bookings') || get_module_status($pdo, 'enable_flight_bookings'))): ?>
-                <a href="bus_flight_bookings.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'bus_flight_bookings.php' ? 'active' : ''; ?>">
-                    <span class="menu-icon"><i class="fas fa-route"></i></span>
-                    حجوزات الباصات والطيران
-                </a>
                 <?php if (get_module_status($pdo, 'enable_flight_bookings')): ?>
                     <a href="flight_bookings.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'flight_bookings.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
                         <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-plane-departure"></i></span>
@@ -2486,22 +2484,6 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
                 <a href="bus_flight_bookings_reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'bus_flight_bookings_reports.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
                     <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-chart-line"></i></span>
                     تقارير الحجوزات
-                </a>
-                <a href="booking_tickets.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'booking_tickets.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                    <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-ticket-alt text-info"></i></span>
-                    التذاكر الرقمية
-                </a>
-                <a href="booking_modifications.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'booking_modifications.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                    <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-edit text-warning"></i></span>
-                    طلبات تعديل الحجوزات
-                </a>
-                <a href="booking_refunds.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'booking_refunds.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                    <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-hand-holding-usd text-success"></i></span>
-                    طلبات الاسترداد المالي
-                </a>
-                <a href="booking_notifications.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'booking_notifications.php' ? 'active' : ''; ?>" style="padding-right: 30px; font-size: 0.8rem;">
-                    <span class="menu-icon" style="width: 24px; height: 24px; font-size: 0.7rem;"><i class="fas fa-bell text-primary"></i></span>
-                    إشعارات الحجوزات
                 </a>
             <?php endif; ?>
 
@@ -2713,8 +2695,8 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
                                         </a>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
-                                <?php if ($notif_count > 0): ?>
-                                    <div class="px-3 pt-2 pb-1 small text-info fw-bold">إشعارات جديدة (<?php echo $notif_count; ?>)</div>
+                                <?php if ($recent_notif_count > 0): ?>
+                                    <div class="px-3 pt-2 pb-1 small text-info fw-bold">كل الإشعارات (<?php echo $recent_notif_count; ?>)</div>
                                     <?php foreach ($recent_notifs as $notif): ?>
                                         <?php
                                         // تحديد الرابط بناءً على نوع الإشعار
@@ -2734,8 +2716,8 @@ $admin_base_url = $admin_pos !== false ? substr($script_name, 0, $admin_pos + 7)
                                         </a>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
-                                <?php if ($total_alert_count == 0): ?>
-                                    <div class="text-center text-muted p-4">لا توجد إشعارات جديدة</div>
+                                <?php if ($recent_notif_count === 0 && $unresolved_count === 0 && $expiry_count === 0): ?>
+                                    <div class="text-center text-muted p-4">لا توجد إشعارات</div>
                                 <?php endif; ?>
                             </div>
                             <a href="notifications.php" class="dropdown-item text-center small text-primary p-2 border-top">عرض كل الإشعارات</a>

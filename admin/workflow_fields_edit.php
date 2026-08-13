@@ -103,6 +103,7 @@ if (isset($_POST['update_field'])) {
                                     <option value="text" <?= $f['field_type'] == 'text' ? 'selected' : '' ?>>نص قصير (Text)</option>
                                     <option value="number" <?= $f['field_type'] == 'number' ? 'selected' : '' ?>>رقم (Number)</option>
                                     <option value="date" <?= $f['field_type'] == 'date' ? 'selected' : '' ?>>تاريخ (Date)</option>
+                                    <option value="time" <?= $f['field_type'] == 'time' ? 'selected' : '' ?>>وقت (Time)</option>
                                     <option value="datetime" <?= $f['field_type'] == 'datetime' ? 'selected' : '' ?>>تاريخ ووقت</option>
                                     <option value="textarea" <?= $f['field_type'] == 'textarea' ? 'selected' : '' ?>>نص طويل (Textarea)</option>
                                     <option value="select" <?= $f['field_type'] == 'select' ? 'selected' : '' ?>>قائمة منسدلة (Select)</option>

@@ -332,12 +332,46 @@ if ($is_settings_save_request) {
             'bookings_enable_export' => 'bool',
             'bookings_enable_return_date' => 'bool',
             'bookings_enable_bus_type' => 'bool',
+            'bus_bookings_allow_discount' => 'bool',
+            'flight_bookings_allow_discount' => 'bool',
+            'bus_bookings_show_profit' => 'bool',
+            'flight_bookings_show_profit' => 'bool',
+            'bus_bookings_show_purchase_price' => 'bool',
+            'flight_bookings_show_purchase_price' => 'bool',
+            'bus_bookings_allow_partial_payments' => 'bool',
+            'flight_bookings_allow_partial_payments' => 'bool',
+            'bus_bookings_enable_print' => 'bool',
+            'flight_bookings_enable_print' => 'bool',
+            'bus_bookings_enable_export' => 'bool',
+            'flight_bookings_enable_export' => 'bool',
+            'bus_bookings_enable_return_date' => 'bool',
+            'flight_bookings_enable_return_date' => 'bool',
+            'bus_bookings_enable_bus_type' => 'bool',
+            'flight_bookings_enable_bus_type' => 'bool',
+            'bus_bookings_auto_posting' => 'bool',
+            'flight_bookings_auto_posting' => 'bool',
+            'bus_bookings_workflow_enabled' => 'bool',
+            'flight_bookings_workflow_enabled' => 'bool',
+            'bus_bookings_auto_numbering' => 'bool',
+            'flight_bookings_auto_numbering' => 'bool',
+            'hajj_allow_discount' => 'bool',
+            'postal_services_allow_discount' => 'bool',
+            'family_visit_allow_discount' => 'bool',
+            'hajj_show_purchase_price' => 'bool',
+            'postal_services_show_purchase_price' => 'bool',
+            'hajj_allow_partial_payments' => 'bool',
+            'postal_services_allow_partial_payments' => 'bool',
+            'hajj_enable_print' => 'bool',
+            'postal_services_enable_print' => 'bool',
+            'hajj_enable_export' => 'bool',
+            'postal_services_enable_export' => 'bool',
             'bookings_auto_posting' => 'bool',
             'passports_auto_posting' => 'bool',
             'bookings_workflow_enabled' => 'bool',
             'bookings_auto_numbering' => 'bool',
             'auto_invoice_generation' => 'bool',
             'passport_allow_discount' => 'bool',
+            'work_visa_allow_discount' => 'bool',
             'auto_delete_messages' => 'bool',
             'enable_notification_sound' => 'bool',
             'enable_message_sound' => 'bool',
@@ -389,6 +423,8 @@ if ($is_settings_save_request) {
             'show_notifications_button' => 'bool',
             'base_currency_id' => 'int',
             'invoice_posting_trigger' => 'string',
+            'bus_bookings_posting_trigger' => 'string',
+            'flight_bookings_posting_trigger' => 'string',
             'sales_invoice_prefix' => 'string',
             'purchase_invoice_prefix' => 'string',
             'invoice_number_digits' => 'int',
@@ -1240,12 +1276,13 @@ if (!empty($attendance_locations)) {
         <?php
         // تحديد التبويب النشط
         $active_tab = 'general'; // الافتراضي
-        $allowed_tabs = ['general', 'appearance', 'print', 'features', 'work_visa', 'family_visit', 'modules', 'umrah', 'bookings', 'accounting', 'backup', 'seo', 'contact', 'attendance', 'domain_ssl', 'passport-pricing', 'crm', 'time_date'];
+        $allowed_tabs = ['general', 'appearance', 'print', 'features', 'work_visa', 'family_visit', 'modules', 'umrah', 'bookings', 'bus_bookings', 'flight_bookings', 'hajj', 'postal_services', 'accounting', 'backup', 'seo', 'contact', 'attendance', 'domain_ssl', 'passport-pricing', 'crm', 'time_date'];
         if (isset($_POST['active_tab']) && !empty($_POST['active_tab']) && in_array($_POST['active_tab'], $allowed_tabs)) {
             $active_tab = $_POST['active_tab'];
         } elseif (isset($_GET['tab']) && !empty($_GET['tab']) && in_array($_GET['tab'], $allowed_tabs)) {
             $active_tab = $_GET['tab'];
         }
+        if ($active_tab === 'bookings') { $active_tab = 'bus_bookings'; }
         ?>
         <input type="hidden" name="active_tab" id="activeTabInput" value="<?php echo htmlspecialchars($active_tab); ?>">
         <div class="settings-card">
@@ -1298,8 +1335,23 @@ if (!empty($attendance_locations)) {
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link <?php echo ($active_tab === 'bookings') ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#bookings" type="button">
-                        <i class="fas fa-route me-2"></i> إعدادات الحجوزات
+                    <button class="nav-link <?php echo ($active_tab === 'hajj') ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#hajj" type="button">
+                        <i class="fas fa-kaaba me-2"></i> إعدادات الحج
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link <?php echo ($active_tab === 'postal_services') ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#postal_services" type="button">
+                        <i class="fas fa-envelope me-2"></i> إعدادات الخدمات البريدية
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link <?php echo ($active_tab === 'bus_bookings') ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#bus_bookings" type="button">
+                        <i class="fas fa-bus me-2"></i> إعدادات حجوزات الباص
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link <?php echo ($active_tab === 'flight_bookings') ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#flight_bookings" type="button">
+                        <i class="fas fa-plane-departure me-2"></i> إعدادات حجوزات الطيران
                     </button>
                 </li>
                 <li class="nav-item">
@@ -2017,9 +2069,55 @@ if (!empty($attendance_locations)) {
                     </div>
                 </div>
 
+                <!-- تبويب إعدادات الحج -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'hajj') ? 'show active' : ''; ?>" id="hajj">
+                    <div class="section-title"><i class="fas fa-kaaba text-success"></i> إعدادات خدمات الحج</div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4"><div class="form-switch-container h-100 border-start border-success border-4"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">تفعيل خدمات الحج</label>
+                            <input class="form-check-input" type="checkbox" name="enable_hajj" <?php echo ($settings['enable_hajj'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <div class="col-md-4"><div class="form-switch-container h-100 border-start border-success border-4"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">إظهار مبلغ الخصم</label>
+                            <input class="form-check-input" type="checkbox" name="hajj_allow_discount" <?php echo ($settings['hajj_allow_discount'] ?? 1) ? 'checked' : ''; ?>></div>
+                            <small class="extra-small text-muted d-block mt-2">إظهار أو إخفاء حقل مبلغ الخصم في نموذج الحج.</small></div></div>
+                        <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">إظهار سعر التكلفة</label>
+                            <input class="form-check-input" type="checkbox" name="hajj_show_purchase_price" <?php echo ($settings['hajj_show_purchase_price'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                    </div>
+                    <div class="section-title mt-4"><i class="fas fa-eye text-success"></i> خصائص نموذج الحج</div>
+                    <div class="row g-3 mb-4">
+                        <?php foreach (['hajj_allow_partial_payments'=>'السماح بالدفعات الجزئية','hajj_enable_print'=>'تفعيل الطباعة','hajj_enable_export'=>'تفعيل التصدير'] as $key=>$label): ?>
+                            <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch"><label class="form-check-label small fw-bold"><?php echo $label; ?></label><input class="form-check-input" type="checkbox" name="<?php echo $key; ?>" <?php echo ($settings[$key] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <!-- تبويب إعدادات الخدمات البريدية -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'postal_services') ? 'show active' : ''; ?>" id="postal_services">
+                    <div class="section-title"><i class="fas fa-envelope text-primary"></i> إعدادات الخدمات البريدية</div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4"><div class="form-switch-container h-100 border-start border-primary border-4"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">تفعيل الخدمات البريدية</label>
+                            <input class="form-check-input" type="checkbox" name="enable_postal_services" <?php echo ($settings['enable_postal_services'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <div class="col-md-4"><div class="form-switch-container h-100 border-start border-primary border-4"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">إظهار مبلغ الخصم</label>
+                            <input class="form-check-input" type="checkbox" name="postal_services_allow_discount" <?php echo ($settings['postal_services_allow_discount'] ?? 1) ? 'checked' : ''; ?>></div>
+                            <small class="extra-small text-muted d-block mt-2">إظهار أو إخفاء حقل مبلغ الخصم في نموذج الشحن.</small></div></div>
+                        <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">إظهار سعر التكلفة</label>
+                            <input class="form-check-input" type="checkbox" name="postal_services_show_purchase_price" <?php echo ($settings['postal_services_show_purchase_price'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                    </div>
+                    <div class="section-title mt-4"><i class="fas fa-eye text-primary"></i> خصائص نموذج البريد</div>
+                    <div class="row g-3 mb-4">
+                        <?php foreach (['postal_services_allow_partial_payments'=>'السماح بالدفعات الجزئية','postal_services_enable_print'=>'تفعيل الطباعة','postal_services_enable_export'=>'تفعيل التصدير'] as $key=>$label): ?>
+                            <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch"><label class="form-check-label small fw-bold"><?php echo $label; ?></label><input class="form-check-input" type="checkbox" name="<?php echo $key; ?>" <?php echo ($settings[$key] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
                 <!-- تبويب إعدادات الحجوزات -->
-                <div class="tab-pane fade <?php echo ($active_tab === 'bookings') ? 'show active' : ''; ?>" id="bookings">
-                    <div class="section-title"><i class="fas fa-route text-primary"></i> إعدادات موديول الحجوزات</div>
+                <div class="tab-pane fade <?php echo ($active_tab === 'bus_bookings') ? 'show active' : ''; ?>" id="bus_bookings">
+                    <div class="section-title"><i class="fas fa-bus text-success"></i> إعدادات حجوزات الباصات</div>
                     <div class="row g-4 mb-4">
                         <div class="col-md-6">
                             <div class="form-switch-container h-100 border-start border-success border-4 shadow-sm">
@@ -2030,11 +2128,12 @@ if (!empty($attendance_locations)) {
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-switch-container h-100 border-start border-info border-4 shadow-sm">
+                            <div class="form-switch-container h-100 border-start border-success border-4 shadow-sm">
                                 <div class="form-switch">
-                                    <label class="form-check-label small fw-bold text-info">تفعيل حجوزات الطيران</label>
-                                    <input class="form-check-input" type="checkbox" name="enable_flight_bookings" <?php echo ($settings['enable_flight_bookings'] ?? 1) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label small fw-bold text-success">إظهار مبلغ الخصم</label>
+                                    <input class="form-check-input" type="checkbox" name="bus_bookings_allow_discount" <?php echo ($settings['bus_bookings_allow_discount'] ?? 1) ? 'checked' : ''; ?>>
                                 </div>
+                                <small class="extra-small text-muted d-block mt-2">إظهار أو إخفاء حقل الخصم في حجوزات الباصات.</small>
                             </div>
                         </div>
                     </div>
@@ -2043,13 +2142,13 @@ if (!empty($attendance_locations)) {
                     <div class="row g-3 mb-4">
                         <?php
                         $booking_features = [
-                            'bookings_show_profit' => 'تفعيل عرض الربح',
-                            'bookings_show_purchase_price' => 'تفعيل عرض سعر الشراء',
-                            'bookings_allow_partial_payments' => 'تفعيل الدفعات الجزئية',
-                            'bookings_enable_print' => 'تفعيل الطباعة',
-                            'bookings_enable_export' => 'تفعيل التصدير',
-                            'bookings_enable_return_date' => 'تفعيل تاريخ العودة',
-                            'bookings_enable_bus_type' => 'تفعيل نوع الباص',
+                            'bus_bookings_show_profit' => 'تفعيل عرض الربح',
+                            'bus_bookings_show_purchase_price' => 'تفعيل عرض سعر الشراء',
+                            'bus_bookings_allow_partial_payments' => 'تفعيل الدفعات الجزئية',
+                            'bus_bookings_enable_print' => 'تفعيل الطباعة',
+                            'bus_bookings_enable_export' => 'تفعيل التصدير',
+                            'bus_bookings_enable_return_date' => 'تفعيل تاريخ العودة',
+                            'bus_bookings_enable_bus_type' => 'تفعيل نوع الباص',
                         ];
                         foreach ($booking_features as $key => $label): ?>
                             <div class="col-md-3">
@@ -2069,23 +2168,23 @@ if (!empty($attendance_locations)) {
                             <div class="form-switch-container h-100">
                                 <div class="form-switch">
                                     <label class="form-check-label small fw-bold text-dark">تفعيل الترحيل التلقائي</label>
-                                    <input class="form-check-input" type="checkbox" name="bookings_auto_posting" <?php echo ($settings['bookings_auto_posting'] ?? 1) ? 'checked' : ''; ?>>
+                                    <input class="form-check-input" type="checkbox" name="bus_bookings_auto_posting" <?php echo ($settings['bus_bookings_auto_posting'] ?? 1) ? 'checked' : ''; ?>>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">توقيت الترحيل</label>
-                            <select name="bookings_posting_trigger" class="form-select">
-                                <option value="on_save" <?php echo ($settings['bookings_posting_trigger'] == 'on_save') ? 'selected' : ''; ?>>عند الحفظ مباشرة</option>
-                                <option value="on_confirm" <?php echo ($settings['bookings_posting_trigger'] == 'on_confirm') ? 'selected' : ''; ?>>عند التأكيد (Confirm)</option>
-                                <option value="manual" <?php echo ($settings['bookings_posting_trigger'] == 'manual') ? 'selected' : ''; ?>>ترحيل يدوي</option>
+                            <select name="bus_bookings_posting_trigger" class="form-select">
+                                <option value="on_save" <?php echo (($settings['bus_bookings_posting_trigger'] ?? 'manual') == 'on_save') ? 'selected' : ''; ?>>عند الحفظ مباشرة</option>
+                                <option value="on_confirm" <?php echo (($settings['bus_bookings_posting_trigger'] ?? 'manual') == 'on_confirm') ? 'selected' : ''; ?>>عند التأكيد (Confirm)</option>
+                                <option value="manual" <?php echo (($settings['bus_bookings_posting_trigger'] ?? 'manual') == 'manual') ? 'selected' : ''; ?>>ترحيل يدوي</option>
                             </select>
                         </div>
                         <div class="col-md-4">
                             <div class="form-switch-container h-100">
                                 <div class="form-switch">
                                     <label class="form-check-label small fw-bold text-dark">تفعيل الربط بسير العمل</label>
-                                    <input class="form-check-input" type="checkbox" name="bookings_workflow_enabled" <?php echo ($settings['bookings_workflow_enabled'] ?? 1) ? 'checked' : ''; ?>>
+                                    <input class="form-check-input" type="checkbox" name="bus_bookings_workflow_enabled" <?php echo ($settings['bus_bookings_workflow_enabled'] ?? 1) ? 'checked' : ''; ?>>
                                 </div>
                             </div>
                         </div>
@@ -2097,7 +2196,7 @@ if (!empty($attendance_locations)) {
                             <div class="form-switch-container h-100">
                                 <div class="form-switch">
                                     <label class="form-check-label small fw-bold text-dark">تفعيل الترقيم التلقائي</label>
-                                    <input class="form-check-input" type="checkbox" name="bookings_auto_numbering" <?php echo ($settings['bookings_auto_numbering'] ?? 1) ? 'checked' : ''; ?>>
+                                    <input class="form-check-input" type="checkbox" name="bus_bookings_auto_numbering" <?php echo ($settings['bus_bookings_auto_numbering'] ?? 1) ? 'checked' : ''; ?>>
                                 </div>
                             </div>
                         </div>
@@ -2129,6 +2228,57 @@ if (!empty($attendance_locations)) {
                             <textarea name="bus_flight_service_terms" class="form-control" rows="8" placeholder="اكتب هنا شروط وأحكام خدمات تذاكر طيران وبصات..."><?php echo htmlspecialchars($settings['bus_flight_service_terms'] ?? ''); ?></textarea>
                             <div class="form-text mt-2">سيتم عرض هذه الشروط في نماذج الطباعة وحجوزات تذاكر طيران وبصات.</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- تبويب إعدادات حجوزات الطيران -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'flight_bookings') ? 'show active' : ''; ?>" id="flight_bookings">
+                    <div class="section-title"><i class="fas fa-plane-departure text-info"></i> إعدادات حجوزات الطيران</div>
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="form-switch-container h-100 border-start border-info border-4 shadow-sm">
+                                <div class="form-switch">
+                                    <label class="form-check-label small fw-bold text-info">تفعيل حجوزات الطيران</label>
+                                    <input class="form-check-input" type="checkbox" name="enable_flight_bookings" <?php echo ($settings['enable_flight_bookings'] ?? 1) ? 'checked' : ''; ?>>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-switch-container h-100 border-start border-info border-4 shadow-sm">
+                                <div class="form-switch">
+                                    <label class="form-check-label small fw-bold text-dark">إظهار مبلغ الخصم</label>
+                                    <input class="form-check-input" type="checkbox" name="flight_bookings_allow_discount" <?php echo ($settings['flight_bookings_allow_discount'] ?? 1) ? 'checked' : ''; ?>>
+                                </div>
+                                <small class="extra-small text-muted d-block mt-2">إظهار أو إخفاء حقل الخصم في حجوزات الطيران.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-title mt-4"><i class="fas fa-eye text-info"></i> خصائص عرض الطيران</div>
+                    <div class="row g-3 mb-4">
+                        <?php foreach ([
+                            'flight_bookings_show_profit' => 'إظهار الربح',
+                            'flight_bookings_show_purchase_price' => 'إظهار سعر الشراء',
+                            'flight_bookings_allow_partial_payments' => 'السماح بالدفعات الجزئية',
+                            'flight_bookings_enable_print' => 'تفعيل الطباعة',
+                            'flight_bookings_enable_export' => 'تفعيل التصدير',
+                            'flight_bookings_enable_return_date' => 'تفعيل تاريخ العودة'
+                        ] as $key => $label): ?>
+                            <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch">
+                                <label class="form-check-label small fw-bold text-dark"><?php echo $label; ?></label>
+                                <input class="form-check-input" type="checkbox" name="<?php echo $key; ?>" <?php echo ($settings[$key] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="section-title mt-4"><i class="fas fa-file-invoice-dollar text-info"></i> محاسبة وترحيل الطيران</div>
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch">
+                            <label class="form-check-label small fw-bold text-dark">الترحيل التلقائي</label>
+                            <input class="form-check-input" type="checkbox" name="flight_bookings_auto_posting" <?php echo ($settings['flight_bookings_auto_posting'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
+                        <div class="col-md-4"><label class="form-label">توقيت الترحيل</label><select name="flight_bookings_posting_trigger" class="form-select">
+                            <?php foreach (['on_save'=>'عند الحفظ مباشرة','on_confirm'=>'عند التأكيد','manual'=>'ترحيل يدوي'] as $v=>$l): ?><option value="<?php echo $v; ?>" <?php echo ($settings['flight_bookings_posting_trigger'] ?? 'manual') === $v ? 'selected' : ''; ?>><?php echo $l; ?></option><?php endforeach; ?>
+                        </select></div>
+                        <div class="col-md-4"><div class="form-switch-container h-100"><div class="form-switch">
+                            <label class="form-check-label small fw-bold text-dark">الربط بسير العمل</label>
+                            <input class="form-check-input" type="checkbox" name="flight_bookings_workflow_enabled" <?php echo ($settings['flight_bookings_workflow_enabled'] ?? 1) ? 'checked' : ''; ?>></div></div></div>
                     </div>
                 </div>
 
@@ -2164,6 +2314,15 @@ if (!empty($attendance_locations)) {
                                     <label class="form-check-label small fw-bold text-dark">إظهار حقل تاريخ الميلاد</label>
                                     <input class="form-check-input" type="checkbox" name="show_dob_field" <?php echo ($settings['show_dob_field'] ?? 1) ? 'checked' : ''; ?>>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-switch-container h-100">
+                                <div class="form-switch">
+                                    <label class="form-check-label small fw-bold text-dark">إظهار مبلغ الخصم</label>
+                                    <input class="form-check-input" type="checkbox" name="work_visa_allow_discount" <?php echo ($settings['work_visa_allow_discount'] ?? 1) ? 'checked' : ''; ?>>
+                                </div>
+                                <small class="extra-small text-muted d-block mt-2">عند التفعيل يظهر حقل الخصم لجميع المستخدمين في نموذج تأشيرة العمل.</small>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -2364,6 +2523,14 @@ if (!empty($attendance_locations)) {
                             </div>
                         </div>
                     <?php endif; ?>
+
+                    <div class="section-title mt-4"><i class="fas fa-sliders-h text-info"></i> خيارات العرض والتحكم</div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4"><div class="form-switch-container h-100 border-start border-info border-4"><div class="form-switch">
+                            <label class="form-check-label small fw-bold">إظهار مبلغ الخصم</label>
+                            <input class="form-check-input" type="checkbox" name="family_visit_allow_discount" <?php echo ($settings['family_visit_allow_discount'] ?? 1) ? 'checked' : ''; ?>></div>
+                            <small class="extra-small text-muted d-block mt-2">إظهار أو إخفاء حقل مبلغ الخصم في نموذج الزيارة العائلية.</small></div></div>
+                    </div>
 
                     <div class="section-title mt-4"><i class="fas fa-hourglass-half text-primary"></i> صلاحية الزيارة والتنبيهات</div>
                     <div class="row g-3 mb-4">

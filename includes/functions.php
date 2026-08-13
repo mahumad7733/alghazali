@@ -1415,19 +1415,37 @@ function generateOperationNumber($type)
     return $prefix . '-' . date('Ymd') . '-' . rand(1000, 9999);
 }
 
-// توليد رقم حجز فريد للباصات والطيران
+// توليد رقم حجز فريد للباصات والطيران.
+// لا نعتمد على COUNT لأن حذف حجز أو تغيير نوع الخدمة قد يعيد رقماً قديماً.
 function generateBookingNumber($service_type)
 {
     global $pdo;
 
-    $stmt_count = $pdo->prepare("SELECT COUNT(*) FROM bus_flight_bookings WHERE service_type = ?");
-    $stmt_count->execute([$service_type]);
-    $count = $stmt_count->fetchColumn();
+    $prefix = (strtolower((string)$service_type) === 'bus') ? 'B' : 'F';
+    $prefixLike = $prefix . '%';
 
-    $next_num = $count + 1;
-    $prefix = (strtolower($service_type) === 'bus') ? 'B' : 'F';
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(MAX(CAST(SUBSTRING(booking_number, 2) AS UNSIGNED)), 0)
+        FROM bus_flight_bookings
+        WHERE booking_number LIKE ?
+          AND booking_number REGEXP ?
+    ");
+    $stmt->execute([$prefixLike, '^' . $prefix . '[0-9]+$']);
+    $nextNum = ((int)$stmt->fetchColumn()) + 1;
 
-    return $prefix . str_pad($next_num, 4, '0', STR_PAD_LEFT);
+    // trans_num فريد على مستوى الجدول؛ لذلك نفحص الرقم كاملاً وليس نوع الخدمة فقط.
+    do {
+        $candidate = $prefix . str_pad((string)$nextNum, 4, '0', STR_PAD_LEFT);
+        $exists = $pdo->prepare("SELECT 1 FROM bus_flight_bookings WHERE booking_number = ? LIMIT 1");
+        $exists->execute([$candidate]);
+        if ($exists->fetchColumn()) {
+            $nextNum++;
+        } else {
+            return $candidate;
+        }
+    } while ($nextNum < PHP_INT_MAX);
+
+    throw new RuntimeException('تعذر إنشاء رقم حجز فريد.');
 }
 
 function get_workflow_for_transaction($type, $branch_id = null)
@@ -2319,7 +2337,13 @@ function get_workflow_fields_by_type($transaction_type, $extra_keys = null)
     $mapped_types = [$transaction_type];
     if ($transaction_type === 'visa' || $transaction_type == '5') $mapped_types[] = 'family_visit';
     if ($transaction_type === 'passport_transactions' || $transaction_type == 'passport' || $transaction_type == '2') $mapped_types[] = 'passport';
-    if ($transaction_type === 'bus_flight_bookings' || $transaction_type === 'booking' || $transaction_type == '3' || $transaction_type === '1' || $transaction_type === 'bus_bookings' || $transaction_type === 'flight_bookings') $mapped_types[] = 'booking';
+    if ($transaction_type === 'bus_bookings') {
+        $mapped_types[] = 'bus_booking';
+    } elseif ($transaction_type === 'flight_bookings') {
+        $mapped_types[] = 'flight_booking';
+    } elseif ($transaction_type === 'bus_flight_bookings' || $transaction_type === 'booking' || $transaction_type == '3' || $transaction_type === '1') {
+        $mapped_types[] = 'booking';
+    }
     if ($transaction_type === 'umrah' || $transaction_type == '4') {
         $mapped_types[] = 'umrah';
         $mapped_types[] = 'hajj';
@@ -2455,14 +2479,14 @@ if (!function_exists('get_workflow_module_mapping')) {
         return [
             'bus_bookings' => [
                 'module_key'       => 'enable_bus_bookings',
-                'transaction_types' => ['bus_bookings', 'bus_flight_bookings', 'booking', '1'],
-                'group_keys'       => ['booking'],
+                'transaction_types' => ['bus_bookings', '1'],
+                'group_keys'       => ['bus_booking'],
                 'module_label'     => 'حجوزات الباصات',
             ],
             'flight_bookings' => [
                 'module_key'       => 'enable_flight_bookings',
-                'transaction_types' => ['flight_bookings', 'bus_flight_bookings', 'booking', '3'],
-                'group_keys'       => ['booking'],
+                'transaction_types' => ['flight_bookings', '3'],
+                'group_keys'       => ['flight_booking'],
                 'module_label'     => 'حجوزات الطيران',
             ],
             'passport_transactions' => [

@@ -62,7 +62,8 @@ if (isset($_POST['add_supplier_account'])) {
             $new_code = "21101001";
         }
 
-        $stmt = $pdo->prepare("INSERT INTO unified_accounts (account_code, account_name_ar, account_type, normal_balance, parent_id, branch_id, account_status) VALUES (?, ?, 'مورد', 'credit', ?, ?, ?)");
+        // account_type يستخدم قيم enum المحاسبية؛ المورد حساب التزام وليس تسمية عربية.
+        $stmt = $pdo->prepare("INSERT INTO unified_accounts (account_code, account_name_ar, account_type, normal_balance, parent_id, branch_id, account_status) VALUES (?, ?, 'liability', 'credit', ?, ?, ?)");
         $stmt->execute([$new_code, $account_name, $parent_id, $branch_id, $status]);
 
         $new_account_id = $pdo->lastInsertId();
@@ -91,13 +92,8 @@ if (isset($_POST['add_supplier_account'])) {
             foreach ($supplier_services as $svcId) {
                 $stmtInsSvc->execute([$new_supplier_id, (int)$svcId, $currentUserId]);
             }
-        } else {
-            $stmtAllSvc = $pdo->prepare("
-                INSERT IGNORE INTO supplier_services (supplier_id, service_id, is_active, assigned_at, assigned_by)
-                SELECT ?, id, 1, NOW(), ? FROM catalog_services WHERE is_active = 1 AND deleted_at IS NULL
-            ");
-            $stmtAllSvc->execute([$new_supplier_id, $currentUserId]);
         }
+        // لا تُمنح الخدمات تلقائياً؛ المورد يظهر فقط في الخدمات المختارة صراحةً.
 
         $pdo->commit();
         echo "<script>location.href='suppliers.php?success=1';</script>";
@@ -332,6 +328,437 @@ $page_title = "إدارة الموردين";
 ?>
 
 <style>
+    .supplier-services-card {
+        border: 1px solid rgba(59, 130, 246, 0.16) !important;
+        border-radius: 1rem !important;
+        background: linear-gradient(145deg, rgba(248, 250, 252, 0.96), rgba(239, 246, 255, 0.82));
+        padding: 1rem !important;
+    }
+
+    .supplier-services-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
+    }
+
+    .supplier-service-option {
+        min-height: 52px;
+        display: flex !important;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.65rem 0.75rem !important;
+        border: 1px solid rgba(148, 163, 184, 0.26) !important;
+        border-radius: 0.85rem !important;
+        background: rgba(255, 255, 255, 0.9) !important;
+        transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .supplier-service-option:hover {
+        transform: translateY(-1px);
+        border-color: rgba(37, 99, 235, 0.5) !important;
+        box-shadow: 0 6px 16px rgba(30, 64, 175, 0.1);
+    }
+
+    .supplier-service-option .form-check-input {
+        width: 2.1rem;
+        height: 1.15rem;
+        flex: 0 0 auto;
+        margin: 0 !important;
+    }
+
+    .supplier-service-option .form-check-label {
+        line-height: 1.45;
+        cursor: pointer;
+    }
+
+    .supplier-form-section {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 1rem;
+        background: rgba(248, 250, 252, 0.56);
+    }
+
+    @media (max-width: 767.98px) {
+        #addSupplierModal .modal-dialog,
+        #editSupplierModal .modal-dialog {
+            margin: 0.5rem;
+        }
+
+        #addSupplierModal .modal-body,
+        #editSupplierModal .modal-body {
+            padding: 0.85rem !important;
+            max-height: calc(100vh - 150px) !important;
+        }
+
+        .supplier-services-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
+        }
+
+        .supplier-service-option {
+            min-height: 58px;
+            padding: 0.55rem !important;
+            font-size: 0.76rem;
+        }
+
+        #addSupplierModal .modal-footer,
+        #editSupplierModal .modal-footer {
+            padding: 0.8rem !important;
+            gap: 0.5rem !important;
+        }
+
+        #addSupplierModal .modal-footer button,
+        #editSupplierModal .modal-footer button {
+            flex: 1 1 0;
+            padding-inline: 0.8rem !important;
+        }
+    }
+
+    body.theme-dark .supplier-services-card,
+    body.dark-mode .supplier-services-card {
+        background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96));
+        border-color: rgba(96, 165, 250, 0.24) !important;
+    }
+
+    body.theme-dark .supplier-service-option,
+    body.dark-mode .supplier-service-option {
+        background: rgba(30, 41, 59, 0.86) !important;
+        border-color: rgba(148, 163, 184, 0.22) !important;
+    }
+
+    .supplier-page-hero {
+        padding: 1.25rem 1.4rem;
+        border: 1px solid rgba(59, 130, 246, 0.14);
+        border-radius: 1.25rem;
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 56%, #f8fafc 100%);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+    }
+
+    .supplier-list-card {
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.18) !important;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07) !important;
+    }
+
+    .supplier-list-toolbar {
+        padding: 1rem 1.1rem !important;
+        background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.96));
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
+    }
+
+    .supplier-search-box,
+    .supplier-advanced-search {
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        border-radius: 0.85rem !important;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .supplier-search-box .input-group-text,
+    .supplier-search-box .form-control,
+    .supplier-advanced-search .form-control {
+        min-height: 42px;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .supplier-table-wrap {
+        padding: 0.45rem;
+    }
+
+    #suppliersTable tbody tr {
+        transition: background-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    #suppliersTable tbody tr:hover {
+        background: rgba(239, 246, 255, 0.55);
+    }
+
+    #suppliersTable td {
+        border-color: rgba(148, 163, 184, 0.14) !important;
+    }
+
+    .supplier-service-badges {
+        max-width: 240px;
+        justify-content: center;
+    }
+
+    .supplier-service-badges .badge {
+        border-radius: 999px;
+        padding: 0.42rem 0.62rem;
+        font-weight: 700;
+    }
+
+    .supplier-actions {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        border-radius: 0.8rem;
+        background: rgba(248, 250, 252, 0.8);
+    }
+
+    .supplier-actions .btn {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.65rem !important;
+    }
+
+    @media (max-width: 767.98px) {
+        .supplier-page-hero {
+            padding: 1rem;
+            border-radius: 1rem;
+        }
+
+        .supplier-page-hero .supplier-hero-summary {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem !important;
+            width: 100%;
+            margin-top: 0.75rem;
+        }
+
+        .supplier-page-hero .supplier-hero-summary > div {
+            margin: 0 !important;
+            padding: 0.5rem 0.6rem !important;
+            font-size: 0.72rem;
+            text-align: center;
+        }
+
+        .supplier-page-hero .btn {
+            width: 100%;
+            margin-top: 0.75rem;
+        }
+
+        .supplier-list-toolbar {
+            padding: 0.8rem !important;
+        }
+
+        .supplier-list-toolbar .row > [class*="col-"] {
+            width: 100%;
+            margin-bottom: 0.55rem;
+        }
+
+        .supplier-list-toolbar form {
+            display: flex !important;
+            width: 100%;
+        }
+
+        .supplier-list-toolbar form input {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .supplier-table-wrap {
+            padding: 0.65rem;
+        }
+
+        #suppliersTable,
+        #suppliersTable tbody,
+        #suppliersTable tr,
+        #suppliersTable td {
+            display: block;
+            width: 100%;
+        }
+
+        #suppliersTable thead {
+            display: none;
+        }
+
+        #suppliersTable tbody tr {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.55rem;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1rem;
+            background: #fff;
+            box-shadow: 0 5px 14px rgba(15, 23, 42, 0.05);
+        }
+
+        #suppliersTable tbody td {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            min-height: 48px;
+            padding: 0.35rem 0.45rem !important;
+            text-align: start !important;
+            border: 0 !important;
+        }
+
+        #suppliersTable tbody td::before {
+            margin-bottom: 0.18rem;
+            color: #64748b;
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+
+        #suppliersTable tbody td:nth-child(1)::before { content: "كود الحساب"; }
+        #suppliersTable tbody td:nth-child(2)::before { content: "الاسم التجاري"; }
+        #suppliersTable tbody td:nth-child(3)::before { content: "الاسم المحاسبي"; }
+        #suppliersTable tbody td:nth-child(4)::before { content: "الخدمات"; }
+        #suppliersTable tbody td:nth-child(5)::before { content: "الفرع"; }
+        #suppliersTable tbody td:nth-child(6)::before { content: "الرصيد"; }
+        #suppliersTable tbody td:nth-child(7)::before { content: "الحالة"; }
+        #suppliersTable tbody td:nth-child(8) {
+            grid-column: 1 / -1;
+            align-items: stretch;
+            padding-top: 0.65rem !important;
+            border-top: 1px solid rgba(148, 163, 184, 0.16) !important;
+        }
+        #suppliersTable tbody td:nth-child(8)::before { content: "الإجراءات"; }
+
+        .supplier-service-badges {
+            max-width: none !important;
+            justify-content: flex-start !important;
+        }
+
+        .supplier-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .supplier-actions .btn {
+            width: 38px;
+            height: 38px;
+        }
+    }
+
+    body.theme-dark .supplier-page-hero,
+    body.dark-mode .supplier-page-hero {
+        background: linear-gradient(135deg, #0f1e35 0%, #111827 60%, #0f172a 100%);
+    }
+
+    body.theme-dark .supplier-list-toolbar,
+    body.dark-mode .supplier-list-toolbar {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(17, 24, 39, 0.96));
+    }
+
+    body.theme-dark #suppliersTable tbody tr,
+    body.dark-mode #suppliersTable tbody tr {
+        background: #111827;
+    }
+
+    .supplier-balance-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(150px, 1fr));
+        gap: 0.65rem;
+        margin-top: 0.75rem;
+    }
+
+    .supplier-balance-card {
+        position: relative;
+        min-width: 170px;
+        padding: 0.7rem 0.9rem;
+        border: 1px solid transparent;
+        border-radius: 0.95rem;
+        overflow: hidden;
+    }
+
+    .supplier-balance-card::after {
+        content: '';
+        position: absolute;
+        width: 74px;
+        height: 74px;
+        border-radius: 50%;
+        inset-inline-end: -28px;
+        inset-block-end: -34px;
+        opacity: 0.16;
+        background: currentColor;
+    }
+
+    .supplier-balance-card .balance-label {
+        display: flex;
+        align-items: center;
+        gap: 0.38rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .supplier-balance-card .balance-value {
+        display: block;
+        font-size: 1.08rem;
+        line-height: 1.25;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        position: relative;
+        z-index: 1;
+    }
+
+    .supplier-balance-card .balance-currency {
+        font-size: 0.68rem;
+        font-weight: 700;
+        opacity: 0.82;
+        margin-inline-start: 0.2rem;
+    }
+
+    .supplier-balance-card.balance-receivable {
+        color: #15803d;
+        background: linear-gradient(135deg, rgba(220, 252, 231, 0.96), rgba(240, 253, 244, 0.92));
+        border-color: rgba(34, 197, 94, 0.24);
+    }
+
+    .supplier-balance-card.balance-payable {
+        color: #b91c1c;
+        background: linear-gradient(135deg, rgba(254, 226, 226, 0.96), rgba(255, 247, 247, 0.92));
+        border-color: rgba(239, 68, 68, 0.24);
+    }
+
+    @media (max-width: 767.98px) {
+        .supplier-balance-summary {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            width: 100%;
+            gap: 0.45rem;
+            direction: rtl;
+        }
+
+        .supplier-balance-card {
+            min-width: 0;
+            width: 100%;
+            padding: 0.6rem 0.4rem;
+            text-align: center;
+        }
+
+        .supplier-balance-card .balance-label {
+            justify-content: center;
+            font-size: 0.66rem;
+        }
+
+        .supplier-balance-card .balance-value {
+            font-size: 0.88rem;
+        }
+
+        .supplier-balance-card .balance-currency {
+            display: block;
+            margin: 0.12rem 0 0;
+        }
+    }
+
+    body.theme-dark .supplier-balance-card.balance-receivable,
+    body.dark-mode .supplier-balance-card.balance-receivable {
+        color: #86efac;
+        background: linear-gradient(135deg, rgba(20, 83, 45, 0.54), rgba(22, 101, 52, 0.32));
+        border-color: rgba(74, 222, 128, 0.28);
+    }
+
+    body.theme-dark .supplier-balance-card.balance-payable,
+    body.dark-mode .supplier-balance-card.balance-payable {
+        color: #fca5a5;
+        background: linear-gradient(135deg, rgba(127, 29, 29, 0.54), rgba(153, 27, 27, 0.32));
+        border-color: rgba(248, 113, 113, 0.28);
+    }
+
     /* Ensure modal footer is visible in dark theme */
     #addSupplierModal .modal-footer,
     #editSupplierModal .modal-footer {
@@ -410,28 +837,20 @@ $page_title = "إدارة الموردين";
 </style>
 
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 supplier-page-hero">
         <div>
             <h3 class="fw-bold mb-1"><i class="fas fa-truck-loading me-2 text-primary"></i> إدارة الموردين</h3>
-            <div class="d-flex align-items-center">
-                <p class="text-muted small mb-0 me-3">إدارة وتعديل حسابات الموردين في شجرة الحسابات</p>
-                <div class="ms-2 px-3 py-1 bg-success bg-opacity-10 border border-success border-opacity-20 rounded-pill shadow-sm small me-2">
-                    <i class="fas fa-arrow-down me-1 text-success"></i>
-                    إجمالي لنا: <span class="fw-bold text-success"><?php echo number_format($total_debit, 2); ?></span> <?php echo htmlspecialchars($baseCurrency['currency_name'] ?? ''); ?>
-                </div>
-                <div class="ms-2 px-3 py-1 bg-danger bg-opacity-10 border border-danger border-opacity-20 rounded-pill shadow-sm small">
-                    <i class="fas fa-arrow-up me-1 text-danger"></i>
-                    إجمالي علينا: <span class="fw-bold text-danger"><?php echo number_format($total_credit, 2); ?></span> <?php echo htmlspecialchars($baseCurrency['currency_name'] ?? ''); ?>
-                </div>
+            <div class="supplier-hero-summary">
+                <p class="text-muted small mb-0">إدارة وتعديل حسابات الموردين في شجرة الحسابات</p>
             </div>
         </div>
-        <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addSupplierModal">
+        <button class="btn btn-primary rounded-pill px-4 shadow-sm supplier-hero-action" data-bs-toggle="modal" data-bs-target="#addSupplierModal">
             <i class="fas fa-plus-circle me-1"></i> إضافة مورد جديد
         </button>
     </div>
 
     <?php if (isset($_GET['success'])): ?>
-        <div class="alert alert-success alert-dismissible fade show">
+        <div id="supplierSuccessAlert" class="alert alert-success alert-dismissible fade show supplier-flash-alert">
             <?php
             if ($_GET['success'] == 1) echo "تمت إضافة المورد بنجاح.";
             if ($_GET['success'] == 2) echo "تم تحديث بيانات المورد بنجاح.";
@@ -443,31 +862,36 @@ $page_title = "إدارة الموردين";
     <?php endif; ?>
 
     <?php if (isset($error)): ?>
-        <div class="alert alert-danger alert-dismissible fade show">
+        <div id="supplierErrorAlert" class="alert alert-danger alert-dismissible fade show supplier-flash-alert">
             <?php echo $error; ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
-    <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-header bg-white border-0 py-3">
+    <div class="card supplier-list-card border-0 shadow-sm rounded-4">
+        <div class="card-header supplier-list-toolbar bg-white border-0 py-3">
+            <div class="supplier-balance-summary supplier-search-balances">
+                <div class="supplier-balance-card balance-receivable">
+                    <div class="balance-label"><i class="fas fa-arrow-down"></i><span>إجمالي لنا</span></div>
+                    <span class="balance-value"><?php echo number_format($total_debit, 2); ?><span class="balance-currency"><?php echo htmlspecialchars($baseCurrency['currency_name'] ?? ''); ?></span></span>
+                </div>
+                <div class="supplier-balance-card balance-payable">
+                    <div class="balance-label"><i class="fas fa-arrow-up"></i><span>إجمالي علينا</span></div>
+                    <span class="balance-value"><?php echo number_format($total_credit, 2); ?><span class="balance-currency"><?php echo htmlspecialchars($baseCurrency['currency_name'] ?? ''); ?></span></span>
+                </div>
+            </div>
             <div class="row align-items-center">
                 <div class="col-md-4">
-                    <div class="input-group">
+                    <div class="input-group supplier-search-box">
                         <span class="input-group-text bg-light border-0"><i class="fas fa-search text-muted"></i></span>
-                        <input type="text" id="supplierSearch" class="form-control bg-light border-0" placeholder="بحث سريع باسم أو كود المورد...">
+                        <input type="search" id="supplierSearch" class="form-control bg-light border-0" placeholder="ابحث باسم المورد أو الكود أو الخدمة..." autocomplete="off">
                     </div>
                 </div>
-                <div class="col-md-8 text-end">
-                    <form method="GET" class="d-inline-flex">
-                        <input type="text" name="q" class="form-control form-control-sm me-2" placeholder="بحث متقدم..." value="<?php echo h($_GET['q'] ?? ''); ?>">
-                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">بحث</button>
-                    </form>
-                </div>
+
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive supplier-table-wrap">
                 <table class="table table-hover align-middle mb-0 text-center" id="suppliersTable">
                     <thead class="bg-light text-secondary small text-uppercase fw-bold">
                         <tr>
@@ -497,7 +921,7 @@ $page_title = "إدارة الموردين";
                                     <div class="small text-muted"><?php echo htmlspecialchars($supplier['account_name_ar']); ?></div>
                                 </td>
                                 <td>
-                                    <div class="d-flex flex-wrap gap-1" style="max-width:220px; justify-content:center;">
+                                    <div class="d-flex flex-wrap gap-1 supplier-service-badges">
                                         <?php
                                         $svc_list = $supplier_services_map[$supplier['supplier_id']] ?? [];
                                         if (!empty($svc_list)):
@@ -554,7 +978,7 @@ $page_title = "إدارة الموردين";
                                     <?php echo get_account_status_label($supplier['account_status']); ?>
                                 </td>
                                 <td>
-                                    <div class="btn-group">
+                                    <div class="btn-group supplier-actions">
                                         <a href="account_statement.php?id=<?php echo $supplier['id']; ?>" class="btn btn-sm btn-light border-0" title="كشف حساب">
                                             <i class="fas fa-file-invoice-dollar text-primary"></i>
                                         </a>
@@ -664,11 +1088,11 @@ $page_title = "إدارة الموردين";
                                 <i class="fas fa-concierge-bell text-primary me-1"></i> الخدمات التي يقدمها المورد
                                 <span class="text-danger">*</span>
                             </label>
-                            <div class="card border rounded-3 p-3 bg-light bg-opacity-50">
-                                <div class="row g-2">
+                            <div class="card supplier-services-card">
+                                <div class="supplier-services-grid">
                                     <?php foreach ($catalog_services as $svc): ?>
                                         <div class="col-md-6 col-lg-4 col-xl-3">
-                                            <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-start bg-white border rounded-3 p-2 h-100">
+                                            <div class="form-check form-switch form-check-reverse supplier-service-option">
                                                 <input class="form-check-input me-3 ms-0 supplier-service-checkbox" type="checkbox"
                                                     name="supplier_services[]"
                                                     value="<?php echo $svc['id']; ?>"
@@ -756,11 +1180,11 @@ $page_title = "إدارة الموردين";
                                 <i class="fas fa-concierge-bell text-primary me-1"></i> الخدمات التي يقدمها المورد
                                 <span class="text-danger">*</span>
                             </label>
-                            <div class="card border rounded-3 p-3 bg-light bg-opacity-50">
-                                <div class="row g-2" id="edit_services_container">
+                            <div class="card supplier-services-card">
+                                <div class="supplier-services-grid" id="edit_services_container">
                                     <?php foreach ($catalog_services as $svc): ?>
                                         <div class="col-md-6 col-lg-4 col-xl-3">
-                                            <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-start bg-white border rounded-3 p-2 h-100">
+                                            <div class="form-check form-switch form-check-reverse supplier-service-option">
                                                 <input class="form-check-input me-3 ms-0 edit-supplier-service-checkbox" type="checkbox"
                                                     name="supplier_services[]"
                                                     value="<?php echo $svc['id']; ?>"
@@ -821,12 +1245,26 @@ $page_title = "إدارة الموردين";
             $('#editSupplierModal').modal('show');
         });
 
-        $("#supplierSearch").on("keyup", function() {
-            var value = $(this).val().toLowerCase();
-            $("#suppliersTable tbody tr").filter(function() {
-                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+        $("#supplierSearch").on("input", function() {
+            var value = $(this).val().trim().toLowerCase();
+            $("#suppliersTable tbody tr").each(function() {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
             });
         });
+
+        // إشعارات مؤقتة: تختفي تلقائياً بعد عرضها لعدة ثوانٍ.
+        window.setTimeout(function() {
+            $('.supplier-flash-alert').stop(true, true).fadeOut(250, function() {
+                $(this).remove();
+            });
+            if (window.history && window.history.replaceState) {
+                var cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('success');
+                cleanUrl.searchParams.delete('error');
+                cleanUrl.searchParams.delete('msg');
+                window.history.replaceState({}, document.title, cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+            }
+        }, 4200);
     });
 </script>
 

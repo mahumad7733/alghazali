@@ -97,6 +97,7 @@ try {
     require_once __DIR__ . '/system_error_audit.php';
     register_system_error_audit($pdo);
 } catch (\PDOException $e) {
+    error_log('Database bootstrap failure: ' . $e->getMessage());
     // إذا كان الطلب AJAX، أرجع JSON
     if (
         (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
@@ -109,7 +110,7 @@ try {
         echo '<div style="direction:rtl;font-family:Arial;padding:20px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:8px;margin:20px;">';
         echo '<h3 style="color:#721c24">⚠️ خطأ في الاتصال بقاعدة البيانات</h3>';
         echo '<p>يرجى التأكد من تشغيل MySQL وصحة بيانات الاتصال.</p>';
-        echo '<small style="color:#999">' . htmlspecialchars($e->getMessage()) . '</small>';
+        echo '<small style="color:#999">رمز الخطأ: DB-CONNECTION</small>';
         echo '</div>';
     }
     exit();

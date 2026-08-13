@@ -55,12 +55,40 @@ $ff_show_supplier = $financial_fields_show_supplier ?? true;
 $ff_show_cost_currency = $financial_fields_show_cost_currency ?? true;
 $ff_show_cost_amount = $financial_fields_show_cost_amount ?? true;
 $ff_show_discount = $financial_fields_show_discount ?? true;
+$ff_mobile_supplier_target = $financial_fields_mobile_supplier_target ?? null;
+$ff_mobile_layout = $financial_fields_mobile_layout ?? false;
 
 if (!isset($current_invoice) || !is_array($current_invoice)) {
     $current_invoice = [];
 }
 
 $ff_source_type = $current_invoice['source_type'] ?? 'general';
+
+// تحويل أسماء الخدمات القديمة والجديدة إلى رمز catalog_services المستخدم في supplier_services.
+// هذا الشرط مركزي حتى لا تظهر قائمة الموردين العامة داخل أي شاشة خدمة.
+$ff_service_code_aliases = [
+    'النقل البري' => 'bus_bookings',
+    'bus' => 'bus_bookings',
+    'bus_bookings' => 'bus_bookings',
+    'تذاكر طيران' => 'flight_bookings',
+    'flight' => 'flight_bookings',
+    'flight_bookings' => 'flight_bookings',
+    'خدمات العمرة' => 'umrah',
+    'umrah' => 'umrah',
+    'خدمات الحج' => 'hajj',
+    'hajj' => 'hajj',
+    'معاملات الجوازات' => 'passport_transactions',
+    'جوازت السفر' => 'passport_transactions',
+    'passport_transactions' => 'passport_transactions',
+    'فيز العمل' => 'work_visa',
+    'work_visa' => 'work_visa',
+    'الزيارة العائلية' => 'family_visit',
+    'family_visit' => 'family_visit',
+    'خدمات البريد' => 'postal_services',
+    'postal' => 'postal_services',
+    'postal_services' => 'postal_services',
+];
+$ff_service_code = $ff_service_code_aliases[(string)$ff_source_type] ?? null;
 if ($ff_show_service_select === null) {
     $ff_show_service_select = ($ff_source_type === '' || $ff_source_type === 'general');
 }
@@ -143,6 +171,27 @@ if (!isset($suppliers_with_codes)) {
 }
 $suppliers_with_codes = ff_normalize_suppliers_list($suppliers_with_codes ?? []);
 
+// تقييد الموردين بالخدمة الحالية حتى لو قامت صفحة قديمة بتحميل قائمة الحسابات كاملة.
+if ($ff_service_code !== null) {
+    $ff_allowed_supplier_stmt = $pdo->prepare(
+        "SELECT DISTINCT ss.supplier_id
+         FROM supplier_services ss
+         INNER JOIN catalog_services cs ON cs.id = ss.service_id
+         INNER JOIN suppliers s ON s.id = ss.supplier_id
+         WHERE ss.is_active = 1
+           AND cs.is_active = 1
+           AND cs.deleted_at IS NULL
+           AND cs.service_code = ?
+           AND s.status = 'active'
+           AND s.deleted_at IS NULL"
+    );
+    $ff_allowed_supplier_stmt->execute([$ff_service_code]);
+    $ff_allowed_supplier_ids = array_fill_keys(array_map('intval', $ff_allowed_supplier_stmt->fetchAll(PDO::FETCH_COLUMN)), true);
+    $suppliers_with_codes = array_values(array_filter($suppliers_with_codes, static function ($supplier) use ($ff_allowed_supplier_ids) {
+        $supplier_id = (int)($supplier['supplier_id'] ?? $supplier['supplier_entity_id'] ?? 0);
+        return $supplier_id > 0 && isset($ff_allowed_supplier_ids[$supplier_id]);
+    }));
+}
 if (!function_exists('get_accounts_under_parent')) {
     function get_accounts_under_parent($pdo, $parent_account_code, $entity_type = null)
     {
@@ -320,7 +369,8 @@ $val = static function ($key, $default = '') use ($current_invoice) {
                         </div>
                     </div>
                     <?php if ($ff_show_supplier): ?>
-                    <div class="col-md-4">
+                    <span id="<?php echo ff_h($cid('supplier_anchor')); ?>" class="d-none" aria-hidden="true"></span>
+                    <div class="col-md-4" id="<?php echo ff_h($cid('supplier_field')); ?>" data-mobile-supplier-field="1" data-mobile-supplier-target="<?php echo ff_h($ff_mobile_supplier_target ?? ''); ?>">
                         <label class="form-label">المورد (جهة التكلفة)</label>
                         <select name="supplier_id" id="<?php echo ff_h($cid('supplier_id')); ?>" class="form-select select2-financial" required>
                             <option value="">-- اختر المورد --</option>
@@ -412,7 +462,8 @@ $val = static function ($key, $default = '') use ($current_invoice) {
                            value="<?php echo ff_h($val('discount', 0)); ?>" data-original-discount="0">
                 </div>
                 <?php endif; ?>
-                <div class="<?php echo $ff_show_discount ? 'col-md-3' : 'col-md-6'; ?>" id="<?php echo ff_h($cid('received_amount_field')); ?>" style="display: none;">
+                <span id="<?php echo ff_h($cid('received_amount_anchor')); ?>" class="d-none" aria-hidden="true"></span>
+                <div class="<?php echo $ff_show_discount ? 'col-md-3' : 'col-md-6'; ?>" id="<?php echo ff_h($cid('received_amount_field')); ?>" data-mobile-received-field="1" style="display: none;">
                     <label class="form-label small fw-bold text-muted">المبلغ الواصل (المقبوض)</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-primary"><i class="fas fa-hand-holding-usd"></i></span>
@@ -468,7 +519,7 @@ $val = static function ($key, $default = '') use ($current_invoice) {
                 </div>
                 <?php endif; ?>
                 <?php if ($ff_show_cost_amount): ?>
-                <div class="col-md-<?php echo $ff_show_cost_currency ? 3 : 6; ?>">
+                <div class="col-md-<?php echo $ff_show_cost_currency ? 3 : 6; ?>" data-mobile-cost-field="1">
                     <label class="form-label small fw-bold text-warning">سعر التكلفة</label>
                     <div class="input-group">
                         <input type="number" step="0.01" name="cost_amount" id="<?php echo ff_h($cid('cost_amount')); ?>" class="form-control fw-bold text-warning"
@@ -523,7 +574,8 @@ $val = static function ($key, $default = '') use ($current_invoice) {
             </div>
 
             <?php if (!$ff_show_host_guarantor && $ff_show_supplier): ?>
-                <div class="row g-3 mb-3 p-3 bg-light border rounded-4 shadow-sm">
+                <?php if ($ff_mobile_layout): ?><span id="<?php echo ff_h($cid('supplier_anchor')); ?>" class="d-none" aria-hidden="true"></span><?php endif; ?>
+                <div class="row g-3 mb-3 p-3 bg-light border rounded-4 shadow-sm" id="<?php echo ff_h($cid('supplier_field')); ?>" data-mobile-supplier-field="1" data-mobile-supplier-target="<?php echo ff_h($ff_mobile_supplier_target ?? ''); ?>">
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted">المورد (جهة التكلفة)</label>
                         <select name="supplier_id" id="<?php echo ff_h($cid('supplier_id')); ?>" class="form-select select2-financial" required>
@@ -625,7 +677,8 @@ $val = static function ($key, $default = '') use ($current_invoice) {
         initialAccountId: <?php echo json_encode($val('account_id', '')); ?>,
         initialDeliveryType: <?php echo json_encode($ff_initial_delivery_type); ?>,
         defaultCashAccountId: <?php echo json_encode($settings['default_cash_account_id'] ?? ''); ?>,
-        defaultBankAccountId: <?php echo json_encode($settings['default_bank_account_id'] ?? ''); ?>
+        defaultBankAccountId: <?php echo json_encode($settings['default_bank_account_id'] ?? ''); ?>,
+        mobileLayout: <?php echo $ff_mobile_layout ? 'true' : 'false'; ?>
     };
 
     var entitiesData = {
@@ -1294,6 +1347,40 @@ $val = static function ($key, $default = '') use ($current_invoice) {
         }
     }
 
+    function applyMobileBookingLayout() {
+        if (!ffConfig.mobileLayout || typeof jQuery === 'undefined') {
+            return;
+        }
+
+        var isMobile = window.matchMedia && window.matchMedia('(max-width: 767.98px)').matches;
+        var $received = $('#' + pid('received_amount_field'));
+        var $receivedAnchor = $('#' + pid('received_amount_anchor'));
+        var $cost = $('.financial-fields-block[data-ff-prefix="' + ffConfig.prefix + '"] [data-mobile-cost-field="1"]');
+        var $supplier = $('#' + pid('supplier_field'));
+        var $supplierAnchor = $('#' + pid('supplier_anchor'));
+        var supplierTarget = $('#' + (<?php echo json_encode($ff_mobile_supplier_target ?? ''); ?>).replace(/^#/, ''));
+
+        if (isMobile) {
+            if ($received.length && $cost.length && !$cost.find('[data-mobile-received-field="1"]').length) {
+                $received.addClass('w-100 mt-3').removeClass('col-md-3 col-md-6').appendTo($cost);
+            }
+            if ($supplier.length && supplierTarget.length && !$supplierTarget.find('[data-mobile-supplier-field="1"]').length) {
+                supplierTarget.removeClass('d-none');
+                $supplier.appendTo(supplierTarget);
+            }
+        } else {
+            if ($received.length && $receivedAnchor.length && !$receivedAnchor.next().is($received)) {
+                $received.removeClass('w-100 mt-3').addClass(<?php echo json_encode($ff_show_discount ? 'col-md-3' : 'col-md-6'); ?>).insertAfter($receivedAnchor);
+            }
+            if ($supplier.length && $supplierAnchor.length && !$supplierAnchor.next().is($supplier)) {
+                $supplier.insertAfter($supplierAnchor);
+            }
+            if (supplierTarget.length) {
+                supplierTarget.addClass('d-none');
+            }
+        }
+    }
+
     function initFinancialFields() {
         if (typeof jQuery === 'undefined') {
             return;
@@ -1325,6 +1412,10 @@ $val = static function ($key, $default = '') use ($current_invoice) {
         updateConvertedPrices();
         enforceFinancialRules(false);
         updateAmountInWords();
+        applyMobileBookingLayout();
+        if (ffConfig.mobileLayout && typeof window !== 'undefined') {
+            $(window).off('resize.' + ffConfig.prefix).on('resize.' + ffConfig.prefix, applyMobileBookingLayout);
+        }
     }
 
     window.handleDeliveryType = function(type, selectId, labelId, receivedFieldId) {

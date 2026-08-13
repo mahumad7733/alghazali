@@ -197,6 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_booking'])) {
     $account_id        = filter_input(INPUT_POST, 'account_id',         FILTER_VALIDATE_INT);
     $customer_id       = filter_input(INPUT_POST, 'customer_id',        FILTER_VALIDATE_INT);
     $agent_id          = filter_input(INPUT_POST, 'agent_id',           FILTER_VALIDATE_INT);
+    // FILTER_VALIDATE_INT returns false for an empty select; nullable foreign keys must be NULL.
+    $account_id  = ($account_id  === false || $account_id  === null || (int)$account_id  <= 0) ? null : (int)$account_id;
+    $customer_id = ($customer_id === false || $customer_id === null || (int)$customer_id <= 0) ? null : (int)$customer_id;
+    $agent_id    = ($agent_id    === false || $agent_id    === null || (int)$agent_id    <= 0) ? null : (int)$agent_id;
     $record_purchase   = filter_input(INPUT_POST, 'record_purchase',    FILTER_VALIDATE_INT);
     if (!$record_purchase && $record_purchase !== 0) $record_purchase = 1;
     if (!$operation_date) $operation_date = filter_input(INPUT_POST, 'invoice_date');
@@ -401,14 +405,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_approval'])) 
     }
     $booking_id = (int)$_POST['booking_id'];
     $to_status_id = (int)$_POST['to_status_id'];
-    $discount_amount = (float)($_POST['discount_amount'] ?? 0);
+    $discount_percent = max(0, min(100, (float)($_POST['penalty_percent'] ?? 0)));
+    $discount_amount = isset($_POST['discount_amount']) ? max(0, (float)$_POST['discount_amount']) : 0;
     $notes = $_POST['notes'] ?? '';
+
+    // For cancellation requests, derive the penalty from the current sale price.
+    if (array_key_exists('penalty_percent', $_POST)) {
+        $stmt_cancel_amount = $pdo->prepare("SELECT COALESCE(inv.total_amount, b.sale_price, 0) AS sale_price FROM bus_flight_bookings b LEFT JOIN invoices inv ON inv.id = COALESCE(b.sales_invoice_id, b.invoice_id) WHERE b.id = ?");
+        $stmt_cancel_amount->execute([$booking_id]);
+        $current_sale_price = (float)($stmt_cancel_amount->fetchColumn() ?: 0);
+        $discount_amount = round($current_sale_price * ($discount_percent / 100), 2);
+    } else {
+        $discount_percent = null;
+    }
     $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'];
     $role_id = $_SESSION['role_id'] ?? null;
 
     try {
         $bookingWorkflowService = new BookingWorkflowService($pdo, (int)$user_id, $bookingWorkflowTransactionType);
-        $bookingWorkflowService->requestApproval($booking_id, $to_status_id, $discount_amount, $notes, $role_id);
+        $bookingWorkflowService->requestApproval($booking_id, $to_status_id, $discount_amount, $notes, $role_id, $discount_percent);
         $_SESSION['flash_message'] = ['type' => 'info', 'title' => 'تم إرسال الطلب', 'body' => 'تم إرسال طلب الاعتماد للمدير بنجاح.'];
     } catch (Exception $e) {
         $_SESSION['flash_message'] = ['type' => 'danger', 'title' => 'خطأ', 'body' => $e->getMessage()];
@@ -587,18 +602,25 @@ $service_code_map = ['bus' => 'bus_bookings', 'flight' => 'flight_bookings'];
 $current_service_code = $service_code_map[($_GET['service_type'] ?? $_POST['service_type'] ?? 'bus')] ?? 'bus_bookings';
 
 $suppliers_stmt = $pdo->prepare("
-    SELECT s.id,
-           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) as supplier_name
+    SELECT s.id AS supplier_id,
+           ua.id AS id,
+           ua.account_code,
+           CONCAT(ua.account_code, ' - ', COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name)) AS display_name,
+           COALESCE(NULLIF(TRIM(s.trade_name), ''), s.supplier_name) AS supplier_name
     FROM suppliers s
+    INNER JOIN unified_accounts ua ON ua.id = s.account_id
     INNER JOIN supplier_services ss ON s.id = ss.supplier_id
     INNER JOIN catalog_services cs ON ss.service_id = cs.id
     WHERE s.status = 'active' AND s.deleted_at IS NULL
+      AND ua.account_status = 'active'
       AND ss.is_active = 1
       AND cs.service_code = ?
     ORDER BY supplier_name ASC
 ");
 $suppliers_stmt->execute([$current_service_code]);
 $suppliers = $suppliers_stmt->fetchAll();
+// تستخدم الحقول المالية القائمة المفلترة نفسها، وليس قائمة الموردين العامة.
+$suppliers_with_codes = $suppliers;
 
 $countries = $pdo->query("SELECT id, country_name FROM countries ORDER BY country_name ASC")->fetchAll();
 $branches = $pdo->query("SELECT id, branch_name FROM branches ORDER BY branch_name ASC")->fetchAll();
@@ -1600,7 +1622,7 @@ if (isset($_SESSION['flash_message'])) {
                                                     <i class="fas fa-print text-secondary"></i>
                                                 </a>
                                                 <?php if ($booking['booking_status_name'] === 'مؤكد'): ?>
-                                                    <a href="bus_flight_bookings_ticket.php?id=<?php echo $booking['id']; ?>" target="_blank" class="btn btn-sm btn-light border" title="طباعة التذكرة">
+                                                    <a href="bus_flight_bookings_print.php?id=<?php echo $booking['id']; ?>" target="_blank" class="btn btn-sm btn-light border" title="طباعة التذكرة">
                                                         <i class="fas fa-ticket-alt text-primary"></i>
                                                     </a>
                                                 <?php endif; ?>
@@ -2072,6 +2094,7 @@ if (isset($_SESSION['flash_message'])) {
                             <label for="add_notes" class="form-label fw-bold text-primary mb-2">ملاحظات إضافية</label>
                             <textarea class="form-control rounded-3 shadow-sm border-2" id="add_notes" name="notes" rows="2"></textarea>
                         </div>
+                        <div id="add_mobile_supplier_slot" class="col-12 d-none mobile-booking-supplier-slot"></div>
 
 
                         <!-- Separator -->
@@ -2097,6 +2120,11 @@ if (isset($_SESSION['flash_message'])) {
                         $financial_fields_select2_parent = '#addBookingModal';
                         $financial_fields_show_service_select = false;
                         $financial_fields_hide_service_accounts = true;
+                        $financial_fields_show_discount = $forcedBookingServiceType === 'bus'
+                            ? (bool)($settings['bus_bookings_allow_discount'] ?? 1)
+                            : ($forcedBookingServiceType === 'flight' ? (bool)($settings['flight_bookings_allow_discount'] ?? 1) : true);
+                        $financial_fields_mobile_layout = true;
+                        $financial_fields_mobile_supplier_target = 'add_mobile_supplier_slot';
                         include '../includes/financial_fields.php';
                         ?>
                     </div>
@@ -2287,6 +2315,7 @@ if (isset($_SESSION['flash_message'])) {
                                 <label class="form-label fw-bold text-primary mb-2 small">ملاحظات إضافية</label>
                                 <textarea class="form-control rounded-3 shadow-sm border-2" name="notes" rows="2"><?php echo htmlspecialchars($booking['notes']); ?></textarea>
                             </div>
+                            <div id="edit_mobile_supplier_slot_<?php echo (int)$booking['id']; ?>" class="col-12 d-none mobile-booking-supplier-slot"></div>
 
                             <!-- Separator -->
                             <div class="col-12">
@@ -2352,6 +2381,11 @@ if (isset($_SESSION['flash_message'])) {
                                 $financial_fields_form_selector = '#editBookingModal' . $booking['id'] . ' form';
                                 $financial_fields_show_service_select = false;
                                 $financial_fields_hide_service_accounts = true;
+                                $financial_fields_show_discount = $forcedBookingServiceType === 'bus'
+                                    ? (bool)($settings['bus_bookings_allow_discount'] ?? 1)
+                                    : ($forcedBookingServiceType === 'flight' ? (bool)($settings['flight_bookings_allow_discount'] ?? 1) : true);
+                                $financial_fields_mobile_layout = true;
+                                $financial_fields_mobile_supplier_target = 'edit_mobile_supplier_slot_' . (int)$booking['id'];
                                 include '../includes/financial_fields.php';
                                 ?>
                             <?php else: ?>
@@ -2480,20 +2514,32 @@ if (isset($_SESSION['flash_message'])) {
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold">إجمالي مبلغ الحجز</label>
-                                <input type="text" class="form-control rounded-3 bg-white fw-bold" value="<?= number_format($booking['sale_price'], 2) ?> <?= htmlspecialchars($booking['currency_name']) ?>" readonly>
+                                <label class="form-label small fw-bold">سعر البيع الحالي</label>
+                                <input type="text" class="form-control rounded-3 bg-white fw-bold" value="<?= number_format((float)$booking['sale_price'], 2) ?> <?= htmlspecialchars($booking['currency_name']) ?>" readonly>
+                                <div class="form-text">المبلغ الأصلي للفاتورة</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold">المبلغ المخصوم (الغرامة)</label>
-                                <input type="number" step="0.01" name="discount_amount" class="form-control rounded-3 fw-bold border-danger discount-input" value="0" required oninput="calculateNetAmount(this, <?= $booking['sale_price'] ?>)">
+                                <label class="form-label small fw-bold">المبلغ المدفوع فعليًا</label>
+                                <input type="text" class="form-control rounded-3 bg-white fw-bold" value="<?= number_format((float)$booking['amount_received'], 2) ?> <?= htmlspecialchars($booking['currency_name']) ?>" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">نسبة الخصم / الغرامة (%)</label>
+                                <input type="number" min="0" max="100" step="0.01" name="penalty_percent" class="form-control rounded-3 fw-bold border-danger" value="0" required oninput="calculateCancellationAmounts(this, <?= (float)$booking['sale_price'] ?>, <?= (float)$booking['amount_received'] ?>, '<?= (int)$booking['id'] ?>')">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">إجمالي المبلغ المخصوم</label>
+                                <input id="cancelPenaltyAmount<?= (int)$booking['id'] ?>" type="text" class="form-control rounded-3 bg-white fw-bold text-danger" value="0.00 <?= htmlspecialchars($booking['currency_name']) ?>" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">المبلغ بعد الخصم / المسترد</label>
+                                <input id="cancelRefundAmount<?= (int)$booking['id'] ?>" type="text" class="form-control rounded-3 bg-white fw-bold text-success" value="<?= number_format((float)$booking['amount_received'], 2) ?> <?= htmlspecialchars($booking['currency_name']) ?>" readonly>
                             </div>
                             <div class="col-md-12 text-center">
                                 <div class="p-2 bg-white rounded-3 border">
-                                    <span class="small text-muted d-block">المبلغ الصافي بعد الخصم (الذي سيتم استرداده)</span>
-                                    <span class="h5 fw-bold text-success mb-0 net-amount-display"><?= number_format($booking['amount_received'], 2) ?></span>
+                                    <span class="small text-muted d-block">سيتم إرجاع هذا المبلغ للعميل من الصندوق/البنك بعد الاعتماد</span>
+                                    <span id="cancelRefundSummary<?= (int)$booking['id'] ?>" class="h5 fw-bold text-success mb-0"><?= number_format((float)$booking['amount_received'], 2) ?></span>
                                     <small class="text-muted"><?= htmlspecialchars($booking['currency_name']) ?></small>
                                 </div>
-                                <div class="mt-1 small text-muted">المبلغ المدفوع حالياً: <?= number_format($booking['amount_received'], 2) ?></div>
                             </div>
                             <div class="col-md-12">
                                 <label class="form-label small fw-bold">سبب الإلغاء / ملاحظات</label>
@@ -2701,6 +2747,22 @@ if (isset($_SESSION['flash_message'])) {
         const modal = input.closest('.modal');
         const netInput = modal.querySelector('input[name*="net_amount"]');
         if (netInput) netInput.value = net.toFixed(2);
+    }
+
+    /**
+     * حساب غرامة الإلغاء والمبلغ المسترد من المدفوع الفعلي.
+     * مثال: 300 × 30% = 90 غرامة، والاسترداد = 210.
+     */
+    function calculateCancellationAmounts(input, salePrice, paidAmount, bookingId) {
+        const percent = Math.max(0, Math.min(100, parseFloat(input.value) || 0));
+        const penalty = Math.round(salePrice * percent) / 100;
+        const refund = Math.max(0, Math.min(paidAmount, paidAmount - penalty));
+        const penaltyEl = document.getElementById('cancelPenaltyAmount' + bookingId);
+        const refundEl = document.getElementById('cancelRefundAmount' + bookingId);
+        const summaryEl = document.getElementById('cancelRefundSummary' + bookingId);
+        if (penaltyEl) penaltyEl.value = penalty.toFixed(2) + ' ' + (penaltyEl.value.split(' ').slice(1).join(' ') || '');
+        if (refundEl) refundEl.value = refund.toFixed(2) + ' ' + (refundEl.value.split(' ').slice(1).join(' ') || '');
+        if (summaryEl) summaryEl.textContent = refund.toFixed(2);
     }
 
     $(document).ready(function() {

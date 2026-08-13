@@ -58,13 +58,27 @@ class ReceiptService implements ReceiptInterface
             if ((float)$stmt->fetchColumn() > 0) {
                 throw new \RuntimeException('Payment allocation already exists');
             }
+            // amount_received قد يكون محفوظاً عند إنشاء الفاتورة قبل إنشاء الإيصال؛
+            // لذلك نحسب المتبقي من التخصيصات الفعلية فقط.
             $stmt = $pdo->prepare(
-                'SELECT COALESCE(net_amount, total_amount - discount) - COALESCE(amount_received, 0)
+                'SELECT COALESCE(net_amount, total_amount - discount)
                  FROM invoices WHERE id = ? LIMIT 1 FOR UPDATE'
             );
             $stmt->execute([$invoiceId]);
-            $remaining = $stmt->fetchColumn();
-            if ($remaining === false || (float)$remaining < $allocatedAmount - 0.00001) {
+            $invoiceNetAmount = $stmt->fetchColumn();
+            if ($invoiceNetAmount === false) {
+                throw new \RuntimeException('Invoice not found');
+            }
+            $stmt = $pdo->prepare(
+                "SELECT COALESCE(SUM(pa.allocated_amount), 0)
+                 FROM payment_allocations pa
+                 INNER JOIN financial_transactions ft ON ft.id = pa.financial_transaction_id
+                 WHERE pa.invoice_id = ? AND ft.status IN ('draft', 'posted')"
+            );
+            $stmt->execute([$invoiceId]);
+            $allocatedInvoiceAmount = (float)$stmt->fetchColumn();
+            $remaining = max(0.0, (float)$invoiceNetAmount - $allocatedInvoiceAmount);
+            if ($remaining < $allocatedAmount - 0.00001) {
                 throw new \RuntimeException('Payment allocation exceeds invoice balance');
             }
             $stmt = $pdo->prepare('SELECT COALESCE(amount, 0) FROM financial_transactions WHERE id = ? LIMIT 1 FOR UPDATE');

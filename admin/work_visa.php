@@ -401,6 +401,94 @@ require_once 'header.php';
         color: var(--text-muted) !important;
     }
 
+    .toolbar-filter-control,
+    .toolbar-search-box,
+    .toolbar-action {
+        min-height: 44px;
+    }
+
+    .toolbar-search-box {
+        min-width: 250px;
+    }
+
+    @media (max-width: 767.98px) {
+        .page-toolbar-card {
+            border-radius: 1rem;
+            padding: 0.9rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        .toolbar-title {
+            width: 100%;
+            align-items: flex-start;
+            gap: 0.65rem;
+        }
+
+        .toolbar-title-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 13px;
+            flex: 0 0 42px;
+            font-size: 1rem;
+        }
+
+        .toolbar-title h3 {
+            font-size: 1.08rem;
+            line-height: 1.5;
+        }
+
+        .toolbar-subtitle {
+            font-size: 0.72rem;
+            line-height: 1.7;
+        }
+
+        .toolbar-form {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem !important;
+            align-items: stretch !important;
+        }
+
+        .toolbar-form .toolbar-filter-control,
+        .toolbar-form .toolbar-search-box,
+        .toolbar-form .toolbar-action {
+            width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+        }
+
+        .toolbar-form .toolbar-filter-control {
+            min-height: 46px;
+            border-radius: 0.85rem !important;
+            padding-inline: 0.75rem;
+            font-size: 0.78rem;
+        }
+
+        .toolbar-search-box {
+            grid-column: 1 / -1;
+            min-height: 46px;
+        }
+
+        .toolbar-search-box .input-group-text {
+            padding-inline: 0.8rem;
+            border-radius: 0 0.85rem 0.85rem 0 !important;
+        }
+
+        .toolbar-search-box .form-control {
+            min-height: 46px;
+            font-size: 0.8rem;
+            border-radius: 0.85rem 0 0 0.85rem !important;
+        }
+
+        .toolbar-action {
+            grid-column: 1 / -1;
+            min-height: 46px;
+            border-radius: 0.85rem !important;
+            font-size: 0.82rem;
+        }
+    }
+
     .workvisa-table-card {
         border: 1px solid var(--card-border);
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
@@ -897,13 +985,7 @@ $passports = $stmt->fetchAll();
 
             <form method="GET" class="toolbar-form d-flex flex-wrap gap-2 align-items-center flex-grow-1 justify-content-end">
                 <?php if (has_permission('view_all_passports')): ?>
-                    <select name="agent_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
-                        <option value="">كل الوكلاء</option>
-                        <?php foreach ($agents as $ag): ?>
-                            <option value="<?php echo $ag['id']; ?>" <?php echo $agent_filter == $ag['id'] ? 'selected' : ''; ?>><?php echo $ag['agent_name']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="branch_filter" class="form-select rounded-pill shadow-sm border-0" style="width: 180px;" onchange="this.form.submit()">
+                    <select name="branch_filter" class="form-select rounded-pill shadow-sm border-0 toolbar-filter-control" style="width: 180px;" onchange="this.form.submit()">
                         <option value="">كل الفروع</option>
                         <?php foreach ($branches as $br): ?>
                             <option value="<?php echo $br['id']; ?>" <?php echo $branch_filter == $br['id'] ? 'selected' : ''; ?>><?php echo $br['branch_name']; ?></option>
@@ -911,7 +993,7 @@ $passports = $stmt->fetchAll();
                     </select>
                 <?php endif; ?>
 
-                <select name="status_filter" class="form-select rounded-pill" style="width: 180px;" onchange="this.form.submit()">
+                <select name="status_filter" class="form-select rounded-pill toolbar-filter-control" style="width: 180px;" onchange="this.form.submit()">
                     <option value="">كل الحالات</option>
                     <?php foreach ($wf_steps ?: [] as $step): ?>
                         <option value="<?php echo $step['status_id']; ?>" <?php echo (string)$status_filter === (string)$step['status_id'] ? 'selected' : ''; ?>>
@@ -920,13 +1002,13 @@ $passports = $stmt->fetchAll();
                     <?php endforeach; ?>
                 </select>
 
-                <div class="input-group" style="width: 250px;">
+                <div class="input-group toolbar-search-box" style="width: 250px;">
                     <span class="input-group-text bg-white border-0 shadow-sm rounded-start-pill"><i class="fas fa-search text-muted"></i></span>
                     <input type="text" id="tableSearch" class="form-control border-0 shadow-sm rounded-end-pill" placeholder="بحث سريع...">
                 </div>
 
                 <?php if (has_permission('work_visa_create')): ?>
-                    <button type="button" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addModal">
+                    <button type="button" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold toolbar-action" data-bs-toggle="modal" data-bs-target="#addModal">
                         <i class="fas fa-plus-circle me-2"></i> إضافة
                     </button>
                 <?php endif; ?>
@@ -1455,6 +1537,7 @@ $passports = $stmt->fetchAll();
                         $financial_fields_header_layout = 'split_rows';
                         $financial_fields_title_layout = 'block';
                         $financial_fields_hide_service_accounts = true;
+                        $financial_fields_show_discount = (bool)($settings['work_visa_allow_discount'] ?? 1);
                         include '../includes/financial_fields.php';
                         ?>
                         <div class="col-md-12 mt-2">
@@ -1639,6 +1722,7 @@ $passports = $stmt->fetchAll();
                         $financial_fields_header_layout = 'split_rows';
                         $financial_fields_title_layout = 'block';
                         $financial_fields_hide_service_accounts = true;
+                        $financial_fields_show_discount = (bool)($settings['work_visa_allow_discount'] ?? 1);
                         include '../includes/financial_fields.php';
                         ?>
 

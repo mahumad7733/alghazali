@@ -16,23 +16,29 @@ final class AuditLogger implements AuditLoggerInterface
     public function log(string $action, string $entityType, ?int $entityId, array $extra = []): void
     {
         try {
+            // Keep the logger compatible with the current audit_logs schema.
+            // entity_type/details_json are represented in new_values because the legacy table
+            // stores table_name/record_id/old_values/new_values instead.
+            $details = ['entity_type' => $entityType];
+            if ($extra !== []) {
+                $details['extra'] = $extra;
+            }
+            $json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $statement = $this->pdo->prepare(
                 'INSERT INTO audit_logs
-                    (user_id, action, entity_type, entity_id, table_name, record_id,
-                     ip_address, user_agent, details_json, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                    (user_id, action, table_name, record_id, old_values, new_values,
+                     ip_address, user_agent, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
             );
-            $json = $extra === [] ? null : json_encode($extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $statement->execute([
                 $this->userId,
                 $action,
                 $entityType,
                 $entityId,
-                $entityType,
-                $entityId,
+                null,
+                $json === false ? null : $json,
                 $_SERVER['REMOTE_ADDR'] ?? null,
                 $_SERVER['HTTP_USER_AGENT'] ?? null,
-                $json === false ? null : $json,
             ]);
         } catch (Throwable $e) {
             throw new FinanceException(

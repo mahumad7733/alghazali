@@ -61,8 +61,11 @@ if ($suppliers_parent_id) {
     $suppliers_stmt = $pdo->prepare("
         SELECT coa.*, s.id as supplier_id, s.supplier_name, coa.id as account_id
         FROM unified_accounts coa
-        LEFT JOIN suppliers s ON s.account_id = coa.id
+        INNER JOIN suppliers s ON s.account_id = coa.id
+        INNER JOIN supplier_services ss ON ss.supplier_id = s.id AND ss.is_active = 1
+        INNER JOIN catalog_services cs ON cs.id = ss.service_id AND cs.service_code = 'passport_transactions'
         WHERE coa.parent_id = ? AND (coa.account_status = 'active' OR coa.account_status = 'dormant')
+          AND s.deleted_at IS NULL AND s.status = 'active'
         ORDER BY coa.account_code ASC
     ");
     $suppliers_stmt->execute([$suppliers_parent_id]);
@@ -109,8 +112,10 @@ $banks_entities = $pdo->query("
 ")->fetchAll();
 
 // Fetch invoices associated with this transaction
-$stmt_invoices = $pdo->prepare("SELECT * FROM invoices WHERE source_type = 'passport_transaction' AND source_id = ?");
-$stmt_invoices->execute([$id]);
+$passportSourceTypes = ['passport_transaction', 'معاملات جوازات', 'معاملات جواز'];
+$passportSourcePlaceholders = implode(',', array_fill(0, count($passportSourceTypes), '?'));
+$stmt_invoices = $pdo->prepare("SELECT * FROM invoices WHERE source_type IN ($passportSourcePlaceholders) AND source_id = ?");
+$stmt_invoices->execute(array_merge($passportSourceTypes, [$id]));
 $invoices = $stmt_invoices->fetchAll();
 
 $sales_invoice = null;
@@ -261,7 +266,11 @@ foreach($invoices as $inv) {
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">تاريخ إصدار الجواز</label>
-                                    <input type="date" class="form-control rounded-3" name="passport_issue_date" value="<?php echo $trx['passport_issue_date']; ?>">
+                                    <input type="date" class="form-control rounded-3" name="passport_issue_date" value="<?php echo htmlspecialchars($trx['passport_issue_date'] ?? ''); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">تاريخ انتهاء الجواز</label>
+                                    <input type="date" class="form-control rounded-3" name="passport_expiry_date" value="<?php echo htmlspecialchars($trx['passport_expiry_date'] ?? ''); ?>">
                                 </div>
                             </div>
                         </div>
@@ -303,6 +312,31 @@ foreach($invoices as $inv) {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                            </div>
+
+                            <!-- بيانات البطاقة مثل نموذج الإضافة -->
+                            <div id="card_section" class="col-md-12 d-none">
+                                <div class="card border border-info rounded-3 p-3 bg-info bg-opacity-5 mt-3">
+                                    <h6 class="fw-bold small text-info mb-3"><i class="fas fa-id-card me-2"></i> بيانات البطاقة</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold text-muted">رقم معاملة البطاقة</label>
+                                            <input type="text" class="form-control rounded-3" name="card_transaction_number" value="<?php echo htmlspecialchars($trx['card_transaction_number'] ?? ''); ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold text-muted">تاريخ معاملة البطاقة</label>
+                                            <input type="date" class="form-control rounded-3" name="card_transaction_date" value="<?php echo htmlspecialchars($trx['card_transaction_date'] ?? ''); ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold text-muted">رقم البطاقة</label>
+                                            <input type="text" class="form-control rounded-3" name="card_number" value="<?php echo htmlspecialchars($trx['card_number'] ?? ''); ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold text-muted">تاريخ إصدار البطاقة</label>
+                                            <input type="date" class="form-control rounded-3" name="card_issue_date" value="<?php echo htmlspecialchars($trx['card_issue_date'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

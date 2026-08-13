@@ -1017,6 +1017,7 @@ require_once 'header.php';
                                             <label class="form-label">ملاحظات سريعة</label>
                                             <input type="text" name="notes" class="form-control" placeholder="ملاحظات إضافية...">
                                         </div>
+                                        <div id="hajj_mobile_supplier_slot" class="col-12 d-none mobile-booking-supplier-slot"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1042,6 +1043,9 @@ require_once 'header.php';
                             $financial_fields_show_service_select = false;
                             $financial_fields_header_layout = 'split_rows';
                             $financial_fields_hide_service_accounts = true;
+                            $financial_fields_show_discount = (bool)($settings['hajj_allow_discount'] ?? 1);
+                            $financial_fields_mobile_layout = true;
+                            $financial_fields_mobile_supplier_target = 'hajj_mobile_supplier_slot';
                             include '../includes/financial_fields.php';
                             ?>
                         </div>

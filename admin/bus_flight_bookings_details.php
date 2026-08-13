@@ -2,6 +2,7 @@
 ob_start();
 require_once 'header.php';
 require_once '../core/bookings/BookingServiceFactory.php';
+require_once '../core/bookings/BookingWorkflowService.php';
 
 if (!isset($_GET['id'])) {
     header('Location: bus_flight_bookings.php');
@@ -230,6 +231,55 @@ if ($purch_invoice) {
     $purch_invoice['remaining_amount'] = $purchDerived['remaining_amount'];
 }
 
+// استلام غرامة تعديل الحجز كسند قبض مرحّل.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['collect_modification_penalty'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $_SESSION['flash_message'] = ['type' => 'danger', 'title' => 'خطأ', 'body' => 'فشل التحقق الأمني من الطلب.'];
+        header("Location: bus_flight_bookings_details.php?id=$id");
+        exit();
+    }
+    try {
+        require_once '../core/Finance/FinancePostingAdapter.php';
+        $amount = round(max(0, (float)($_POST['penalty_amount'] ?? 0)), 2);
+        $cashBankAccountId = (int)($_POST['penalty_cash_bank_account_id'] ?? 0);
+        $customerId = (int)($b['customer_id'] ?? 0);
+        $customerAccountId = (int)($sales_invoice['customer_account_id'] ?? 0);
+        if ($customerAccountId <= 0 && $customerId > 0) {
+            $stmt_customer_account = $pdo->prepare('SELECT account_id FROM customers WHERE id = ? LIMIT 1');
+            $stmt_customer_account->execute([$customerId]);
+            $customerAccountId = (int)$stmt_customer_account->fetchColumn();
+        }
+        $stmt_cash_account = $pdo->prepare("SELECT COUNT(*) FROM unified_accounts WHERE id = ? AND is_active = 1 AND account_status = 'active' AND account_code LIKE '111%'");
+        $stmt_cash_account->execute([$cashBankAccountId]);
+        if ($amount <= 0 || $customerId <= 0 || $customerAccountId <= 0 || (int)$stmt_cash_account->fetchColumn() !== 1) {
+            throw new Exception('يرجى إدخال مبلغ صحيح واختيار حساب صندوق أو بنك صالح.');
+        }
+        $method = in_array($_POST['penalty_payment_method'] ?? 'cash', ['cash', 'bank_transfer'], true) ? $_POST['penalty_payment_method'] : 'cash';
+        $userId = (int)($_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 0);
+        $description = 'استلام غرامة تعديل الحجز رقم ' . ($b['booking_number'] ?? $id);
+        $voucherId = \Core\Finance\FinancePostingAdapter::createVoucherAndPost(
+            $pdo,
+            'receipt',
+            (int)$b['branch_id'],
+            'customer',
+            $customerId,
+            $amount,
+            (int)($sales_invoice['currency_id'] ?? 1),
+            $cashBankAccountId,
+            $customerAccountId,
+            $description,
+            null,
+            null,
+            null
+        );
+        $_SESSION['flash_message'] = ['type' => 'success', 'title' => 'تم استلام الغرامة', 'body' => 'تم تسجيل سند قبض الغرامة وترحيله بنجاح. رقم السند: ' . (int)$voucherId];
+    } catch (Throwable $e) {
+        $_SESSION['flash_message'] = ['type' => 'danger', 'title' => 'تعذر استلام الغرامة', 'body' => $e->getMessage()];
+    }
+    header("Location: bus_flight_bookings_details.php?id=$id");
+    exit();
+}
+
 // معالجة تغيير سير العمل
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_workflow'])) {
     $new_workflow_id = (int)$_POST['new_workflow_id'];
@@ -243,8 +293,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_workflow'])) {
     }
 }
 
-// جلب سير العمل المناسب لهذا الحجز
-$all_workflows = get_all_workflows_for_transaction('bus_flight_bookings', $b['branch_id']);
+// جلب سير العمل المناسب لهذا الحجز بحسب نوع الخدمة.
+$bookingWorkflowType = (($b['service_type'] ?? '') === 'bus') ? 'bus_bookings' : 'flight_bookings';
+$bookingWorkflowLabel = (($b['service_type'] ?? '') === 'bus') ? 'الباصات' : 'الطيران';
+$all_workflows = get_all_workflows_for_transaction($bookingWorkflowType, $b['branch_id']);
 $workflow = null;
 
 // إذا كان الحجز مرتبطاً بسير عمل محدد
@@ -256,7 +308,7 @@ if (!empty($b['workflow_id'])) {
 
 // إذا لم نجد سير عمل محدد، نستخدم الافتراضي
 if (!$workflow) {
-    $workflow = get_workflow_for_transaction('bus_flight_bookings', $b['branch_id']);
+    $workflow = get_workflow_for_transaction($bookingWorkflowType, $b['branch_id']);
 }
 
 $allowed_transitions = [];
@@ -281,21 +333,65 @@ if ($workflow) {
 
 // معالجة تغيير الحالة عبر سير العمل
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_workflow_status'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $_SESSION['flash_message'] = ['type' => 'danger', 'title' => 'خطأ', 'body' => 'فشل التحقق الأمني من الطلب.'];
+        header("Location: bus_flight_bookings_details.php?id=$id");
+        exit();
+    }
     $to_status_id = (int)$_POST['to_status_id'];
-    $notes = $_POST['workflow_notes'] ?? '';
-    $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'];
-    $extra_fields = $_POST['extra_fields'] ?? [];
-    $transition_id = $_POST['transition_id'] ?? null;
+    $to_status_name_stmt = $pdo->prepare('SELECT status_name FROM statuses WHERE id = ? LIMIT 1');
+    $to_status_name_stmt->execute([$to_status_id]);
+    $to_status_name = (string)$to_status_name_stmt->fetchColumn();
+    $notes = trim((string)($_POST['workflow_notes'] ?? ''));
+    $user_id = (int)($_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 0);
+            $extra_fields = is_array($_POST['extra_fields'] ?? null) ? $_POST['extra_fields'] : [];
+            $transition_id = (int)($_POST['transition_id'] ?? 0);
+            $is_cancellation_request = mb_strpos($to_status_name, 'لغ') !== false;
+            if ($is_cancellation_request) {
+                $ticket_total = (float)($sales_invoice['total_amount'] ?? $b['sale_price'] ?? 0);
+                $discount_percent = max(0, min(100, (float)($extra_fields['discount_percent'] ?? 0)));
+                $discount_amount = round($ticket_total * $discount_percent / 100, 2);
+                $extra_fields['discount_percent'] = $discount_percent;
+                $extra_fields['discount_amount'] = $discount_amount;
+                $extra_fields['net_amount'] = round($ticket_total - $discount_amount, 2);
+            }
 
     if ($to_status_id > 0) {
-        // استخدام دالة change_booking_status لتغيير الحالة
-        if (change_booking_status($id, $to_status_id, $user_id, $notes, $extra_fields, $transition_id)) {
-            $_SESSION['flash_message'] = ['type' => 'success', 'title' => 'تم التحديث', 'body' => 'تم نقل الحجز إلى المرحلة الجديدة بنجاح'];
-            header("Location: bus_flight_bookings_details.php?id=$id");
-            exit();
-        } else {
-            $error = "فشل في تحديث الحالة";
+        try {
+            $stmt_transition = $pdo->prepare("SELECT require_approval FROM workflow_transitions WHERE id = ? AND to_step_id = ? LIMIT 1");
+            $stmt_transition->execute([$transition_id, (int)($_POST['to_step_id'] ?? 0)]);
+            $requires_approval = (bool)$stmt_transition->fetchColumn();
+
+            if ($requires_approval) {
+                $requested_mod_date = trim((string)($extra_fields['requested_mod_date'] ?? ''));
+                if ($requested_mod_date !== '') {
+                    $date = DateTime::createFromFormat('Y-m-d', $requested_mod_date);
+                    if (!$date || $date->format('Y-m-d') !== $requested_mod_date) {
+                        throw new Exception('تاريخ المغادرة المطلوب غير صحيح.');
+                    }
+                }
+                if (mb_strpos($to_status_name, 'تعديل') !== false) {
+                    $modificationTotal = (float)($sales_invoice['total_amount'] ?? $b['sale_price'] ?? 0);
+                    $chargePenalty = !empty($extra_fields['charge_penalty']);
+                    $penaltyPercent = $chargePenalty ? max(0, min(100, (float)($extra_fields['modification_penalty_percent'] ?? 0))) : 0;
+                    $penaltyAmount = round($modificationTotal * $penaltyPercent / 100, 2);
+                    $extra_fields['modification_penalty_percent'] = $penaltyPercent;
+                    $extra_fields['modification_penalty_amount'] = $penaltyAmount;
+                    $extra_fields['charge_penalty'] = $chargePenalty ? 1 : 0;
+                }
+                $workflowService = new BookingWorkflowService($pdo, $user_id, $bookingWorkflowType);
+                $workflowService->requestApproval($id, $to_status_id, 0, $notes, $_SESSION['role_id'] ?? null, null, $extra_fields);
+                $_SESSION['flash_message'] = ['type' => 'info', 'title' => 'تم إرسال الطلب', 'body' => 'تم إرسال الطلب إلى طلبات اعتماد العمليات.'];
+            } elseif (change_booking_status($id, $to_status_id, $user_id, $notes, $extra_fields, $transition_id)) {
+                $_SESSION['flash_message'] = ['type' => 'success', 'title' => 'تم التحديث', 'body' => 'تم نقل الحجز إلى المرحلة الجديدة بنجاح'];
+            } else {
+                throw new Exception('فشل في تحديث الحالة.');
+            }
+        } catch (Throwable $e) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'title' => 'خطأ', 'body' => $e->getMessage()];
         }
+        header("Location: bus_flight_bookings_details.php?id=$id");
+        exit();
     }
 }
 
@@ -407,7 +503,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
         <div class="card shadow-sm border-0 rounded-4 mb-4 no-print">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h6 class="text-muted small fw-bold mb-0"><i class="fas fa-project-diagram me-2 text-primary"></i> مسار سير عمل الحجوزات: <?= htmlspecialchars($workflow['name'] ?? 'الافتراضي') ?></h6>
+                    <h6 class="text-muted small fw-bold mb-0"><i class="fas fa-project-diagram me-2 text-primary"></i> مسار سير عمل <?= htmlspecialchars($bookingWorkflowLabel) ?>: <?= htmlspecialchars($workflow['name'] ?? 'الافتراضي') ?></h6>
 
                     <?php if (count($all_workflows) > 1 && $is_admin): ?>
                         <form method="POST" class="d-flex gap-2 align-items-center">
@@ -580,6 +676,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
                                         <div class="modal-dialog modal-dialog-centered">
                                             <div class="modal-content border-0 shadow-lg rounded-4">
                                                 <form method="POST">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="change_workflow_status" value="1">
                                                     <input type="hidden" name="to_status_id" value="<?= (int)$pdo->query("SELECT status_id FROM workflow_steps WHERE id = " . $trans['to_step_id'])->fetchColumn() ?>">
                                                     <input type="hidden" name="to_step_id" value="<?= $trans['to_step_id'] ?>">
                                                     <input type="hidden" name="transition_id" value="<?= $trans['transition_id'] ?? '' ?>">
@@ -590,8 +688,205 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
                                                     <div class="modal-body p-4">
                                                         <p class="text-muted small mb-3">هل أنت متأكد من رغبتك في نقل الحجز إلى مرحلة "<?= htmlspecialchars($trans['to_step_name']) ?>"؟</p>
 
+                                                        <?php $is_modification_transition = mb_strpos((string)($trans['to_step_name'] ?? ''), 'تعديل') !== false; ?>
+                                                        <?php $is_cancellation_transition = mb_strpos((string)($trans['to_step_name'] ?? ''), 'لغ') !== false; ?>
+                                                        <?php if ($is_modification_transition):
+                                                            $mod_key = (int)$trans['to_step_id'];
+                                                            $cities = $pdo->query('SELECT id, city_name FROM cities ORDER BY city_name')->fetchAll(PDO::FETCH_ASSOC);
+                                                        ?>
+                                                            <div class="alert alert-warning border-warning rounded-3 mb-3">
+                                                                <div class="fw-bold mb-2"><i class="fas fa-edit me-1"></i> تفاصيل تعديل الحجز</div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">نوع التعديل <span class="text-danger">*</span></label>
+                                                                    <select name="extra_fields[modification_type]" id="modificationType<?= $mod_key ?>" class="form-select" required>
+                                                                        <option value="route">تعديل المسار</option>
+                                                                        <option value="time">تعديل وقت الرحلة</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div id="routeFields<?= $mod_key ?>" class="row g-3 mb-3">
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">من <span class="text-danger">*</span></label>
+                                                                        <select name="extra_fields[requested_from_city_id]" class="form-select">
+                                                                            <option value="">اختر مدينة المغادرة</option>
+                                                                            <?php foreach ($cities as $city): ?>
+                                                                                <option value="<?= (int)$city['id'] ?>" <?= (int)$city['id'] === (int)$b['from_city_id'] ? 'selected' : '' ?>><?= htmlspecialchars($city['city_name']) ?></option>
+                                                                            <?php endforeach; ?>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">إلى <span class="text-danger">*</span></label>
+                                                                        <select name="extra_fields[requested_to_city_id]" class="form-select">
+                                                                            <option value="">اختر مدينة الوصول</option>
+                                                                            <?php foreach ($cities as $city): ?>
+                                                                                <option value="<?= (int)$city['id'] ?>" <?= (int)$city['id'] === (int)$b['to_city_id'] ? 'selected' : '' ?>><?= htmlspecialchars($city['city_name']) ?></option>
+                                                                            <?php endforeach; ?>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div id="timeFields<?= $mod_key ?>" class="row g-3 mb-3" style="display:none">
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">وقت المغادرة الحالي</label>
+                                                                        <input type="time" class="form-control bg-light" value="<?= htmlspecialchars((string)($b['departure_time'] ?? '')) ?>" readonly>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">وقت المغادرة المطلوب <span class="text-danger">*</span></label>
+                                                                        <input type="time" name="extra_fields[requested_departure_time]" class="form-control" value="<?= htmlspecialchars((string)($b['departure_time'] ?? '')) ?>">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="row g-3">
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">تاريخ المغادرة الحالي</label>
+                                                                        <input type="date" class="form-control bg-light" value="<?= htmlspecialchars((string)($b['departure_date'] ?? '')) ?>" readonly>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label small fw-bold">تاريخ المغادرة المطلوب</label>
+                                                                        <input type="date" name="extra_fields[requested_mod_date]" class="form-control" value="<?= htmlspecialchars((string)($b['requested_mod_date'] ?? '')) ?>" min="<?= htmlspecialchars(date('Y-m-d')) ?>">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="mt-3">
+                                                                    <label class="form-label small fw-bold">سبب التعديل</label>
+                                                                    <textarea name="extra_fields[mod_reason]" class="form-control" rows="2"></textarea>
+                                                                </div>
+                                                                <?php $mod_total_for_penalty = (float)($sales_invoice['total_amount'] ?? $b['sale_price'] ?? 0); ?>
+                                                                <div class="mt-3 pt-3 border-top">
+                                                                    <div class="form-check form-switch mb-2">
+                                                                        <input class="form-check-input" type="checkbox" name="extra_fields[charge_penalty]" value="1" id="chargePenalty<?= $mod_key ?>">
+                                                                        <label class="form-check-label fw-bold" for="chargePenalty<?= $mod_key ?>">إضافة غرامة على التعديل</label>
+                                                                    </div>
+                                                                    <div id="penaltyFields<?= $mod_key ?>" class="row g-3" style="display:none">
+                                                                        <div class="col-md-4">
+                                                                            <label class="form-label small fw-bold">نسبة الغرامة %</label>
+                                                                            <input type="number" name="extra_fields[modification_penalty_percent]" id="penaltyPercent<?= $mod_key ?>" class="form-control" value="0" min="0" max="100" step="0.01">
+                                                                        </div>
+                                                                        <div class="col-md-4">
+                                                                            <label class="form-label small fw-bold">مبلغ الغرامة</label>
+                                                                            <input type="text" id="penaltyAmount<?= $mod_key ?>" class="form-control bg-light fw-bold text-danger" value="0.00" readonly>
+                                                                            <input type="hidden" name="extra_fields[modification_penalty_amount]" id="penaltyAmountValue<?= $mod_key ?>" value="0">
+                                                                        </div>
+                                                                        <div class="col-md-4">
+                                                                            <label class="form-label small fw-bold">الإجمالي بعد الغرامة</label>
+                                                                            <input type="text" id="penaltyTotal<?= $mod_key ?>" class="form-control bg-light fw-bold text-primary" value="<?= number_format($mod_total_for_penalty, 2, '.', ',') ?>" readonly>
+                                                                        </div>
+                                                                        <div class="col-md-4 d-flex align-items-end">
+                                                                            <button type="button" class="btn btn-success rounded-pill w-100" data-bs-toggle="modal" data-bs-target="#penaltyReceiptModal<?= $mod_key ?>" id="openPenaltyReceipt<?= $mod_key ?>" disabled>
+                                                                                <i class="fas fa-cash-register me-1"></i> استلام مبلغ الغرامة
+                                                                            </button>
+                                                                        </div>
+                                                                        <div class="col-12 small text-muted">سعر التذكرة الحالي: <?= number_format($mod_total_for_penalty, 2, '.', ',') ?>. يتم احتساب الغرامة فوق سعر التذكرة حسب النسبة المحددة.</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <script>
+                                                            (function () {
+                                                                const type = document.getElementById('modificationType<?= $mod_key ?>');
+                                                                const route = document.getElementById('routeFields<?= $mod_key ?>');
+                                                                const time = document.getElementById('timeFields<?= $mod_key ?>');
+                                                                const routeSelects = route.querySelectorAll('select');
+                                                                const timeInput = time.querySelector('input[name="extra_fields[requested_departure_time]"]');
+                                                                const chargePenalty = document.getElementById('chargePenalty<?= $mod_key ?>');
+                                                                const penaltyFields = document.getElementById('penaltyFields<?= $mod_key ?>');
+                                                                const penaltyPercent = document.getElementById('penaltyPercent<?= $mod_key ?>');
+                                                                const penaltyAmount = document.getElementById('penaltyAmount<?= $mod_key ?>');
+                                                                const penaltyAmountValue = document.getElementById('penaltyAmountValue<?= $mod_key ?>');
+                                                                const penaltyTotal = document.getElementById('penaltyTotal<?= $mod_key ?>');
+                                                                const openPenaltyReceipt = document.getElementById('openPenaltyReceipt<?= $mod_key ?>');
+                                                                const modificationTotal = <?= json_encode($mod_total_for_penalty) ?>;
+                                                                function toggleModificationFields() {
+                                                                    const isRoute = type.value === 'route';
+                                                                    route.style.display = isRoute ? '' : 'none';
+                                                                    time.style.display = isRoute ? 'none' : '';
+                                                                    routeSelects.forEach(function (field) { field.required = isRoute; });
+                                                                    timeInput.required = !isRoute;
+                                                                }
+                                                                function togglePenaltyFields() {
+                                                                    const enabled = chargePenalty.checked;
+                                                                    penaltyFields.style.display = enabled ? '' : 'none';
+                                                                    const rate = Math.max(0, Math.min(100, parseFloat(penaltyPercent.value) || 0));
+                                                                    const amount = Math.round(modificationTotal * rate) / 100;
+                                                                    penaltyAmount.value = amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                                                    penaltyAmountValue.value = amount.toFixed(2);
+                                                                    penaltyTotal.value = (modificationTotal + amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                                                    openPenaltyReceipt.disabled = !enabled || amount <= 0;
+                                                                }
+                                                                type.addEventListener('change', toggleModificationFields);
+                                                                chargePenalty.addEventListener('change', togglePenaltyFields);
+                                                                penaltyPercent.addEventListener('input', togglePenaltyFields);
+                                                                toggleModificationFields();
+                                                                togglePenaltyFields();
+                                                            })();
+                                                            </script>
+                                                        <?php endif; ?>
+
+                                                        <?php if ($is_cancellation_transition):
+                                                            $cancel_total = (float)($sales_invoice['total_amount'] ?? $b['sale_price'] ?? 0);
+                                                            $cancel_currency = $sales_invoice['currency_code'] ?? $b['currency_code'] ?? 'ر.س';
+                                                            $cancel_key = (int)$trans['to_step_id'];
+                                                        ?>
+                                                            <div class="alert alert-danger border-danger rounded-3 mb-3">
+                                                                <div class="fw-bold mb-2"><i class="fas fa-file-invoice-dollar me-1"></i> ملخص الإلغاء المالي</div>
+                                                                <div class="row g-3">
+                                                                    <div class="col-md-4">
+                                                                        <label class="form-label small fw-bold">سعر التذكرة الإجمالي</label>
+                                                                        <div class="input-group">
+                                                                            <input type="text" class="form-control bg-light" value="<?= number_format($cancel_total, 2, '.', ',') ?>" readonly>
+                                                                            <span class="input-group-text"><?= htmlspecialchars($cancel_currency) ?></span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <label class="form-label small fw-bold">نسبة الخصم %</label>
+                                                                        <div class="input-group">
+                                                                            <input type="number" name="extra_fields[discount_percent]" id="cancelDiscountPercent<?= $cancel_key ?>" class="form-control" value="0" min="0" max="100" step="0.01" required>
+                                                                            <span class="input-group-text">%</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <label class="form-label small fw-bold">المبلغ</label>
+                                                                        <div class="input-group">
+                                                                            <input type="text" id="cancelNetAmount<?= $cancel_key ?>" class="form-control bg-light fw-bold text-danger" value="<?= number_format($cancel_total, 2, '.', ',') ?>" readonly>
+                                                                            <span class="input-group-text"><?= htmlspecialchars($cancel_currency) ?></span>
+                                                                        </div>
+                                                                        <small class="text-muted d-block mt-1">المبلغ الصافي: <span id="cancelDiscountAmount<?= $cancel_key ?>">0.00</span> <?= htmlspecialchars($cancel_currency) ?></small>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <script>
+                                                            (function () {
+                                                                const percent = document.getElementById('cancelDiscountPercent<?= $cancel_key ?>');
+                                                                const net = document.getElementById('cancelNetAmount<?= $cancel_key ?>');
+                                                                const discount = document.getElementById('cancelDiscountAmount<?= $cancel_key ?>');
+                                                                const total = <?= json_encode($cancel_total) ?>;
+                                                                const recalculate = function () {
+                                                                    const rate = Math.max(0, Math.min(100, parseFloat(percent.value) || 0));
+                                                                    const amount = Math.round(total * rate) / 100;
+                                                                    net.value = (total - amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                                                    discount.textContent = amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                                                };
+                                                                percent.addEventListener('input', recalculate);
+                                                                recalculate();
+                                                            })();
+                                                            </script>
+                                                        <?php endif; ?>
+
                                                         <?php
                                                         $step_fields = get_step_fields($trans['to_step_id']);
+                                                                if ($is_modification_transition) {
+                                                                    // هذه الحقول لها واجهة ثابتة داخل بطاقة تعديل الحجز؛ لا نعيد رسمها من workflow_fields.
+                                                                    $fixedModificationFields = [
+                                                                        'modification_type', 'requested_from_city_id', 'requested_to_city_id',
+                                                                        'departure_time', 'current_departure_time', 'requested_departure_time',
+                                                                        'departure_date', 'current_departure_date', 'requested_mod_date',
+                                                                        'mod_reason', 'mod_datetime', 'charge_penalty',
+                                                                        'modification_penalty_percent', 'modification_penalty_amount'
+                                                                    ];
+                                                                    $step_fields = array_values(array_filter($step_fields, static function ($fieldKey) use ($fixedModificationFields) {
+                                                                        return !in_array($fieldKey, $fixedModificationFields, true);
+                                                                    }));
+                                                                } elseif ($is_cancellation_transition) {
+                                                                    // النسبة والملخص المالي لها واجهة ثابتة؛ نمنع تكرارها من حقول الخطوة.
+                                                                    $step_fields = array_values(array_filter($step_fields, static function ($fieldKey) {
+                                                                        return !in_array($fieldKey, ['discount_percent', 'discount_amount', 'net_amount'], true);
+                                                                    }));
+                                                                }
                                                         if (!empty($step_fields)):
                                                             $all_fields = get_all_workflow_fields();
                                                         ?>
@@ -639,6 +934,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_missing_invoic
                                             </div>
                                         </div>
                                     </div>
+                                    <?php if ($is_modification_transition):
+                                        $penalty_accounts = $pdo->query("SELECT id, account_name_ar, account_code FROM unified_accounts WHERE is_active = 1 AND account_status = 'active' AND account_code LIKE '111%' ORDER BY account_code")->fetchAll(PDO::FETCH_ASSOC);
+                                    ?>
+                                        <div class="modal fade" id="penaltyReceiptModal<?= $mod_key ?>" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <form method="POST" class="modal-content border-0 shadow-lg rounded-4">
+                                                    <?= csrf_input() ?>
+                                                    <input type="hidden" name="collect_modification_penalty" value="1">
+                                                    <div class="modal-header bg-success text-white border-0">
+                                                        <h6 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i>استلام مبلغ غرامة التعديل</h6>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body p-4">
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">مبلغ الغرامة المستلم</label>
+                                                            <input type="number" name="penalty_amount" id="receiptPenaltyAmount<?= $mod_key ?>" class="form-control form-control-lg" min="0.01" step="0.01" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">طريقة التحصيل</label>
+                                                            <select name="penalty_payment_method" class="form-select">
+                                                                <option value="cash">نقداً</option>
+                                                                <option value="bank_transfer">تحويل بنكي</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label class="form-label small fw-bold">حساب الصندوق أو البنك</label>
+                                                            <select name="penalty_cash_bank_account_id" class="form-select" required>
+                                                                <option value="">اختر الحساب</option>
+                                                                <?php foreach ($penalty_accounts as $account): ?>
+                                                                    <option value="<?= (int)$account['id'] ?>" <?= $account['account_code'] === '11101001' ? 'selected' : '' ?>><?= htmlspecialchars($account['account_name_ar']) ?> (<?= htmlspecialchars($account['account_code']) ?>)</option>
+                                                                <?php endforeach; ?>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer bg-light border-0">
+                                                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                                                        <button type="submit" class="btn btn-success rounded-pill px-4"><i class="fas fa-check me-1"></i> تسجيل سند القبض</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        <script>
+                                        document.getElementById('openPenaltyReceipt<?= $mod_key ?>').addEventListener('click', function () {
+                                            document.getElementById('receiptPenaltyAmount<?= $mod_key ?>').value = document.getElementById('penaltyAmountValue<?= $mod_key ?>').value;
+                                        });
+                                        </script>
+                                    <?php endif; ?>
                                 <?php endforeach; ?>
                             </div>
                         </div>

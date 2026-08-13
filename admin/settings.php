@@ -1,15 +1,17 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// لا تعرض تفاصيل PHP للمستخدم في بيئة الإنتاج؛ تُسجل الأخطاء داخليًا فقط.
+ini_set('display_errors', '0');
 require_once '../includes/session_config.php';
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/security.php';
 
-// Auth check
-if (!isset($_SESSION['admin_id'])) {
-    header('Location: login.php');
-    exit();
-}
+// القراءة تحتاج settings_view، وأي تعديل/حفظ يحتاج settings_edit.
+// التحقق يتم من قاعدة البيانات عبر الحارس المركزي وليس من قيمة session فقط.
+$requiredSettingsPermission = $_SERVER['REQUEST_METHOD'] === 'POST' ? 'settings_edit' : 'settings_view';
+require_admin_page_permission($pdo, $requiredSettingsPermission);
+require_admin_csrf();
 
 // Add missing csrf_input() function
 if (!function_exists('csrf_input')) {
@@ -549,12 +551,7 @@ if ($is_settings_save_request) {
         $log_file = __DIR__ . '/../service_accounts.log';
         file_put_contents($log_file, $log_content, FILE_APPEND);
 
-        // Debug log: Log all expected_settings and $_POST keys
-        $debug_log = __DIR__ . '/../settings_debug.log';
-        $debug_content = date('Y-m-d H:i:s') . " - Settings save start\n";
-        $debug_content .= "POST keys: " . print_r(array_keys($_POST), true) . "\n";
-        $debug_content .= "Expected settings keys: " . print_r(array_keys($expected_settings), true) . "\n";
-        file_put_contents($debug_log, $debug_content, FILE_APPEND);
+        // لا تُكتب مفاتيح POST أو قيم الإعدادات في سجل عام؛ قد تكشف بنية النظام أو بيانات حساسة.
 
 
         // Define modules list for audit logging

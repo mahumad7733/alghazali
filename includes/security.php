@@ -92,6 +92,68 @@ function security_json_error($message, $status_code = 400)
     exit();
 }
 
+/**
+ * Protect HTML administration pages with a DB-backed active-user and permission check.
+ * Super roles remain unrestricted, while regular roles must have the requested permission.
+ */
+function require_admin_page_permission(PDO $pdo, string $permission): array
+{
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $userId = (int)($_SESSION['admin_id'] ?? $_SESSION['user_id'] ?? 0);
+    if ($userId <= 0) {
+        header('Location: login.php');
+        exit();
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT u.*, r.name AS role_name
+           FROM users u
+           LEFT JOIN roles r ON r.id = u.role_id
+          WHERE u.id = ?
+          LIMIT 1'
+    );
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user || strtolower((string)($user['status'] ?? '')) !== 'active') {
+        session_unset();
+        session_destroy();
+        header('Location: login.php');
+        exit();
+    }
+
+    $_SESSION['admin_id'] = $userId;
+    $_SESSION['user_id'] = $userId;
+    $_SESSION['role_id'] = (int)($user['role_id'] ?? 0);
+    $_SESSION['role'] = (string)($user['role_name'] ?? ($_SESSION['role'] ?? ''));
+    $_SESSION['role_name'] = (string)($user['role_name'] ?? '');
+
+    $role = strtolower((string)($user['role_name'] ?? ''));
+    $userType = strtolower((string)($user['user_type'] ?? ''));
+    $isSuper = in_array($role, ['admin', 'developer', 'super_admin'], true)
+        || in_array($userType, ['admin', 'developer', 'super_admin'], true);
+
+    if (!$isSuper && !has_permission($permission)) {
+        http_response_code(403);
+        echo '<!doctype html><meta charset="utf-8"><title>403</title><div style="font-family:sans-serif;max-width:680px;margin:4rem auto;text-align:center"><h1>403</h1><p>ليس لديك صلاحية لتنفيذ هذه العملية.</p></div>';
+        exit();
+    }
+
+    return $user;
+}
+
+/**
+ * Require a CSRF token on every state-changing HTML form.
+ */
+function require_admin_csrf(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        require_csrf(true);
+    }
+}
+
 function request_header_value($name)
 {
     $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));

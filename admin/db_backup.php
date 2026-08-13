@@ -6,13 +6,21 @@ $success_message = null;
 require_once dirname(__DIR__) . '/includes/session_config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/backup_functions.php';
+require_once dirname(__DIR__) . '/includes/security.php';
+
+// النسخ الاحتياطي والاستعادة عمليات إدارية حساسة: تتطلب صلاحية الإعدادات
+// والتحقق من المستخدم النشط من قاعدة البيانات، وليس مجرد وجود session.
+require_admin_page_permission($pdo, 'settings_edit');
+require_admin_csrf();
+
+if (!function_exists('csrf_input')) {
+    function csrf_input(): string
+    {
+        return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
-    if (!isset($_SESSION['admin_id'])) {
-        header('Location: login.php');
-        exit;
-    }
-
     try {
         $backupSql = generateDatabaseBackup($pdo);
         $dbName = $pdo->query('SELECT DATABASE()')->fetchColumn();
@@ -28,11 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_backup_server'])) {
-    if (!isset($_SESSION['admin_id'])) {
-        header('Location: login.php');
-        exit;
-    }
-
     try {
         if ((int)backup_get_setting($pdo, 'backup_local_enabled', '0') !== 1) {
             throw new Exception('تفعيل «حفظ نسخة على الخادم» من الإعدادات أولاً، وحدد مساراً آمناً.');
@@ -53,11 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_backup_server'])
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restore_backup'])) {
-    if (!isset($_SESSION['admin_id'])) {
-        header('Location: login.php');
-        exit;
-    }
-
     if (!isset($_FILES['backup_file']) || $_FILES['backup_file']['error'] !== UPLOAD_ERR_OK) {
         $error_message = 'يرجى اختيار ملف نسخة احتياطية صحيح.';
     } else {
@@ -153,6 +151,7 @@ $resolved = backup_resolve_storage_dir($pdo);
             <div class="card border-0 shadow-sm rounded-4">
                 <div class="card-body p-4">
                     <form method="POST">
+                        <?php echo csrf_input(); ?>
                         <p class="mb-4 text-muted">اضغط الزر أدناه لإنشاء نسخة احتياطية من جميع جداول البيانات، بما في ذلك هيكل الجداول والبيانات.</p>
                         <button type="submit" name="create_backup" class="btn btn-success rounded-pill px-4 py-2">
                             <i class="fas fa-download me-2"></i> تنزيل النسخة الاحتياطية
@@ -182,6 +181,7 @@ $resolved = backup_resolve_storage_dir($pdo);
                 <div class="card-body p-4">
                     <h5 class="fw-bold text-warning mb-3"><i class="fas fa-upload me-2"></i> استعادة نسخة احتياطية</h5>
                     <form method="POST" enctype="multipart/form-data">
+                        <?php echo csrf_input(); ?>
                         <p class="mb-4 text-muted">اختر ملف نسخة احتياطية SQL لاستعادة قاعدة البيانات. سيتم استبدال البيانات الحالية بالبيانات من الملف.</p>
                         <div class="mb-3">
                             <label for="backup_file" class="form-label">اختر ملف النسخة الاحتياطية</label>

@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787512261564,
+      "tag": "0000_productive_george_stacy",
+      "breakpoints": true
+    }
+  ]
+}

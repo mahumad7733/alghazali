@@ -1,0 +1,15 @@
+Options -Indexes
+RewriteEngine On
+
+# مسارات الواجهات النظيفة.
+# يفتح المسار المختصر لوحة المؤشرات داخل طبقة الإدارة المحمية مباشرةً.
+RewriteRule ^admin/?$ admin/admin.php [QSA,L]
+
+# تمرير جميع طلبات الواجهة البرمجية إلى الموجّه المركزي.
+RewriteRule ^api/v1/?$ api/v1/index.php [QSA,L]
+RewriteRule ^api/v1/(.*)$ api/v1/index.php?route=$1 [QSA,L]
+
+# إخفاء الملفات الحساسة والملفات المصدرية غير المخصصة للعرض.
+<FilesMatch "\.(env|sql|md|log|test)$">
+  Require all denied
+</FilesMatch>

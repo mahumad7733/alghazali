@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>اختبار ترتيب الرحلات</title>
+  <style>
+    body{margin:0;padding:32px;background:#f1f5f9;color:#0f172a;font-family:system-ui,sans-serif}.shell{max-width:760px;margin:auto}.controls{display:flex;justify-content:space-between;align-items:center;gap:18px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 18px}.controls label{font-weight:800}.controls select{margin-right:10px;padding:9px;border:1px solid #93c5fd;border-radius:8px;background:#eff6ff;font:inherit}.cards{display:grid;gap:12px;margin-top:18px}.trip{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px}.trip b{color:#1e3a8a}.test-output{margin-top:16px;color:#475569;font-weight:700}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>اختبار تفاعلي لترتيب الرحلات</h1>
+    <section class="controls">
+      <span id="count"></span>
+      <label>ترتيب النتائج
+        <select id="trip-sort">
+          <option value="departure_asc">وقت المغادرة: الأبكر أولًا</option>
+          <option value="departure_desc">وقت المغادرة: الأحدث أولًا</option>
+          <option value="price_asc">السعر: الأقل أولًا</option>
+          <option value="price_desc">السعر: الأعلى أولًا</option>
+        </select>
+      </label>
+    </section>
+    <section id="cards" class="cards" aria-live="polite"></section>
+    <p class="test-output" id="test-output"></p>
+  </main>
+  <script src="../assets/js/trip-sort.js"></script>
+  <script>
+    const trips = [
+      { id: 'morning-budget', company_name: 'رحلة الصباح', amount: 10000, departure_at: '2026-08-24 06:00:00' },
+      { id: 'afternoon-premium', company_name: 'رحلة الظهر', amount: 30000, departure_at: '2026-08-24 14:00:00' },
+      { id: 'midday-standard', company_name: 'رحلة منتصف النهار', amount: 20000, departure_at: '2026-08-24 10:00:00' }
+    ];
+    const select = document.querySelector('#trip-sort');
+    const cards = document.querySelector('#cards');
+    const output = document.querySelector('#test-output');
+    const count = document.querySelector('#count');
+    function render() {
+      const sorted = window.BusBookingTripSort.sortTrips(trips, select.value);
+      cards.innerHTML = sorted.map((trip) => `<article class="trip" data-trip-id="${trip.id}"><span><b>${trip.company_name}</b><br><small>${trip.departure_at.slice(11,16)}</small></span><strong>${trip.amount.toLocaleString('ar-YE')} ر.ي</strong></article>`).join('');
+      count.textContent = `${sorted.length} رحلات اختبارية`;
+      output.textContent = `الترتيب الحالي: ${sorted.map((trip) => trip.id).join(' ← ')}`;
+    }
+    select.addEventListener('change', render);
+    render();
+  </script>
+</body>
+</html>

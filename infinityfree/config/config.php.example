@@ -1,0 +1,23 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * انسخ هذا الملف باسم config.php ثم أدخل بيانات MySQL الظاهرة في لوحة InfinityFree.
+ * لا ترفع config.php إلى مستودع عام ولا تضف إليه أي مفاتيح خارجية في JavaScript أو HTML.
+ */
+return [
+    'app_name' => 'منصة حجوزات الباصات',
+    'app_url' => 'https://example.epizy.com',
+    'environment' => 'production',
+    'timezone' => 'Asia/Aden',
+    'session_name' => 'bus_booking_session',
+    'booking_hold_minutes' => 30,
+    'database' => [
+        'host' => 'sql000.epizy.com',
+        'port' => 3306,
+        'name' => 'epiz_00000000_bus_booking',
+        'username' => 'epiz_00000000',
+        'password' => 'ضع_كلمة_مرور_قاعدة_البيانات_هنا',
+        'charset' => 'utf8mb4',
+    ],
+];

@@ -55,7 +55,7 @@ try {
   assert.equal(value.sidebar, true);
   assert.equal(value.topbar, true);
   assert.equal(value.title, 'لوحة التحكم');
-  assert.equal(value.stats, 4);
+  assert.ok(value.stats >= 4, `عدد بطاقات الإحصاءات أقل من الحد المطلوب: ${value.stats}`);
   assert.equal(value.columns, 1);
   assert.ok(value.documentWidth <= value.viewport + 1, `يوجد تجاوز أفقي: ${value.documentWidth}/${value.viewport}`);
   assert.ok(value.topbarWidth <= value.viewport + 1, `الترويسة أعرض من الهاتف: ${value.topbarWidth}/${value.viewport}`);

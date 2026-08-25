@@ -11,6 +11,9 @@ use App\Includes\ReferenceService;
 use App\Includes\AgentService;
 use App\Includes\DashboardService;
 use App\Includes\AdminService;
+use App\Includes\ContactService;
+use App\Includes\ContactMessageService;
+use App\Includes\SiteSettingsService;
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -24,6 +27,9 @@ $references = new ReferenceService($database, $bookingService);
 $agents = new AgentService($database);
 $dashboard = new DashboardService($database, $bookingService);
 $adminOps = new AdminService($database);
+$contacts = new ContactService($database);
+$contactMessages = new ContactMessageService($database);
+$siteSettings = new SiteSettingsService($database);
 
 if ($method === 'OPTIONS') {
     http_response_code(204);
@@ -59,6 +65,13 @@ if ($route === 'auth/logout' && $method === 'POST') {
 if ($route === 'auth/me' && $method === 'GET') {
     $user = $auth->requireUser();
     Response::success('تم جلب بيانات المستخدم.', ['user' => $user, 'csrf_token' => Security::csrfToken()]);
+}
+
+if ($route === 'auth/me' && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requireUser();
+    $user = $auth->updateCurrentUser($actor, Security::jsonInput());
+    Response::success('تم تحديث بيانات الحساب.', ['user' => $user, 'csrf_token' => Security::csrfToken()]);
 }
 
 if ($route === 'auth/token' && $method === 'POST') {
@@ -102,6 +115,49 @@ if ($route === 'companies' && $method === 'GET') {
     Response::success('تم جلب شركات النقل.', ['items' => $references->companies()]);
 }
 
+if ($route === 'contact-channels' && $method === 'GET') {
+    Response::success('تم جلب قنوات التواصل.', ['items' => $contacts->publicChannels()]);
+}
+
+if ($route === 'site-settings' && $method === 'GET') {
+    Response::success('تم جلب إعدادات الموقع.', ['settings' => $siteSettings->publicSettings()]);
+}
+
+if ($route === 'admin/site-settings' && $method === 'GET') {
+    $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب إعدادات الموقع للإدارة.', ['settings' => $siteSettings->publicSettings()]);
+}
+
+if ($route === 'admin/site-settings' && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم حفظ إعدادات الموقع.', ['settings' => $siteSettings->update($actor, Security::jsonInput())]);
+}
+
+if ($route === 'admin/site-settings/media' && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم حفظ هوية الموقع.', ['media' => $siteSettings->uploadBrandMedia($actor, (string) ($_POST['slot'] ?? ''), $_FILES['file'] ?? [])]);
+}
+
+if ($route === 'contact-messages' && $method === 'POST') {
+    Security::assertCsrf();
+    $message = $contactMessages->createPublic(Security::jsonInput());
+    Response::success('تم استلام رسالتك، وسيتواصل معك فريق الدعم قريبًا.', ['message' => $message], 201);
+}
+
+if ($route === 'admin/contact-messages' && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب رسائل التواصل.', ['items' => $contactMessages->adminMessages()]);
+}
+
+if (preg_match('#^admin/contact-messages/(\\d+)/status$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    $message = $contactMessages->updateStatus($actor, (int) $matches[1], Security::jsonInput());
+    Response::success('تم تحديث حالة رسالة التواصل.', ['message' => $message]);
+}
+
 if ($route === 'routes' && $method === 'GET') {
     $statement = $database->pdo()->query(
         "SELECT r.id, r.company_id, r.code, r.name_ar, r.status, co.trade_name AS company_name
@@ -123,6 +179,11 @@ if (preg_match('#^routes/(\d+)$#', $route, $matches) === 1 && $method === 'GET')
     $stops->execute(['route_id' => $routeItem['id']]);
     $routeItem['stops'] = $stops->fetchAll();
     Response::success('تم جلب تفاصيل المسار.', ['item' => $routeItem]);
+}
+
+if ($route === 'trips/upcoming' && $method === 'GET') {
+    $limit = filter_var($_GET['limit'] ?? 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 50]]);
+    Response::success('تم جلب الرحلات القادمة.', ['items' => $references->upcomingTrips($limit === false ? 20 : $limit)]);
 }
 
 if ($route === 'trips/search' && $method === 'GET') {
@@ -259,6 +320,11 @@ if ($route === 'agent/wallet' && $method === 'GET') {
     Response::success('تم جلب أرصدة الوكيل.', ['items' => $agents->walletsFor($actor)]);
 }
 
+if (preg_match('#^admin/agents/(\d+)/transactions$#', $route, $matches) === 1 && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_agents']);
+    Response::success('تم جلب كشف حساب الوكيل.', ['items' => $agents->transactionsForAdmin($actor, (int) $matches[1])]);
+}
+
 if ($route === 'agent/transactions' && $method === 'GET') {
     $actor = $auth->requireUser();
     Response::success('تم جلب كشف الحساب.', ['items' => $agents->transactionsFor($actor)]);
@@ -294,6 +360,29 @@ if (preg_match('#^admin/agents/(\d+)/financial-settings$#', $route, $matches) ==
 if ($route === 'admin/operations' && $method === 'GET') {
     $actor = $auth->requirePermissions(['manage_trips']);
     Response::success('تم جلب بيانات الإدارة التشغيلية.', ['operations' => $adminOps->operations($actor)]);
+}
+
+if ($route === 'admin/contacts' && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب قنوات التواصل للإدارة.', ['items' => $contacts->adminChannels()]);
+}
+
+if ($route === 'admin/contacts' && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تمت إضافة قناة التواصل.', ['contact' => $contacts->create($actor, Security::jsonInput())], 201);
+}
+
+if (preg_match('#^admin/contacts/(\\d+)$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم تعديل قناة التواصل.', ['contact' => $contacts->update($actor, (int) $matches[1], Security::jsonInput())]);
+}
+
+if (preg_match('#^admin/contacts/(\\d+)/status$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم تحديث حالة قناة التواصل.', ['contact' => $contacts->updateStatus($actor, (int) $matches[1], Security::jsonInput())]);
 }
 
 if ($route === 'admin/catalog' && $method === 'GET') {
@@ -457,6 +546,17 @@ if (preg_match('#^admin/countries/(\\d+)$#', $route, $matches) === 1 && $method 
     $actor = $auth->requireUser();
     $country = $adminOps->deleteCountry($actor, (int) $matches[1]);
     Response::success('تم حذف الدولة.', ['country' => $country]);
+}
+
+if (preg_match('#^admin/references/(currencies|exchange-rates)$#', $route, $matches) === 1 && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب البيانات المرجعية.', ['items' => $adminOps->references($actor, $matches[1])]);
+}
+
+if (preg_match('#^admin/references/(currencies|exchange-rates)/(\d+)/status$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم تحديث حالة البيانات المرجعية.', ['item' => $adminOps->updateReferenceStatus($actor, $matches[1], (int) $matches[2], Security::jsonInput())]);
 }
 
 if (preg_match('#^admin/references/(countries|cities|stations|currencies|exchange-rates)$#', $route, $matches) === 1 && $method === 'POST') {
@@ -646,6 +746,17 @@ if ($route === 'dashboard/summary' && $method === 'GET') {
     Response::success('تم جلب مؤشرات لوحة التحكم.', ['summary' => $dashboard->summary($actor)]);
 }
 
+if ($route === 'dashboard/overview' && $method === 'GET') {
+    $actor = $auth->requireUser();
+    $filters = [
+        'period' => $_GET['period'] ?? 'this_month', 'company_id' => $_GET['company_id'] ?? null,
+        'agent_id' => $_GET['agent_id'] ?? null, 'route_id' => $_GET['route_id'] ?? null,
+        'route_subroute_id' => $_GET['route_subroute_id'] ?? null, 'currency_id' => $_GET['currency_id'] ?? null,
+        'start_date' => $_GET['start_date'] ?? null, 'end_date' => $_GET['end_date'] ?? null,
+    ];
+    Response::success('تم جلب بيانات لوحة التحكم المتقدمة.', ['overview' => $dashboard->overview($actor, $filters)]);
+}
+
 if ($route === 'reports/overview' && $method === 'GET') {
     $actor = $auth->requireUser();
     $filters = [
@@ -659,7 +770,9 @@ if ($route === 'notifications' && $method === 'GET') {
     $actor = $auth->requireUser();
     $statement = $database->pdo()->prepare('SELECT id, type, title_ar, body_ar, reference_type, reference_id, read_at, created_at FROM notifications WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 100');
     $statement->execute(['user_id' => $actor['id']]);
-    Response::success('تم جلب الإشعارات.', ['items' => $statement->fetchAll()]);
+    $unread = $database->pdo()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND read_at IS NULL');
+    $unread->execute(['user_id' => $actor['id']]);
+    Response::success('تم جلب الإشعارات.', ['items' => $statement->fetchAll(), 'unread_count' => (int) $unread->fetchColumn()]);
 }
 
 if (preg_match('#^notifications/(\d+)/read$#', $route, $matches) === 1 && $method === 'PUT') {

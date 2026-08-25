@@ -148,6 +148,7 @@ final class BookingService
             }
 
             $this->notifications->send((int) $actor['id'], (int) $trip['company_id'], 'booking_created', 'تم إرسال طلب الحجز', "تم إنشاء طلب الحجز رقم {$bookingNumber} وهو بانتظار تأكيد الإدارة.", 'booking', $bookingId);
+            $this->notifications->sendToBookingManagers((int) $trip['company_id'], 'حجز جديد يحتاج المراجعة', "وصل طلب حجز جديد رقم {$bookingNumber} ويحتاج إلى المراجعة والتأكيد.", $bookingId, (int) $actor['id']);
             $this->audit->log((int) $actor['id'], (int) $trip['company_id'], 'booking_created', 'booking', $bookingId, null, ['status' => 'pending', 'booking_number' => $bookingNumber]);
             return $this->redactInternalFinancials($this->bookingDetails($pdo, $bookingId), $actor);
         });

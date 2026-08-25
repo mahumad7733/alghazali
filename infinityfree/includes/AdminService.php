@@ -31,7 +31,7 @@ final class AdminService
         $subrouteCompanyAmount = $canViewInternalPrices ? 'sr.company_amount' : 'NULL AS company_amount';
         return [
             'cities' => $this->all('SELECT ci.id, ci.country_id, ci.name_ar, ci.is_active, co.name_ar AS country_name FROM cities ci INNER JOIN countries co ON co.id = ci.country_id ORDER BY co.name_ar, ci.name_ar', []),
-            'companies' => $this->all("SELECT co.id, co.trade_name, co.legal_name, co.country_id, co.city_id, co.base_currency_id, co.phone, co.email, co.latitude, co.longitude, co.logo_path, co.cover_image_path, co.status, ci.name_ar AS city_name, cu.code AS currency_code FROM companies co LEFT JOIN cities ci ON ci.id = co.city_id INNER JOIN currencies cu ON cu.id = co.base_currency_id WHERE {$companyWhere} ORDER BY co.trade_name", $params),
+            'companies' => $this->all("SELECT co.id, co.trade_name, co.legal_name, co.country_id, co.city_id, co.address, co.base_currency_id, co.phone, co.email, co.latitude, co.longitude, co.logo_path, co.cover_image_path, co.status, ci.name_ar AS city_name, cu.code AS currency_code FROM companies co LEFT JOIN cities ci ON ci.id = co.city_id INNER JOIN currencies cu ON cu.id = co.base_currency_id WHERE {$companyWhere} ORDER BY co.trade_name", $params),
             'company_images' => $this->all("SELECT image.id, image.company_id, image.image_path, image.image_order, image.status, co.trade_name AS company_name FROM company_images image INNER JOIN companies co ON co.id = image.company_id WHERE {$companyWhere} ORDER BY image.company_id, image.image_order", $params),
             'routes' => $this->all("SELECT entity.id, entity.company_id, entity.code, entity.name_ar, entity.route_type, entity.status, entity.created_at, co.trade_name AS company_name, (SELECT COUNT(*) FROM route_subroute_links link WHERE link.route_id = entity.id) AS subroute_count FROM routes entity INNER JOIN companies co ON co.id = entity.company_id WHERE {$entityWhere} ORDER BY entity.created_at DESC", $params),
             'subroutes' => $this->all("SELECT sr.id, sr.company_id, sr.origin_city_id, sr.destination_city_id, sr.currency_id, {$subrouteCompanyAmount}, sr.amount, sr.status, sr.origin_arrival_time, sr.origin_departure_time, sr.destination_arrival_time, sr.destination_departure_time, COALESCE(co.trade_name, 'مشترك') AS company_name, origin_city.name_ar AS origin_city_name, destination_city.name_ar AS destination_city_name, cu.code AS currency_code, cu.symbol_ar AS currency_symbol, (SELECT COUNT(*) FROM route_subroute_links linked WHERE linked.subroute_id = sr.id) AS linked_route_count FROM route_subroutes sr LEFT JOIN companies co ON co.id = sr.company_id INNER JOIN cities origin_city ON origin_city.id = sr.origin_city_id INNER JOIN cities destination_city ON destination_city.id = sr.destination_city_id INNER JOIN currencies cu ON cu.id = sr.currency_id WHERE {$subrouteWhere} ORDER BY COALESCE(co.trade_name, 'مشترك'), origin_city.name_ar, destination_city.name_ar", $params),
@@ -39,7 +39,7 @@ final class AdminService
             'route_stops' => $this->all("SELECT rs.id, rs.route_id, r.name_ar AS route_name, s.name_ar AS station_name, c.name_ar AS city_name, rs.stop_order, rs.arrival_offset_minutes, rs.departure_offset_minutes FROM route_stops rs INNER JOIN routes r ON r.id = rs.route_id INNER JOIN stations s ON s.id = rs.station_id INNER JOIN cities c ON c.id = s.city_id WHERE {$routeWhere} ORDER BY r.name_ar, rs.stop_order", $params),
             'route_segments' => $this->all("SELECT seg.id, seg.route_id, r.name_ar AS route_name, origin_station.name_ar AS origin_station, destination_station.name_ar AS destination_station, seg.origin_order, seg.destination_order FROM route_segments seg INNER JOIN routes r ON r.id = seg.route_id INNER JOIN route_stops origin_stop ON origin_stop.id = seg.origin_stop_id INNER JOIN route_stops destination_stop ON destination_stop.id = seg.destination_stop_id INNER JOIN stations origin_station ON origin_station.id = origin_stop.station_id INNER JOIN stations destination_station ON destination_station.id = destination_stop.station_id WHERE {$routeWhere} ORDER BY r.name_ar, seg.origin_order, seg.destination_order", $params),
             'buses' => $this->all("SELECT entity.id, entity.company_id, entity.name_ar, entity.bus_number, entity.plate_number, entity.bus_type, entity.interior_image_path, entity.exterior_image_path, entity.seat_count, entity.status, co.trade_name AS company_name FROM buses entity INNER JOIN companies co ON co.id = entity.company_id WHERE {$entityWhere} ORDER BY entity.created_at DESC", $params),
-            'trips' => $this->all("SELECT entity.id, entity.company_id, entity.route_id, entity.route_subroute_id, entity.bus_id, entity.trip_number, entity.departure_at, entity.arrival_at, entity.status, r.name_ar AS route_name, b.name_ar AS bus_name, b.interior_image_path, b.exterior_image_path, co.trade_name AS company_name, co.logo_path, co.cover_image_path, origin_city.name_ar AS subroute_origin_city_name, destination_city.name_ar AS subroute_destination_city_name FROM trips entity INNER JOIN routes r ON r.id = entity.route_id INNER JOIN buses b ON b.id = entity.bus_id INNER JOIN companies co ON co.id = entity.company_id LEFT JOIN route_subroutes selected_subroute ON selected_subroute.id = entity.route_subroute_id LEFT JOIN cities origin_city ON origin_city.id = selected_subroute.origin_city_id LEFT JOIN cities destination_city ON destination_city.id = selected_subroute.destination_city_id WHERE {$entityWhere} ORDER BY entity.departure_at DESC LIMIT 50", $params),
+            'trips' => $this->all("SELECT entity.id, entity.company_id, entity.route_id, entity.route_subroute_id, entity.bus_id, entity.trip_number, entity.departure_at, entity.arrival_at, entity.status, r.name_ar AS route_name, b.name_ar AS bus_name, b.bus_type, b.interior_image_path, b.exterior_image_path, co.trade_name AS company_name, co.logo_path, co.cover_image_path, origin_city.name_ar AS subroute_origin_city_name, destination_city.name_ar AS subroute_destination_city_name FROM trips entity INNER JOIN routes r ON r.id = entity.route_id INNER JOIN buses b ON b.id = entity.bus_id INNER JOIN companies co ON co.id = entity.company_id LEFT JOIN route_subroutes selected_subroute ON selected_subroute.id = entity.route_subroute_id LEFT JOIN cities origin_city ON origin_city.id = selected_subroute.origin_city_id LEFT JOIN cities destination_city ON destination_city.id = selected_subroute.destination_city_id WHERE {$entityWhere} ORDER BY entity.departure_at DESC LIMIT 50", $params),
         ];
     }
 
@@ -316,11 +316,12 @@ final class AdminService
         $currencyId = filter_var($input['base_currency_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if (mb_strlen($legal) < 3 || mb_strlen($trade) < 3 || $countryId === false || $cityId === false || $currencyId === false) { Response::error('بيانات الشركة الأساسية غير صالحة.', 'VALIDATION_ERROR', 422); }
         $phone = trim((string) ($input['phone'] ?? '')) !== '' ? Security::cleanText($input['phone'], 40) : null;
+        $address = trim((string) ($input['address'] ?? '')) !== '' ? Security::cleanText($input['address'], 500) : null;
         $email = trim((string) ($input['email'] ?? '')) !== '' ? filter_var($input['email'], FILTER_VALIDATE_EMAIL) : null;
         if (trim((string) ($input['email'] ?? '')) !== '' && $email === false) { Response::error('البريد الإلكتروني غير صالح.', 'VALIDATION_ERROR', 422); }
         $coordinates = $this->coordinates($input);
-        $statement = $this->database->pdo()->prepare('UPDATE companies SET legal_name = :legal_name, trade_name = :trade_name, country_id = :country_id, city_id = :city_id, base_currency_id = :base_currency_id, phone = :phone, email = :email, latitude = :latitude, longitude = :longitude WHERE id = :id');
-        $statement->execute(['legal_name' => $legal, 'trade_name' => $trade, 'country_id' => $countryId, 'city_id' => $cityId, 'base_currency_id' => $currencyId, 'phone' => $phone, 'email' => $email ?: null, 'latitude' => $coordinates['latitude'], 'longitude' => $coordinates['longitude'], 'id' => $companyId]);
+        $statement = $this->database->pdo()->prepare('UPDATE companies SET legal_name = :legal_name, trade_name = :trade_name, country_id = :country_id, city_id = :city_id, address = :address, base_currency_id = :base_currency_id, phone = :phone, email = :email, latitude = :latitude, longitude = :longitude WHERE id = :id');
+        $statement->execute(['legal_name' => $legal, 'trade_name' => $trade, 'country_id' => $countryId, 'city_id' => $cityId, 'base_currency_id' => $currencyId, 'address' => $address, 'phone' => $phone, 'email' => $email ?: null, 'latitude' => $coordinates['latitude'], 'longitude' => $coordinates['longitude'], 'id' => $companyId]);
         $this->audit->log((int) $actor['id'], $companyId, 'company_updated', 'company', $companyId, null, ['trade_name' => $trade]);
         return ['id' => $companyId, 'legal_name' => $legal, 'trade_name' => $trade];
     }
@@ -877,6 +878,44 @@ final class AdminService
         return ['id' => $id, 'type' => $cleanType];
     }
 
+    /** @return list<array<string, mixed>> */
+    public function references(array $actor, string $type): array
+    {
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_settings', $actor['permissions'], true)) {
+            Response::error('إدارة البيانات المرجعية متاحة للمخولين فقط.', 'FORBIDDEN', 403);
+        }
+        $pdo = $this->database->pdo();
+        if ($type === 'currencies') {
+            return $this->allPdo($pdo, 'SELECT id, code, name_ar, symbol_ar, decimal_places, is_active, created_at FROM currencies ORDER BY code', []);
+        }
+        if ($type === 'exchange-rates') {
+            return $this->allPdo($pdo, 'SELECT er.id, er.base_currency_id, er.quote_currency_id, er.rate, er.effective_at, er.expires_at, er.is_active, er.created_at, bc.code AS base_code, qc.code AS quote_code FROM exchange_rates er INNER JOIN currencies bc ON bc.id = er.base_currency_id INNER JOIN currencies qc ON qc.id = er.quote_currency_id ORDER BY er.effective_at DESC, er.id DESC LIMIT 200', []);
+        }
+        Response::error('نوع البيانات المرجعية غير مدعوم.', 'VALIDATION_ERROR', 422);
+    }
+
+    /** @return array<string, mixed> */
+    public function updateReferenceStatus(array $actor, string $type, int $id, array $input): array
+    {
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_settings', $actor['permissions'], true)) {
+            Response::error('تعديل البيانات المرجعية متاح للمخولين فقط.', 'FORBIDDEN', 403);
+        }
+        $status = (string) ($input['status'] ?? '');
+        if (!in_array($status, ['active', 'inactive'], true)) { Response::error('الحالة غير صالحة.', 'VALIDATION_ERROR', 422); }
+        $table = $type === 'currencies' ? 'currencies' : ($type === 'exchange-rates' ? 'exchange_rates' : '');
+        if ($table === '') { Response::error('نوع البيانات المرجعية غير مدعوم.', 'VALIDATION_ERROR', 422); }
+        $pdo = $this->database->pdo();
+        $exists = $this->one($pdo, "SELECT id FROM {$table} WHERE id = :id", ['id' => $id]);
+        if ($exists === null) { Response::error('السجل المرجعي غير موجود.', 'NOT_FOUND', 404); }
+        if ($table === 'currencies' && $status === 'inactive') {
+            $used = (int) $this->one($pdo, 'SELECT COUNT(*) AS total FROM companies WHERE base_currency_id = :id', ['id' => $id])['total'];
+            if ($used > 0) { Response::error('لا يمكن إيقاف عملة مستخدمة في شركات قائمة.', 'DEPENDENCY_EXISTS', 409); }
+        }
+        $pdo->prepare("UPDATE {$table} SET is_active = :is_active WHERE id = :id")->execute(['is_active' => $status === 'active' ? 1 : 0, 'id' => $id]);
+        $this->audit->log((int) $actor['id'], null, 'reference_status_updated', $type, $id, null, ['status' => $status]);
+        return ['id' => $id, 'type' => $type, 'status' => $status];
+    }
+
     /** @return array<string, mixed> */
     public function assignUserRole(array $actor, int $userId, array $input): array
     {
@@ -965,9 +1004,10 @@ final class AdminService
             Response::error('بيانات الشركة الأساسية غير صالحة.', 'VALIDATION_ERROR', 422);
         }
         $coordinates = $this->coordinates($input);
-        $statement = $this->database->pdo()->prepare('INSERT INTO companies (legal_name, trade_name, country_id, city_id, base_currency_id, phone, email, latitude, longitude, status) VALUES (:legal_name, :trade_name, :country_id, :city_id, :base_currency_id, :phone, :email, :latitude, :longitude, \'active\')');
+        $address = trim((string) ($input['address'] ?? '')) !== '' ? Security::cleanText($input['address'], 500) : null;
+        $statement = $this->database->pdo()->prepare('INSERT INTO companies (legal_name, trade_name, country_id, city_id, address, base_currency_id, phone, email, latitude, longitude, status) VALUES (:legal_name, :trade_name, :country_id, :city_id, :address, :base_currency_id, :phone, :email, :latitude, :longitude, \'active\')');
         $phone = trim((string) ($input['phone'] ?? '')) !== '' ? Security::cleanText($input['phone'], 40) : null;
-        $statement->execute(['legal_name' => $legal, 'trade_name' => $trade, 'country_id' => $countryId, 'city_id' => $cityId, 'base_currency_id' => $currencyId, 'phone' => $phone, 'email' => filter_var($input['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: null, 'latitude' => $coordinates['latitude'], 'longitude' => $coordinates['longitude']]);
+        $statement->execute(['legal_name' => $legal, 'trade_name' => $trade, 'country_id' => $countryId, 'city_id' => $cityId, 'address' => $address, 'base_currency_id' => $currencyId, 'phone' => $phone, 'email' => filter_var($input['email'] ?? null, FILTER_VALIDATE_EMAIL) ?: null, 'latitude' => $coordinates['latitude'], 'longitude' => $coordinates['longitude']]);
         $id = (int) $this->database->pdo()->lastInsertId();
         $this->audit->log((int) $actor['id'], $id, 'company_created', 'company', $id, null, ['trade_name' => $trade]);
         return ['id' => $id, 'legal_name' => $legal, 'trade_name' => $trade, 'status' => 'active'];
@@ -1098,7 +1138,7 @@ final class AdminService
         }
         $agentWhere = $isSuper ? '' : ' WHERE a.company_id = :company_id';
         $agentParams = $isSuper ? [] : ['company_id' => (int) ($actor['company_id'] ?? 0)];
-        $agents = $this->allPdo($pdo, "SELECT a.id, a.user_id, a.company_id, a.country_id, a.latitude, a.longitude, u.username, a.commission_type, a.commission_value, a.status AS agent_status, a.credit_enabled, a.block_at_minimum_balance, u.full_name, u.email, u.phone, u.status AS user_status, co.trade_name AS company_name, c.name_ar AS country_name FROM agents a INNER JOIN users u ON u.id = a.user_id INNER JOIN companies co ON co.id = a.company_id INNER JOIN countries c ON c.id = a.country_id{$agentWhere} ORDER BY u.full_name", $agentParams);
+        $agents = $this->allPdo($pdo, "SELECT a.id, a.user_id, a.company_id, a.country_id, a.latitude, a.longitude, u.username, a.commission_type, a.commission_value, a.status AS agent_status, a.credit_enabled, a.block_at_minimum_balance, (SELECT w.currency_id FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS wallet_currency_id, (SELECT w.credit_limit FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS credit_limit, (SELECT w.minimum_balance FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS minimum_balance, (SELECT w.balance FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS wallet_balance, (SELECT w.used_debt FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS used_debt, (SELECT w.balance + GREATEST(0, w.credit_limit - w.used_debt) FROM agent_wallets w WHERE w.agent_id = a.id ORDER BY w.id LIMIT 1) AS booking_available, u.full_name, u.email, u.phone, u.status AS user_status, co.trade_name AS company_name, c.name_ar AS country_name FROM agents a INNER JOIN users u ON u.id = a.user_id INNER JOIN companies co ON co.id = a.company_id INNER JOIN countries c ON c.id = a.country_id{$agentWhere} ORDER BY u.full_name", $agentParams);
         $customers = $this->allPdo($pdo, 'SELECT c.id, c.user_id, c.country_id, c.city_id, u.full_name, u.email, u.phone, u.status AS user_status, co.name_ar AS country_name, ci.name_ar AS city_name FROM customers c INNER JOIN users u ON u.id = c.user_id INNER JOIN countries co ON co.id = c.country_id LEFT JOIN cities ci ON ci.id = c.city_id ORDER BY u.full_name', []);
         return ['agents' => $agents, 'customers' => $customers];
     }

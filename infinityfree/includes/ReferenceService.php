@@ -60,8 +60,8 @@ final class ReferenceService
         $statement = $this->database->pdo()->prepare(
             'SELECT t.id, t.trip_number, t.departure_at, t.arrival_at, t.status, co.id AS company_id, co.trade_name AS company_name, co.latitude AS company_latitude, co.longitude AS company_longitude, co.logo_path, co.cover_image_path,
                     b.name_ar AS bus_name, b.bus_type, b.model_year, b.seat_count AS total_seats, b.interior_image_path, b.exterior_image_path,
-                    subroute.origin_arrival_time AS attendance_time,
-                    rs.id AS segment_id, os.name_ar AS origin_name, ds.name_ar AS destination_name,
+                    COALESCE(subroute.origin_arrival_time, CASE WHEN COALESCE(ors.arrival_offset_minutes, 0) = 0 THEN TIME(DATE_SUB(t.departure_at, INTERVAL 30 MINUTE)) ELSE TIME(DATE_ADD(t.departure_at, INTERVAL ors.arrival_offset_minutes MINUTE)) END) AS attendance_time,
+                    rs.id AS segment_id, oc.name_ar AS origin_name, dc.name_ar AS destination_name, os.name_ar AS origin_station_name, ds.name_ar AS destination_station_name,
                     tsp.amount, cu.code AS currency_code, cu.symbol_ar AS currency_symbol,
                     (SELECT COUNT(*) FROM trip_seat_inventory ti WHERE ti.trip_id = t.id AND ti.is_available = 1) AS available_seats
              FROM trips t
@@ -73,7 +73,9 @@ final class ReferenceService
              INNER JOIN route_stops ors ON ors.id = rs.origin_stop_id
              INNER JOIN route_stops drs ON drs.id = rs.destination_stop_id
              INNER JOIN stations os ON os.id = ors.station_id
+             INNER JOIN cities oc ON oc.id = os.city_id
              INNER JOIN stations ds ON ds.id = drs.station_id
+             INNER JOIN cities dc ON dc.id = ds.city_id
              INNER JOIN trip_segment_prices tsp ON tsp.trip_id = t.id AND tsp.route_segment_id = rs.id
              INNER JOIN currencies cu ON cu.id = tsp.currency_id
              WHERE t.status = \'open\' AND DATE(t.departure_at) = :travel_date AND os.city_id = :origin_city_id AND ds.city_id = :destination_city_id
@@ -82,6 +84,40 @@ final class ReferenceService
         );
         $statement->execute(['travel_date' => $date, 'origin_city_id' => $originCityId, 'destination_city_id' => $destinationCityId, 'bus_type_filter' => $busType, 'bus_type_value' => $busType]);
         $items = $statement->fetchAll();
+        foreach ($items as &$item) { $item['gallery_images'] = $this->companyImages((int) $item['company_id']); }
+        unset($item);
+        return $items;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function upcomingTrips(int $limit = 20): array
+    {
+        $this->bookingService->expirePendingBookings();
+        $limit = max(1, min(50, $limit));
+        $items = $this->all(
+            "SELECT t.id, t.trip_number, t.departure_at, t.arrival_at, t.status, co.id AS company_id, co.trade_name AS company_name, co.logo_path, co.cover_image_path,
+                    b.name_ar AS bus_name, b.bus_type, b.model_year, b.seat_count AS total_seats, b.interior_image_path, b.exterior_image_path,
+                    COALESCE(subroute.origin_arrival_time, CASE WHEN COALESCE(ors.arrival_offset_minutes, 0) = 0 THEN TIME(DATE_SUB(t.departure_at, INTERVAL 30 MINUTE)) ELSE TIME(DATE_ADD(t.departure_at, INTERVAL ors.arrival_offset_minutes MINUTE)) END) AS attendance_time,
+                    rs.id AS segment_id, oc.name_ar AS origin_name, dc.name_ar AS destination_name, os.name_ar AS origin_station_name, ds.name_ar AS destination_station_name,
+                    tsp.amount, cu.code AS currency_code, cu.symbol_ar AS currency_symbol,
+                    (SELECT COUNT(*) FROM trip_seat_inventory ti WHERE ti.trip_id = t.id AND ti.is_available = 1) AS available_seats
+             FROM trips t
+             INNER JOIN companies co ON co.id = t.company_id AND co.status = 'active'
+             INNER JOIN buses b ON b.id = t.bus_id AND b.status = 'active'
+             INNER JOIN route_segments rs ON rs.route_id = t.route_id AND rs.is_active = 1
+             LEFT JOIN route_subroute_links subroute_link ON subroute_link.route_segment_id = rs.id
+             LEFT JOIN route_subroutes subroute ON subroute.id = subroute_link.subroute_id AND subroute.status = 'active'
+             INNER JOIN route_stops ors ON ors.id = rs.origin_stop_id
+             INNER JOIN route_stops drs ON drs.id = rs.destination_stop_id
+             INNER JOIN stations os ON os.id = ors.station_id
+             INNER JOIN cities oc ON oc.id = os.city_id
+             INNER JOIN stations ds ON ds.id = drs.station_id
+             INNER JOIN cities dc ON dc.id = ds.city_id
+             INNER JOIN trip_segment_prices tsp ON tsp.trip_id = t.id AND tsp.route_segment_id = rs.id
+             INNER JOIN currencies cu ON cu.id = tsp.currency_id
+             WHERE t.status = 'open' AND t.departure_at >= NOW()
+             ORDER BY t.departure_at ASC, tsp.amount ASC LIMIT {$limit}"
+        );
         foreach ($items as &$item) { $item['gallery_images'] = $this->companyImages((int) $item['company_id']); }
         unset($item);
         return $items;

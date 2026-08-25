@@ -12,6 +12,8 @@ function adminPages(): array
     return [
         'dashboard' => ['title' => 'لوحة الإدارة', 'page' => 'home', 'permissions' => [], 'any' => true],
         'countries' => ['title' => 'الدول', 'page' => 'countries', 'permissions' => ['manage_countries'], 'any' => false],
+        'currencies' => ['title' => 'العملات', 'page' => 'currencies', 'permissions' => ['manage_settings'], 'any' => false],
+        'exchange_rates' => ['title' => 'أسعار الصرف', 'page' => 'exchange_rates', 'permissions' => ['manage_settings'], 'any' => false],
         'companies' => ['title' => 'الشركات', 'page' => 'companies', 'permissions' => ['manage_companies'], 'any' => false],
         'cities' => ['title' => 'المدن', 'page' => 'cities', 'permissions' => ['manage_countries'], 'any' => false],
         'main_routes' => ['title' => 'المسارات الرئيسية', 'page' => 'routes', 'permissions' => ['manage_routes'], 'any' => false],
@@ -24,11 +26,15 @@ function adminPages(): array
         'customers' => ['title' => 'العملاء', 'page' => 'customers', 'permissions' => ['manage_users'], 'any' => false],
         'agents' => ['title' => 'الوكلاء', 'page' => 'agents', 'permissions' => ['manage_agents'], 'any' => false],
         'agent_balances' => ['title' => 'أرصدة الوكلاء', 'page' => 'wallet', 'permissions' => ['manage_payments'], 'any' => false],
+        'agent_finance' => ['title' => 'إعدادات الوكلاء المالية', 'page' => 'agent_finance', 'permissions' => ['manage_agents'], 'any' => false],
+        'agent_credit' => ['title' => 'شحن رصيد الوكيل', 'page' => 'agent_credit', 'permissions' => ['manage_agents'], 'any' => false],
+        'agent_transactions' => ['title' => 'كشف حساب الوكيل', 'page' => 'agent_transactions', 'permissions' => ['manage_agents'], 'any' => false],
         'financial' => ['title' => 'المالية والحسابات', 'page' => 'transactions', 'permissions' => ['manage_payments'], 'any' => false],
         'reports' => ['title' => 'التقارير', 'page' => 'reports', 'permissions' => ['view_reports'], 'any' => false],
         'users' => ['title' => 'المستخدمون', 'page' => 'manage', 'permissions' => ['manage_users'], 'any' => false],
         'permissions' => ['title' => 'الصلاحيات', 'page' => 'permissions', 'permissions' => ['manage_users'], 'any' => false],
         'settings' => ['title' => 'الإعدادات', 'page' => 'settings', 'permissions' => ['manage_settings'], 'any' => false],
+        'contact_messages' => ['title' => 'رسائل اتصل بنا', 'page' => 'contact_messages', 'permissions' => ['manage_settings'], 'any' => false],
         'notifications' => ['title' => 'الإشعارات', 'page' => 'notifications', 'permissions' => [], 'any' => true],
     ];
 }
@@ -64,6 +70,11 @@ function requireAdminPage(string $key): array
 /** @param array<string, mixed> $context */
 function renderAdminPage(array $context): void
 {
+    global $database;
     $page = $context['page']; header('Cache-Control: no-store, private');
-    ?><!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="<?= Security::escape(Security::csrfToken()) ?>"><title><?= Security::escape($page['title']) ?> | منصة حجوزات الباصات</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="../assets/css/app.css?v=20260825-08"><link rel="stylesheet" href="assets.php?asset=main-routes-css&v=20260825-07"></head><body class="dashboard-page" data-api-base="../api/v1"><main id="app" data-role="admin" data-admin-page="<?= Security::escape($page['page']) ?>"></main><script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script><script src="../assets/js/app.js?v=20260825-09" defer></script><script src="assets.php?asset=subroutes-js&v=20260825-06" defer></script><script src="assets.php?asset=stations-js&v=20260825-06" defer></script><script src="assets.php?asset=main-routes-js&v=20260825-07" defer></script></body></html><?php
+    $siteSettings = (new \App\Includes\SiteSettingsService($database))->publicSettings();
+    $iconPath = (string) ($siteSettings['icon_path'] ?? '');
+    $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $iconPath) === 1 ? '../' . Security::escape($iconPath) . '?v=' . rawurlencode((string) time()) : '';
+    $loadSubroutesModule = $page['page'] === 'route_stops';
+    ?><!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="<?= Security::escape(Security::csrfToken()) ?>"><title><?= Security::escape($page['title']) ?> | منصة حجوزات الباصات</title><?= $iconHref !== '' ? '<link rel="icon" type="image/png" href="' . $iconHref . '">' : '' ?><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../assets/css/app.css?v=20260825-29"><link rel="stylesheet" href="assets.php?asset=main-routes-css&v=20260825-07"></head><body class="dashboard-page" data-api-base="../api/v1"><main id="app" data-role="admin" data-admin-page="<?= Security::escape($page['page']) ?>"></main><script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script><script src="../assets/js/app.js?v=20260825-39" defer></script><?= $loadSubroutesModule ? '<script src="assets.php?asset=subroutes-js&v=20260825-10" defer></script>' : '' ?><script src="assets.php?asset=stations-js&v=20260825-06" defer></script><script src="assets.php?asset=main-routes-js&v=20260825-07" defer></script></body></html><?php
 }

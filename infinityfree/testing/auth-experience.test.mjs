@@ -18,8 +18,8 @@ assert.match(script, /autocomplete="\$\{isLogin \? 'current-password' : 'new-pas
 assert.match(css, /\.modal\.auth-modal/);
 assert.match(css, /\.auth-registration-grid/);
 assert.match(css, /@media \(max-width:700px\)/);
-assert.match(customer, /app\.css\?v=20260824-8/);
-assert.match(customer, /app\.js\?v=20260824-14/);
+assert.match(customer, /assets\/css\/app\.css\?v=/);
+assert.match(customer, /assets\/js\/app\.js\?v=/);
 assert.match(css, /بديل هادئ/);
 
 console.log('اختبار بنية تجربة المصادقة: ناجح');

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="local-test-token">
+  <title>اختبار لوحة الإدارة محليًا</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="../assets/css/app.css?v=local-dashboard-erp">
+</head>
+<body class="dashboard-page" data-api-base="../api/v1">
+  <main id="app" data-role="admin"></main>
+  <script>
+    const page = new URLSearchParams(location.search).get('page') || 'companies';
+    document.querySelector('#app').dataset.adminPage = page;
+    const company = {id:1, legal_name:'شركة اختبار محلي', trade_name:'اختبار محلي', country_id:1, city_id:1, base_currency_id:1, phone:'777000000', email:'local@example.com', address:'صنعاء', latitude:null, longitude:null, logo_path:null, cover_image_path:null, status:'active', currency_code:'YER'};
+    const catalog = {
+      countries:[{id:1,name_ar:'اليمن'}], cities:[{id:1,name_ar:'صنعاء',country_id:1,is_active:1}], currencies:[{id:1,code:'YER',name_ar:'ريال يمني'}],
+      users:[{id:1,full_name:'اختبار محلي',email:'local@example.com'}], roles:[{id:1,code:'agent',name_ar:'وكيل'},{id:2,code:'support',name_ar:'دعم'}],
+      permissions:[], role_permissions:[], companies:[{id:1,trade_name:'شركة اختبار محلي'}], exchange_rates:[]
+    };
+    const operations = {companies:[company], company_images:[], countries:catalog.countries, cities:catalog.cities, currencies:catalog.currencies, routes:[], subroutes:[], route_subroute_links:[], route_stops:[], buses:[], trips:[]};
+    const people = {agents:[{id:7,full_name:'وكيل اختبار',email:'agent@example.com',phone:'777000002',company_name:'شركة اختبار محلي',agent_status:'active',credit_enabled:1,block_at_minimum_balance:1,wallet_currency_id:1,credit_limit:'1000.00',minimum_balance:'50.00'}],customers:[]};
+    const overview = {period:{key:'this_month'},can_view_financials:true,metrics:{bookings:128,previous_bookings:112,all_bookings:420,today_bookings:12,confirmed:105,previous_confirmed:91,cancelled:7,previous_cancelled:5,pending:23,sales:125450,previous_sales:111500,sales_count:118,customers:86,refunded:12500,agent_bookings:245,trips:24,previous_trips:21,open_trips:8,completed_trips:16,upcoming_trips:6,total_seats:400,booked_seats:304,available_seats:96,occupancy:76,total_agents:18,active_agents:15,inactive_agents:3,total_companies:4,active_companies:4},sales_by_currency:[{currency_code:'YER',currency_symbol:'﷼',current_sales:125450,previous_sales:111500}],service_breakdown:[{label:'حجوزات الحافلات',total:128}],series:{bookings_sales:[{label:'2026-08-01',currency_code:'YER',currency_symbol:'﷼',bookings:18,sales:18000},{label:'2026-08-02',currency_code:'YER',currency_symbol:'﷼',bookings:25,sales:26000},{label:'2026-08-03',currency_code:'YER',currency_symbol:'﷼',bookings:31,sales:32000}],trips:[{label:'open',total:8},{label:'completed',total:16}]},latest_bookings:[{id:1,booking_number:'BK-1001',customer_name:'عميل محلي',source:'website',total_amount:12500,currency_symbol:'﷼',status:'confirmed',created_at:'2026-08-25 10:00:00',created_by_name:'النظام'}],upcoming_trips:[{company_name:'شركة اختبار محلي',route_name:'صنعاء — تعز',departure_at:'2026-08-26 08:00:00',bus_number:'NO-01',total_seats:40,available_seats:12,status:'open'}],top_companies:[{company_name:'شركة اختبار محلي',trips:24,bookings:128,sales:125450,total_seats:400,booked_seats:304}],top_agents:[{agent_name:'وكيل اختبار',bookings:245,sales:80000,commission:5000,balance:1000,debt:50}],alerts:[] ,filters:{companies:[{id:1,trade_name:'شركة اختبار محلي'}],agents:[{id:7,full_name:'وكيل اختبار'}],routes:[{id:1,name_ar:'صنعاء — تعز'}],currencies:[{id:1,code:'YER'}]}};
+    const response = (data) => Promise.resolve(new Response(JSON.stringify({success:true,data}), {status:200,headers:{'Content-Type':'application/json'}}));
+    window.fetch = (input) => {
+      const url = String(input);
+      const route = decodeURIComponent(url.split('route=')[1]?.split('&')[0] || '');
+      if (route === 'auth/me') return response({user:{id:1,full_name:'اختبار محلي',roles:['super_admin'],permissions:['manage_settings','manage_agents']},csrf_token:'local-test-token'});
+      if (route === 'dashboard/overview') return response({overview});
+      if (route === 'dashboard/summary') return response({summary:{bookings:128,pending_bookings:23,confirmed_bookings:105,open_trips:8,monthly_comparison:{current_bookings:128,previous_bookings:112,percentage:14.3}}});
+      if (route === 'admin/operations') return response({operations});
+      if (route === 'admin/catalog') return response({catalog});
+      if (route === 'admin/people') return response(people);
+      if (route === 'admin/references/currencies') return response({items:[{id:1,code:'YER',name_ar:'ريال يمني',symbol_ar:'﷼',decimal_places:2,is_active:1}]});
+      if (route === 'admin/references/exchange-rates') return response({items:[]});
+      if (route === 'admin/contacts') return response({items:[]});
+      if (route === 'admin/contact-messages') return response({items:[{id:11,full_name:'زائر محلي',phone:'777000001',email:'visitor@example.com',subject:'اختبار رسالة',message:'هذه رسالة اختبار محلية.',status:'new',created_at:'2026-08-25 10:00:00'}]});
+      if (route === 'admin/site-settings') return response({settings:{id:1,site_name_ar:'منصة رحلة',tagline_ar:'احجز رحلتك بسهولة وأمان',footer_text_ar:'© 2026 منصة رحلة',logo_path:'uploads/site/logo.jpg',icon_path:'uploads/site/icon.png'}});
+      return response({});
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+  <script src="../assets/js/app.js?v=local-dashboard-erp" defer></script>
+</body>
+</html>

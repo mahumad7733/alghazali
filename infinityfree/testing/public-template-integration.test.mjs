@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const root = resolve('/home/ubuntu/bus-booking-platform/infinityfree');
+const root = resolve(new URL('.', import.meta.url).pathname, '..');
 const read = (file) => readFileSync(resolve(root, file), 'utf8');
 
 const customer = read('customer.php');

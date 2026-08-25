@@ -50,6 +50,20 @@ final class AgentService
         return $statement->fetchAll();
     }
 
+    /** @return list<array<string, mixed>> */
+    public function transactionsForAdmin(array $actor, int $agentId): array
+    {
+        if (!in_array('manage_agents', $actor['permissions'], true) && !in_array('super_admin', $actor['roles'], true)) {
+            Response::error('لا تملك صلاحية عرض كشف حساب الوكيل.', 'FORBIDDEN', 403);
+        }
+        $agent = $this->one($this->database->pdo(), 'SELECT id, company_id FROM agents WHERE id = :id', ['id' => $agentId]);
+        if ($agent === null) { Response::error('الوكيل المطلوب غير موجود.', 'NOT_FOUND', 404); }
+        if (!in_array('super_admin', $actor['roles'], true) && (int) ($actor['company_id'] ?? 0) !== (int) $agent['company_id']) {
+            Response::error('لا يمكن عرض حساب وكيل تابع لشركة أخرى.', 'FORBIDDEN', 403);
+        }
+        return $this->transactions($agentId);
+    }
+
     /** @return array<string, mixed> */
     public function creditWallet(array $actor, int $agentId, array $input): array
     {
@@ -99,10 +113,12 @@ final class AgentService
         $creditEnabled = filter_var($input['credit_enabled'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         $blockAtMinimum = filter_var($input['block_at_minimum_balance'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         $status = (string) ($input['status'] ?? '');
-        if ($currencyId === false || $creditLimit === false || $minimumBalance === false || $creditEnabled === null || $blockAtMinimum === null || !in_array($status, ['active', 'financially_blocked', 'suspended'], true)) {
+        $commissionType = (string) ($input['commission_type'] ?? 'percentage');
+        $commissionValue = filter_var($input['commission_value'] ?? 0, FILTER_VALIDATE_FLOAT, ['options' => ['min_range' => 0]]);
+        if ($currencyId === false || $creditLimit === false || $minimumBalance === false || $creditEnabled === null || $blockAtMinimum === null || !in_array($status, ['active', 'financially_blocked', 'suspended'], true) || !in_array($commissionType, ['percentage', 'fixed'], true) || $commissionValue === false) {
             Response::error('إعدادات الوكيل المالية غير صالحة.', 'VALIDATION_ERROR', 422);
         }
-        return $this->database->transaction(function (PDO $pdo) use ($actor, $agentId, $currencyId, $creditLimit, $minimumBalance, $creditEnabled, $blockAtMinimum, $status): array {
+        return $this->database->transaction(function (PDO $pdo) use ($actor, $agentId, $currencyId, $creditLimit, $minimumBalance, $creditEnabled, $blockAtMinimum, $status, $commissionType, $commissionValue): array {
             $agent = $this->one($pdo, 'SELECT * FROM agents WHERE id = :id FOR UPDATE', ['id' => $agentId]);
             if ($agent === null) {
                 Response::error('الوكيل المطلوب غير موجود.', 'NOT_FOUND', 404);
@@ -118,7 +134,7 @@ final class AgentService
             if ((float) $wallet['used_debt'] > $creditLimit) {
                 Response::error('لا يمكن خفض الحد الائتماني إلى أقل من الدين المستخدم حاليًا.', 'VALIDATION_ERROR', 409);
             }
-            $pdo->prepare('UPDATE agents SET status = :status, credit_enabled = :credit_enabled, block_at_minimum_balance = :block_at_minimum_balance WHERE id = :id')->execute(['status' => $status, 'credit_enabled' => $creditEnabled ? 1 : 0, 'block_at_minimum_balance' => $blockAtMinimum ? 1 : 0, 'id' => $agentId]);
+            $pdo->prepare('UPDATE agents SET status = :status, credit_enabled = :credit_enabled, block_at_minimum_balance = :block_at_minimum_balance, commission_type = :commission_type, commission_value = :commission_value WHERE id = :id')->execute(['status' => $status, 'credit_enabled' => $creditEnabled ? 1 : 0, 'block_at_minimum_balance' => $blockAtMinimum ? 1 : 0, 'commission_type' => $commissionType, 'commission_value' => $commissionValue, 'id' => $agentId]);
             $pdo->prepare('UPDATE agent_wallets SET credit_limit = :credit_limit, minimum_balance = :minimum_balance WHERE id = :id')->execute(['credit_limit' => $creditLimit, 'minimum_balance' => $minimumBalance, 'id' => $wallet['id']]);
             $this->audit->log((int) $actor['id'], (int) $agent['company_id'], 'agent_financial_settings_updated', 'agent', $agentId, ['status' => $agent['status'], 'credit_enabled' => $agent['credit_enabled'], 'credit_limit' => $wallet['credit_limit']], ['status' => $status, 'credit_enabled' => $creditEnabled, 'credit_limit' => $creditLimit, 'minimum_balance' => $minimumBalance]);
             $this->notifications->send((int) $agent['user_id'], (int) $agent['company_id'], 'agent_financial_settings_updated', 'تم تحديث إعدادات حسابك', 'تم تعديل إعدادات الائتمان أو الحد المالي لحساب الوكيل.', 'agent', $agentId);

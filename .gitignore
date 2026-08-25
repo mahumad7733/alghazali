@@ -131,3 +131,22 @@ infinityfree/.ftp/
 *.crt
 *.cer
 *.secrets.json
+
+# Local deployment credentials and diagnostic probes
+/tools/ftp_upload_ignore_close.py
+/tools/probe_dashboard_overview.php
+/release/
+/notes/
+/infinityfree/testing/screenshots/
+*.zip
+
+# Internal audit notes and local reports
+/design-audit-notes.md
+/live-audit-notes.md
+/live-design-audit-*.md
+/local-implementation-report.md
+/template-validation-report.md
+/template-visibility-audit.md
+/subroute-single-time-test-report.md
+/trips-contact-update-report.md
+/tools/ftp_*.py

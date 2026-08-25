@@ -10,6 +10,7 @@ const scheduleMigration = read('database/subroute_schedule_migration.sql');
 const service = read('includes/AdminService.php');
 const api = read('api/v1/index.php');
 const app = read('assets/js/app.js');
+const subroutesUi = read('assets/js/admin-subroutes.js');
 
 for (const source of [schema, migration]) {
   assert.match(source, /CREATE TABLE IF NOT EXISTS route_subroutes/);
@@ -29,13 +30,18 @@ for (const field of ['origin_arrival_time', 'origin_departure_time', 'destinatio
   assert.match(schema, new RegExp(field));
   assert.match(scheduleMigration, new RegExp(field));
   assert.match(service, new RegExp(field));
-  assert.match(app, new RegExp(`name="${field}"`));
 }
 assert.match(schema, /company_id BIGINT UNSIGNED NULL/);
 assert.match(service, /sr\.company_id IS NULL OR sr\.company_id = :company_id/);
 assert.match(app, /مقطع مشترك/);
-const subrouteUi = app.slice(app.indexOf('async function dashboardRouteStops'), app.indexOf('async function dashboardBuses'));
-assert.doesNotMatch(subrouteUi, /optionalCompanyField/);
+assert.match(subroutesUi, /timeField\('destination_arrival_time', 'وقت الحضور'\)/);
+assert.match(subroutesUi, /timeField\('origin_departure_time', 'وقت المغادرة'\)/);
+assert.match(app, /function timeField\(name,label,value=''\)/);
+assert.match(app, /name="origin_departure_time"/);
+assert.match(app, /name="destination_arrival_time"/);
+assert.doesNotMatch(subroutesUi, /time12Field\('destination_arrival'/);
+assert.doesNotMatch(subroutesUi, /time12Field\('origin_departure'/);
+assert.doesNotMatch(subroutesUi, /optionalCompanyField/);
 assert.match(api, /admin\/cities/);
 assert.match(api, /admin\/subroutes/);
 assert.match(app, /city-page-create/);

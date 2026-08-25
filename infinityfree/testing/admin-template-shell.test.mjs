@@ -12,6 +12,6 @@ assert.match(script, /template-theme-toggle/);
 assert.match(script, /dashboard-quick-search/);
 assert.match(script, /dashboardPageMeta/);
 assert.match(script, /إدارة التشغيل/);
-assert.match(script, /إدارة متقدمة/);
+assert.match(script, /إدارة المتقدمة/);
 
 console.log('اختبار هيكل لوحة الإدارة المرجعية: ناجح');

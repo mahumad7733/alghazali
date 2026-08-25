@@ -108,12 +108,12 @@ console.log('اختبار شاشتي إدارة الوكلاء والعملاء 
 assert.match(app, /data-company-gallery-view/);
 assert.match(app, /openCompanyGalleryModal/);
 assert.match(app, /company-edit-media-preview/);
-assert.match(app, /time12Field\('origin_departure','وقت المغادرة'/);
-assert.match(app, /time12Field\('destination_arrival','وقت الحضور'/);
+assert.match(app, /function timeField\(name,label,value=''\)/);
+assert.match(app, /name="origin_departure_time"/);
+assert.match(app, /name="destination_arrival_time"/);
 assert.match(app, /bindSubrouteTimeSuggestion/);
-assert.match(app, /\(hour\*60\)\+minute\+30/);
-assert.match(app, /ص \/ صباحًا/);
-assert.match(app, /م \/ مساءً/);
+assert.match(app, /minute\+30/);
+assert.match(app, /أدخل الوقت في حقل واحد/);
 assert.doesNotMatch(app, /<label>وصول مدينة الانطلاق<\/label>/);
 assert.doesNotMatch(app, /<label>مغادرة مدينة الوصول<\/label>/);
 console.log('اختبار زر عرض الصور ومحرر الشركة وتسميات أوقات المسار: ناجح');

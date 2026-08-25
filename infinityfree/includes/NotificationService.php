@@ -27,4 +27,24 @@ final class NotificationService
             'reference_id' => $referenceId,
         ]);
     }
+
+    public function sendToBookingManagers(int $companyId, string $title, string $body, ?int $referenceId = null, ?int $excludeUserId = null): void
+    {
+        $statement = $this->database->pdo()->prepare(
+            "SELECT DISTINCT ur.user_id
+             FROM user_roles ur
+             INNER JOIN roles r ON r.id = ur.role_id
+             LEFT JOIN role_permissions rp ON rp.role_id = ur.role_id
+             LEFT JOIN permissions p ON p.id = rp.permission_id
+             WHERE r.code = 'super_admin'
+                OR (p.code IN ('view_all_bookings', 'view_company_bookings') AND (ur.company_id = :company_id OR ur.company_id IS NULL))"
+        );
+        $statement->execute(['company_id' => $companyId]);
+        foreach ($statement->fetchAll() as $row) {
+            $userId = (int) ($row['user_id'] ?? 0);
+            if ($userId > 0 && ($excludeUserId === null || $userId !== $excludeUserId)) {
+                $this->send($userId, $companyId, 'new_booking', $title, $body, 'booking', $referenceId);
+            }
+        }
+    }
 }

@@ -22,7 +22,8 @@ assert.match(api, /admin\/buses\/\(\\d\+\)\/media/);
 assert.match(references, /co\.logo_path/);
 assert.match(references, /b\.interior_image_path/);
 assert.match(app, /uploadMedia/);
-assert.match(app, /data-company-logo-upload/);
+assert.match(app, /name="company_logo"/);
+assert.match(app, /name="company_cover"/);
 assert.match(app, /data-bus-media-upload/);
 assert.match(app, /trip-media/);
 

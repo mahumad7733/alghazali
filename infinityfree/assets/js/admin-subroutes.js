@@ -51,9 +51,9 @@
       ${financialFields}
       <div class="field"><label>سعر البيع</label><input name="amount" type="number" min="0.01" step="0.01" required><small>السعر الذي يظهر للعميل.</small></div>
       <div class="field"><label>الحالة</label><select name="status"><option value="active">نشط</option><option value="inactive">غير نشط</option></select></div>
-      <div class="field wide schedule-note"><b>⏱ أوقات المسار</b><small>يتم تعبئة وقت المغادرة تلقائيًا بعد 30 دقيقة ويمكن تعديله. عند تغيير وقت الحضور يُعاد حساب الاقتراح، بما في ذلك العبور إلى اليوم التالي.</small></div>
-      ${core.time12Field('destination_arrival', 'وقت الحضور')}
-      ${core.time12Field('origin_departure', 'وقت المغادرة')}
+      <div class="field wide schedule-note"><b>⏱ أوقات المسار</b><small>أدخل وقت الحضور ووقت المغادرة في حقل مستقل لكل وقت. يقترح النظام المغادرة بعد 30 دقيقة ويمكنك تعديلها.</small></div>
+      ${core.timeField('destination_arrival_time', 'وقت الحضور')}
+      ${core.timeField('origin_departure_time', 'وقت المغادرة')}
       <div class="field"><label>&nbsp;</label><button class="btn btn-primary" type="submit">حفظ المسار الفرعي</button></div>
     </form>`;
   }

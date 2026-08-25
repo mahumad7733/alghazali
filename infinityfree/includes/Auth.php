@@ -108,6 +108,41 @@ final class Auth
         return $this->currentUser() ?? [];
     }
 
+    /** @return array<string, mixed> */
+    public function updateCurrentUser(array $actor, array $input): array
+    {
+        $userId = (int) ($actor['id'] ?? 0);
+        if ($userId < 1) {
+            Response::error('جلسة المستخدم غير صالحة.', 'UNAUTHORIZED', 401);
+        }
+        $fullName = Security::cleanText($input['full_name'] ?? null, 180);
+        $email = filter_var(trim((string) ($input['email'] ?? '')), FILTER_VALIDATE_EMAIL);
+        $phone = Security::cleanText($input['phone'] ?? null, 32);
+        $newPassword = (string) ($input['password'] ?? '');
+        if (mb_strlen($fullName) < 3 || $email === false || mb_strlen($phone) < 5) {
+            Response::error('تحقق من الاسم والبريد الإلكتروني ورقم الهاتف.', 'VALIDATION_ERROR', 422);
+        }
+        if ($newPassword !== '' && mb_strlen($newPassword) < 10) {
+            Response::error('كلمة المرور الجديدة يجب أن تتكون من 10 أحرف على الأقل.', 'VALIDATION_ERROR', 422);
+        }
+        $pdo = $this->database->pdo();
+        $duplicate = $pdo->prepare('SELECT id FROM users WHERE (email = :email OR phone = :phone) AND id <> :id LIMIT 1');
+        $duplicate->execute(['email' => $email, 'phone' => $phone, 'id' => $userId]);
+        if ($duplicate->fetch()) {
+            Response::error('البريد الإلكتروني أو رقم الهاتف مستخدم لحساب آخر.', 'DUPLICATE_ACCOUNT', 409);
+        }
+        $sql = 'UPDATE users SET full_name = :full_name, email = :email, phone = :phone';
+        $params = ['full_name' => $fullName, 'email' => $email, 'phone' => $phone, 'id' => $userId];
+        if ($newPassword !== '') {
+            $sql .= ', password_hash = :password_hash';
+            $params['password_hash'] = password_hash($newPassword, PASSWORD_DEFAULT);
+        }
+        $sql .= ' WHERE id = :id';
+        $pdo->prepare($sql)->execute($params);
+        $this->audit->log($userId, $actor['company_id'] ? (int) $actor['company_id'] : null, 'user_profile_updated', 'user', $userId, null, ['password_changed' => $newPassword !== '']);
+        return $this->currentUser() ?? [];
+    }
+
     public function logout(): void
     {
         $current = $this->currentUser();

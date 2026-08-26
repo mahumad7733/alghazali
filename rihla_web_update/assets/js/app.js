@@ -65,7 +65,7 @@
   const modal = (content, className = '') => {
     closeModal();
     const backdrop = document.createElement('div'); backdrop.className = 'modal-backdrop'; backdrop.dataset.modalLayer = '1';
-    backdrop.innerHTML = `<section class="modal ${esc(className)}" role="dialog" aria-modal="true" tabindex="-1"><button class="close" type="button" aria-label="إغلاق">×</button>${content}</section>`;
+    backdrop.innerHTML = `<section class="modal modal-shell ${esc(className)}" role="dialog" aria-modal="true" aria-label="نافذة منبثقة" data-modal-dialog tabindex="-1"><button class="close modal-close" type="button" aria-label="إغلاق"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="sr-only">إغلاق</span></button><div class="modal-content-wrap">${content}</div></section>`;
     const dialog = $('.modal', backdrop); const closeButton = $('.close', backdrop);
     closeButton?.addEventListener('click', closeModal); backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeModal(); });
     backdrop.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closeModal(); } });

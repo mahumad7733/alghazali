@@ -21,7 +21,7 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="assets/css/app.css?v=20260826-29">
+  <link rel="stylesheet" href="assets/css/app.css?v=20260826-30">
   <link rel="stylesheet" href="assets/css/public-template.css?v=20260825-32">
 </head>
 <body class="customer-page">
@@ -29,6 +29,6 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <script src="assets/js/qrcode.min.js?v=1" defer></script>
   <script src="assets/js/trip-sort.js?v=20260824-1" defer></script>
   <script src="assets/js/public-template.js?v=20260826-42" defer></script>
-  <script src="assets/js/app.js?v=20260826-68" defer></script>
+  <script src="assets/js/app.js?v=20260826-69" defer></script>
 </body>
 </html>

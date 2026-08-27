@@ -1,0 +1,10 @@
+SET @has_agent_code := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agents' AND COLUMN_NAME = 'agent_code');
+SET @sql_agent_code := IF(@has_agent_code = 0, 'ALTER TABLE agents ADD COLUMN agent_code CHAR(10) NULL AFTER user_id', 'SELECT 1');
+PREPARE stmt_agent_code FROM @sql_agent_code;
+EXECUTE stmt_agent_code;
+DEALLOCATE PREPARE stmt_agent_code;
+SET @has_agent_code_unique := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agents' AND INDEX_NAME = 'uq_agents_agent_code');
+SET @sql_agent_code_unique := IF(@has_agent_code_unique = 0, 'ALTER TABLE agents ADD UNIQUE KEY uq_agents_agent_code (agent_code)', 'SELECT 1');
+PREPARE stmt_agent_code_unique FROM @sql_agent_code_unique;
+EXECUTE stmt_agent_code_unique;
+DEALLOCATE PREPARE stmt_agent_code_unique;

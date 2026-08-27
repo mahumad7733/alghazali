@@ -1,0 +1,21 @@
+<?php
+declare(strict_types=1);
+
+return [
+    'app_name' => 'منصة حجوزات الباصات',
+    'app_url' => 'http://127.0.0.1:8082',
+    'environment' => 'local',
+    'timezone' => 'Asia/Aden',
+    'session_name' => 'rihla_local_session',
+    // مفتاح عشوائي طويل اختياري؛ يُستخدم لتشفير أسرار مزودي OTP في قاعدة البيانات.
+    'otp_encryption_key' => 'ضع_مفتاحًا_عشوائيًا_طويلًا_هنا',
+    'booking_hold_minutes' => 30,
+    'database' => [
+        'host' => '127.0.0.1',
+        'port' => 3306,
+        'name' => 'ضع_اسم_قاعدة_البيانات',
+        'username' => 'ضع_اسم_المستخدم',
+        'password' => 'ضع_كلمة_المرور',
+        'charset' => 'utf8mb4',
+    ],
+];

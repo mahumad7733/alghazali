@@ -1,50 +1,26 @@
-# Production security policy for Apache 2.4 and Apache 2.2
-Options -Indexes -MultiViews
-DirectoryIndex index.php
+Options -Indexes
+RewriteEngine On
 
-<IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
-</IfModule>
+# Allow the clean /admin URL to be handled by the rewrite rule below even
+# though "admin" is also a physical directory.
+DirectorySlash Off
 
-# Never serve hidden files, environment files, logs, database dumps, or local configuration.
-<IfModule mod_authz_core.c>
-    <FilesMatch "^\.|(\.env|\.log|\.ini|\.sql|\.sql\.gz|\.sqlite|\.bak|\.backup|\.old|\.orig|\.tmp|\.swp)$">
-        Require all denied
-    </FilesMatch>
-    <FilesMatch "^(debug|check|fix|apply|restore|test|_.*|tmp_|query_result)\.php$">
-        Require all denied
-    </FilesMatch>
-</IfModule>
-<IfModule !mod_authz_core.c>
-    <FilesMatch "^\.|(\.env|\.log|\.ini|\.sql|\.sql\.gz|\.sqlite|\.bak|\.backup|\.old|\.orig|\.tmp|\.swp)$">
-        Order Allow,Deny
-        Deny from all
-    </FilesMatch>
-    <FilesMatch "^(debug|check|fix|apply|restore|test|_.*|tmp_|query_result)\.php$">
-        Order Allow,Deny
-        Deny from all
-    </FilesMatch>
-</IfModule>
+# Canonicalise PHP pages so trailing slashes do not break relative assets.
+RewriteCond %{REQUEST_URI} ^(.+\.php)/$
+RewriteRule ^(.+\.php)/$ /rihla/$1 [R=301,L,NE]
 
-# Keep operational/database tooling outside the public web root in production.
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteRule ^(?:tools|database|supabase|sessions|storage|logs)(?:/|$) - [F,L,NC]
-    RewriteRule ^(?:.*\.(?:env|log|ini|sql|sql\.gz|sqlite|bak|backup|old|orig|tmp|swp))$ - [F,L,NC]
-</IfModule>
+# مسارات الواجهات النظيفة.
+# يفتح المسار المختصر لوحة المؤشرات داخل طبقة الإدارة المحمية مباشرةً.
+RewriteRule ^admin/?$ admin/admin.php [QSA,L]
 
-AddDefaultCharset UTF-8
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/plain text/html text/css application/javascript application/json application/xml
-</IfModule>
+# تمرير جميع طلبات الواجهة البرمجية إلى الموجّه المركزي.
+RewriteCond %{REQUEST_URI} /rihla_app/api/v1/index\.php$
+RewriteCond %{QUERY_STRING} ^$
+RewriteRule ^api/v1/index\.php$ api/v1/index.php?route=health [END]
+RewriteRule ^api/v1/?$ api/v1/index.php [QSA,L]
+RewriteRule ^api/v1/(.*)$ api/v1/index.php?route=$1 [QSA,L]
 
-<IfModule mod_php.c>
-    php_flag expose_php Off
-</IfModule>
-<IfModule mod_php7.c>
-    php_flag expose_php Off
-</IfModule>
+# إخفاء الملفات الحساسة والملفات المصدرية غير المخصصة للعرض.
+<FilesMatch "\.(env|sql|md|log|test)$">
+  Require all denied
+</FilesMatch>

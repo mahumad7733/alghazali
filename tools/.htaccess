@@ -1,8 +1,0 @@
-# Development and database tooling must never be public.
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-    Order Allow,Deny
-    Deny from all
-</IfModule>

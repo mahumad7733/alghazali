@@ -83,7 +83,9 @@ if ($route === 'auth/otp/login/request' && $method === 'POST') {
 if ($route === 'auth/otp/verify' && $method === 'POST') {
     Security::assertCsrf();
     $result = $otp->verify(Security::jsonInput(), $auth);
-    Response::success('تم التحقق بنجاح.', [...$result, 'csrf_token' => Security::csrfToken()]);
+    $csrfToken = Security::csrfToken();
+    session_write_close();
+    Response::success('تم التحقق بنجاح.', [...$result, 'csrf_token' => $csrfToken]);
 }
 
 if ($route === 'auth/otp/resend' && $method === 'POST') {
@@ -102,7 +104,9 @@ if ($route === 'auth/register' && $method === 'POST') {
         Response::success('تم تجهيز طلب التسجيل وإرسال رمز التحقق.', $otp->startRegistration($input), 202);
     }
     $user = $auth->registerCustomer($input);
-    Response::success('تم إنشاء حساب العميل وتسجيل الدخول بنجاح.', ['user' => $user, 'csrf_token' => Security::csrfToken()], 201);
+    $csrfToken = Security::csrfToken();
+    session_write_close();
+    Response::success('تم إنشاء حساب العميل وتسجيل الدخول بنجاح.', ['user' => $user, 'csrf_token' => $csrfToken], 201);
 }
 
 if ($route === 'auth/login' && $method === 'POST') {
@@ -112,7 +116,9 @@ if ($route === 'auth/login' && $method === 'POST') {
         Response::success('تم تجهيز طلب الدخول وإرسال رمز التحقق.', $otp->startLogin($input), 202);
     }
     $user = $auth->login($input);
-    Response::success('تم تسجيل الدخول بنجاح.', ['user' => $user, 'csrf_token' => Security::csrfToken()]);
+    $csrfToken = Security::csrfToken();
+    session_write_close();
+    Response::success('تم تسجيل الدخول بنجاح.', ['user' => $user, 'csrf_token' => $csrfToken]);
 }
 
 if ($route === 'admin/otp-settings' && $method === 'GET') {

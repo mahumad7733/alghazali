@@ -693,3 +693,13 @@ body.dashboard-page #template-dashboard[data-theme="dark"] .system-setup-dialog,
   .template-dashboard .dashboard-chart-grid,.template-dashboard .dashboard-lower-grid,.template-dashboard .dashboard-ranking-grid{width:100%!important;min-width:0!important}
 }
 @media(max-width:420px){.template-dashboard .dashboard-data-panel .data-table{min-width:710px!important}}
+
+/* Ticket capture and Arabic rendering repair v69 */
+.modern-ticket{direction:rtl;text-align:initial;font-family:Tajawal,"Noto Sans Arabic",Arial,Tahoma,sans-serif;unicode-bidi:plaintext;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+.modern-ticket .ticket-brand-logo{display:block;width:45px;height:45px;flex:0 0 45px;object-fit:contain;object-position:center;padding:4px;border:1px solid rgb(255 255 255/.34);border-radius:14px;background:#fff}
+.modern-ticket .ticket-brand-mark{flex:0 0 45px}
+.modern-ticket .ticket-brand-lockup,.modern-ticket .ticket-status-block,.modern-ticket .ticket-reference,.modern-ticket .ticket-route-hero,.modern-ticket .ticket-time-strip,.modern-ticket .ticket-facts,.modern-ticket .ticket-passengers,.modern-ticket .ticket-qr-area,.modern-ticket .ticket-notice{unicode-bidi:isolate}
+.modern-ticket .ticket-city strong,.modern-ticket .ticket-time-strip strong,.modern-ticket .ticket-facts strong,.modern-ticket .ticket-passenger-row strong,.modern-ticket .ticket-passenger-row small,.modern-ticket .ticket-notice span{overflow-wrap:anywhere;word-break:normal}
+.modern-ticket .ticket-reference strong,.modern-ticket .ticket-payment-note b[dir="ltr"],.modern-ticket .ticket-qr-box small{unicode-bidi:plaintext;direction:ltr}
+@media(max-width:620px){.modern-ticket .ticket-brand-logo{width:40px;height:40px;flex-basis:40px;padding:3px;border-radius:12px}.modern-ticket .ticket-brand-mark{flex-basis:40px;width:40px;height:40px}.modern-ticket .ticket-brand-lockup>div strong{font-size:.86rem}.modern-ticket .ticket-brand-lockup>div span{font-size:.62rem}}
+@media print{.modern-ticket{font-family:Tajawal,"Noto Sans Arabic",Arial,Tahoma,sans-serif;direction:rtl}.modern-ticket .ticket-brand-logo{print-color-adjust:exact;-webkit-print-color-adjust:exact}}

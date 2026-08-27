@@ -609,3 +609,44 @@ body.dashboard-page #template-dashboard[data-theme="dark"] .system-setup-dialog,
 @media(min-width:1201px) and (max-width:1450px){.template-dashboard .dashboard-smart-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:15px!important}}
 @media(min-width:761px) and (max-width:1200px){.template-dashboard .dashboard-smart-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:15px!important}.template-dashboard .small-box.dashboard-smart-card .inner{padding:14px 16px 0!important}.template-dashboard .small-box.dashboard-smart-card .stat-period-summary{font-size:.6rem}}
 @media(min-width:601px) and (max-width:800px){.template-dashboard .dashboard-smart-grid{gap:13px!important}.template-dashboard .small-box.dashboard-smart-card .inner{padding:13px 14px 0!important}.template-dashboard .small-box.dashboard-smart-card .stat-period-summary{margin-inline:-14px;padding-inline:10px}.template-dashboard .small-box.dashboard-smart-card .stat-details{margin-inline:-14px;padding-inline:10px}}
+
+/* Mobile card overflow and icon repair v64 */
+@media(max-width:576px){
+  .template-dashboard{overflow-x:hidden}
+  .template-dashboard .template-main,.template-dashboard .dash-page,.template-dashboard .dashboard-smart-grid{min-width:0;width:100%;max-width:100%}
+  .template-dashboard .dashboard-smart-grid{grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+  .template-dashboard .small-box.dashboard-smart-card{width:100%;max-width:100%;min-width:0;border-radius:5px!important}
+  .template-dashboard .small-box.dashboard-smart-card .inner{min-height:0!important;padding:12px 13px 0!important}
+  .template-dashboard .small-box.dashboard-smart-card .small-box-heading{min-width:0;padding-inline-end:2px}
+  .template-dashboard .small-box.dashboard-smart-card .stat-label{max-width:calc(100% - 40px);font-size:.73rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .template-dashboard .small-box.dashboard-smart-card .small-box-badge{width:27px;height:27px;flex:0 0 27px;font-size:.76rem}
+  .template-dashboard .small-box.dashboard-smart-card h3.stat-value{margin:6px 0 8px;font-size:1.42rem}
+  .template-dashboard .small-box.dashboard-smart-card>.icon{top:10px;left:8px;z-index:1;font-size:2.45rem;line-height:1;opacity:.9}
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:3px 8px;min-height:0;margin-inline:-13px;padding:6px 10px;font-size:.56rem}
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary span{flex:1 1 auto;white-space:nowrap}
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary b{font-size:.62rem}
+  .template-dashboard .small-box.dashboard-smart-card .stat-details{margin-inline:-13px;padding:6px 10px 8px;font-size:.56rem;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+  .template-dashboard .small-box.dashboard-smart-card .stat-accent{height:3px}
+  .template-dashboard .dashboard-report-summary{grid-template-columns:1fr!important}
+}
+@media(max-width:380px){
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary{gap:3px 5px;padding-inline:8px}
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary span{font-size:.54rem}
+  .template-dashboard .small-box.dashboard-smart-card .stat-period-summary b{font-size:.59rem}
+  .template-dashboard .small-box.dashboard-smart-card>.icon{font-size:2.2rem;left:7px}
+}
+
+/* AdminLTE RTL 3 mobile icon isolation v65 */
+.template-dashboard .small-box.dashboard-smart-card .small-box-badge{display:none!important}
+.template-dashboard .small-box.dashboard-smart-card .inner{padding-left:56px!important}
+.template-dashboard .small-box.dashboard-smart-card>.icon{top:12px;left:9px;width:38px;height:38px;display:grid;place-items:center;font-size:2.35rem;line-height:1;text-align:center;opacity:.16;pointer-events:none}
+.template-dashboard .small-box.dashboard-smart-card .stat-period-summary{padding-left:56px}
+.template-dashboard .small-box.dashboard-smart-card .stat-details{padding-left:56px}
+@media(max-width:760px){.template-dashboard .small-box.dashboard-smart-card .inner{padding-left:50px!important}.template-dashboard .small-box.dashboard-smart-card>.icon{top:10px;left:8px;width:34px;height:34px;font-size:2.05rem}.template-dashboard .small-box.dashboard-smart-card .stat-period-summary{padding-left:50px}.template-dashboard .small-box.dashboard-smart-card .stat-details{padding-left:50px}}
+@media(max-width:380px){.template-dashboard .small-box.dashboard-smart-card .inner{padding-left:45px!important}.template-dashboard .small-box.dashboard-smart-card>.icon{left:7px;width:31px;height:31px;font-size:1.85rem}.template-dashboard .small-box.dashboard-smart-card .stat-period-summary{padding-left:45px}.template-dashboard .small-box.dashboard-smart-card .stat-details{padding-left:45px}}
+
+/* Ensure one clear icon stays above card content v66 */
+.template-dashboard .small-box.dashboard-smart-card>.icon{z-index:4!important;color:rgb(255 255 255/.3)!important;opacity:1!important;isolation:isolate}
+.template-dashboard .small-box.dashboard-smart-card>.icon i{display:block;line-height:1}
+.template-dashboard .small-box.dashboard-smart-card.bg-warning>.icon{color:rgb(31 45 61/.25)!important}
+@media(max-width:576px){.template-dashboard .small-box.dashboard-smart-card>.icon{z-index:4!important;color:rgb(255 255 255/.36)!important}.template-dashboard .small-box.dashboard-smart-card.bg-warning>.icon{color:rgb(31 45 61/.3)!important}}

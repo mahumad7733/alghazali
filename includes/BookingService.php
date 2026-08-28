@@ -10,16 +10,19 @@ final class BookingService
 {
     private AuditLogger $audit;
     private NotificationService $notifications;
+    private InvoiceService $invoices;
 
     public function __construct(private Database $database, private int $holdMinutes = 30)
     {
         $this->ensureTripCommissionColumns();
         $this->ensurePassengerGenderColumn();
         $this->ensurePaymentColumns();
+        $this->ensureBookingTaxColumns();
         $this->ensureReviewTable();
         $this->ensureReviewRatingColumns();
         $this->audit = new AuditLogger($database);
         $this->notifications = new NotificationService($database);
+        $this->invoices = new InvoiceService();
     }
 
     private function ensureTripCommissionColumns(): void
@@ -50,6 +53,18 @@ final class BookingService
             if ($pdo->query("SHOW COLUMNS FROM payments LIKE '{$column}'")->fetchColumn() === false) {
                 $pdo->exec($sql);
             }
+        }
+    }
+
+    private function ensureBookingTaxColumns(): void
+    {
+        $pdo = $this->database->pdo();
+        foreach ([
+            'tax_amount' => "ALTER TABLE bookings ADD COLUMN tax_amount DECIMAL(14,2) NULL AFTER total_amount",
+            'tax_rate' => "ALTER TABLE bookings ADD COLUMN tax_rate DECIMAL(9,4) NULL AFTER tax_amount",
+            'tax_snapshot_json' => "ALTER TABLE bookings ADD COLUMN tax_snapshot_json LONGTEXT NULL AFTER tax_rate",
+        ] as $column => $sql) {
+            if ($pdo->query("SHOW COLUMNS FROM bookings LIKE '{$column}'")->fetchColumn() === false) $pdo->exec($sql);
         }
     }
 
@@ -191,12 +206,15 @@ final class BookingService
             }
 
             $agentId = !empty($actor['agent_id']) ? (int) $actor['agent_id'] : null;
-            $total = number_format(((float) $trip['amount']) * count($passengers), 2, '.', '');
+            $subtotal = number_format(((float) $trip['amount']) * count($passengers), 2, '.', '');
+            $taxSnapshot = $this->taxSnapshot($pdo, $subtotal);
+            $taxAmount = number_format((float) $taxSnapshot['tax_amount'], 2, '.', '');
+            $grandTotal = number_format((float) $subtotal + (float) $taxAmount, 2, '.', '');
             $companyCost = number_format(((float) $trip['company_amount']) * count($passengers), 2, '.', '');
             $tripCommissionConfigured = $agentId !== null && $trip['agent_commission_type'] !== null && $trip['agent_commission_value'] !== null;
             $commissionType = $agentId === null ? null : ($tripCommissionConfigured ? (string) $trip['agent_commission_type'] : (string) $agent['commission_type']);
             $commissionRate = $agentId === null ? 0.0 : ($tripCommissionConfigured ? (float) $trip['agent_commission_value'] : (float) $agent['commission_value']);
-            $grossProfit = max(0.0, (float) $total - (float) $companyCost);
+            $grossProfit = max(0.0, (float) $subtotal - (float) $companyCost);
             $commission = $agentId === null ? 0.0 : min($grossProfit, $commissionType === 'percentage' ? round($grossProfit * ($commissionRate / 100), 2) : max(0.0, $commissionRate));
             $companyPayable = round((float) $companyCost, 2);
             $platformCommission = round($grossProfit - $commission, 2);
@@ -205,13 +223,13 @@ final class BookingService
             $customerId = !empty($actor['customer_id']) ? (int) $actor['customer_id'] : null;
             $source = $agentId ? 'agent' : (in_array('super_admin', $actor['roles'], true) ? 'admin' : 'website');
             $booking = $pdo->prepare(
-                'INSERT INTO bookings (booking_number, company_id, trip_id, customer_id, agent_id, created_by_user_id, source, currency_id, subtotal_amount, total_amount, commission_amount, agent_commission_type, agent_commission_rate, company_cost_amount, company_payable_amount, platform_commission_amount, held_until)
-                 VALUES (:booking_number, :company_id, :trip_id, :customer_id, :agent_id, :created_by_user_id, :source, :currency_id, :subtotal_amount, :total_amount, :commission_amount, :agent_commission_type, :agent_commission_rate, :company_cost_amount, :company_payable_amount, :platform_commission_amount, :held_until)'
+                'INSERT INTO bookings (booking_number, company_id, trip_id, customer_id, agent_id, created_by_user_id, source, currency_id, subtotal_amount, total_amount, tax_amount, tax_rate, tax_snapshot_json, commission_amount, agent_commission_type, agent_commission_rate, company_cost_amount, company_payable_amount, platform_commission_amount, held_until)
+                 VALUES (:booking_number, :company_id, :trip_id, :customer_id, :agent_id, :created_by_user_id, :source, :currency_id, :subtotal_amount, :total_amount, :tax_amount, :tax_rate, :tax_snapshot_json, :commission_amount, :agent_commission_type, :agent_commission_rate, :company_cost_amount, :company_payable_amount, :platform_commission_amount, :held_until)'
             );
             $booking->execute([
                 'booking_number' => $bookingNumber, 'company_id' => $trip['company_id'], 'trip_id' => $tripId, 'customer_id' => $customerId,
                 'agent_id' => $agentId, 'created_by_user_id' => $actor['id'], 'source' => $source, 'currency_id' => $trip['currency_id'],
-                'subtotal_amount' => $total, 'total_amount' => $total, 'commission_amount' => $commission, 'agent_commission_type' => $commissionType, 'agent_commission_rate' => $commissionRate, 'company_cost_amount' => $companyCost, 'company_payable_amount' => $companyPayable, 'platform_commission_amount' => $platformCommission, 'held_until' => $heldUntil,
+                'subtotal_amount' => $subtotal, 'total_amount' => $grandTotal, 'tax_amount' => $taxAmount, 'tax_rate' => $taxSnapshot['tax_rate'], 'tax_snapshot_json' => json_encode($taxSnapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'commission_amount' => $commission, 'agent_commission_type' => $commissionType, 'agent_commission_rate' => $commissionRate, 'company_cost_amount' => $companyCost, 'company_payable_amount' => $companyPayable, 'platform_commission_amount' => $platformCommission, 'held_until' => $heldUntil,
             ]);
             $bookingId = (int) $pdo->lastInsertId();
             $this->insertBookingSegment($pdo, $bookingId, $segmentId, $trip);
@@ -234,7 +252,7 @@ final class BookingService
             $paymentInsert->execute([
                 'booking_id' => $bookingId,
                 'currency_id' => $trip['currency_id'],
-                'amount' => $total,
+                'amount' => $grandTotal,
                 'payment_method' => $payment['payment_method'],
                 'payment_channel' => $payment['payment_channel'],
                 'bank_id' => $payment['bank_id'],
@@ -275,6 +293,7 @@ final class BookingService
             }
             $paymentAlreadyCompleted = (string) $payment['status'] === 'completed';
             $bookingPaymentStatus = ((string) $booking['payment_status'] === 'paid' || $agentWalletCharge || $paymentAlreadyCompleted) ? 'paid' : 'pending';
+            if ($bookingPaymentStatus === 'paid') $this->invoices->issueForPayment($pdo, (int) $payment['id']);
             $update = $pdo->prepare("UPDATE bookings SET status = 'confirmed', payment_status = :payment_status, confirmed_at = NOW() WHERE id = :id");
             $update->execute(['id' => $bookingId, 'payment_status' => $bookingPaymentStatus]);
             $this->issueTickets($pdo, $booking);
@@ -334,6 +353,7 @@ final class BookingService
             if (in_array($channel, ['company', 'bank_transfer'], true)) {
                 $this->recordCompanyPayment($pdo, $booking, $payment, $actor);
             }
+            $this->invoices->issueForPayment($pdo, (int) $payment['id']);
             $ownerId = $this->bookingOwnerUserId($pdo, $booking);
             if ($ownerId !== null) {
                 $this->notifications->send($ownerId, (int) $booking['company_id'], 'payment_received', 'تم تأكيد استلام الدفع', "تم تأكيد استلام دفعة الحجز رقم {$booking['booking_number']}.", 'booking', $bookingId);
@@ -824,8 +844,13 @@ final class BookingService
     private function paymentSelection(PDO $pdo, array $input, int $currencyId): array
     {
         $channel = strtolower(trim((string) ($input['payment_channel'] ?? 'agent')));
-        if (!in_array($channel, ['agent', 'company', 'bank_transfer'], true)) {
+        if (!in_array($channel, ['agent', 'company', 'bank_transfer', 'gateway'], true)) {
             Response::error('طريقة الدفع المختارة غير صالحة.', 'VALIDATION_ERROR', 422);
+        }
+        if ($channel === 'gateway') {
+            $gatewayAvailable = (int) $pdo->query("SELECT COUNT(*) FROM payment_gateway_settings WHERE provider_code = 'moyasar' AND is_enabled = 1")->fetchColumn() > 0;
+            if (!$gatewayAvailable) Response::error('الدفع الإلكتروني غير مفعّل حاليًا.', 'PAYMENT_METHOD_DISABLED', 409);
+            return ['payment_method' => 'card', 'payment_channel' => 'gateway', 'bank_id' => null];
         }
         $settings = $this->one($pdo, 'SELECT allow_agent_payment, allow_company_payment, allow_bank_transfer FROM trip_display_settings WHERE id = 1', []) ?? ['allow_agent_payment' => 1, 'allow_company_payment' => 1, 'allow_bank_transfer' => 1];
         $settingKey = ['agent' => 'allow_agent_payment', 'company' => 'allow_company_payment', 'bank_transfer' => 'allow_bank_transfer'][$channel];
@@ -847,6 +872,27 @@ final class BookingService
             }
         }
         return ['payment_method' => $channel === 'bank_transfer' ? 'bank_transfer' : 'cash', 'payment_channel' => $channel, 'bank_id' => $bankId === false ? null : $bankId];
+    }
+
+    /** @return array{enabled:int,tax_rate:?string,tax_label_ar:?string,subtotal:string,tax_amount:string,total:string} */
+    private function taxSnapshot(PDO $pdo, string $subtotal): array
+    {
+        try {
+            $settings = $this->one($pdo, 'SELECT vat_enabled, vat_rate, tax_label_ar FROM tax_settings WHERE id = 1 LIMIT 1', []);
+        } catch (\Throwable) {
+            $settings = null;
+        }
+        $enabled = is_array($settings) && (int) ($settings['vat_enabled'] ?? 0) === 1 && $settings['vat_rate'] !== null && (float) $settings['vat_rate'] >= 0 && (float) $settings['vat_rate'] <= 100;
+        $rate = $enabled ? (float) $settings['vat_rate'] : 0.0;
+        $taxAmount = $enabled ? round((float) $subtotal * ($rate / 100), 2) : 0.0;
+        return [
+            'enabled' => $enabled ? 1 : 0,
+            'tax_rate' => $enabled ? number_format($rate, 4, '.', '') : null,
+            'tax_label_ar' => $enabled ? (string) ($settings['tax_label_ar'] ?? '') : null,
+            'subtotal' => $subtotal,
+            'tax_amount' => number_format($taxAmount, 2, '.', ''),
+            'total' => number_format((float) $subtotal + $taxAmount, 2, '.', ''),
+        ];
     }
 
     private function positiveInt(mixed $value): int

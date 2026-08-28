@@ -26,6 +26,7 @@ use App\Includes\TripDisplaySettingsService;
 use App\Includes\BankService;
 use App\Includes\CompanyFinanceService;
 use App\Includes\OtpService;
+use App\Includes\PaymentService;
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -50,6 +51,7 @@ $tripDisplaySettings = new TripDisplaySettingsService($database);
 $banks = new BankService($database);
 $companyFinance = new CompanyFinanceService($database);
 $otp = new OtpService($database);
+$payments = new PaymentService($database, $appConfig);
 
 if ($method === 'OPTIONS') {
     http_response_code(204);
@@ -252,7 +254,77 @@ if ($route === 'payment-options' && $method === 'GET') {
     Response::success('تم جلب طرق الدفع المتاحة.', [
         'settings' => $tripDisplaySettings->publicPaymentSettings(),
         'banks' => $banks->active(),
+        'gateway' => $payments->publicOptions(),
+        'tax' => $payments->publicTaxSettings(),
     ]);
+}
+
+if ($route === 'payments/webhook/moyasar' && $method === 'POST') {
+    $rawPayload = (string) file_get_contents('php://input');
+    $headers = [
+        'x-webhook-secret' => (string) ($_SERVER['HTTP_X_WEBHOOK_SECRET'] ?? ''),
+        'x-moyasar-secret' => (string) ($_SERVER['HTTP_X_MOYASAR_SECRET'] ?? ''),
+    ];
+    try {
+        Response::success('تم استلام webhook.', $payments->handleWebhook('moyasar', $rawPayload, $headers));
+    } catch (Throwable $exception) {
+        Response::error('تم رفض webhook أو تعذر معالجته.', 'WEBHOOK_REJECTED', 400);
+    }
+}
+
+if ($route === 'admin/tax-settings' && $method === 'GET') {
+    $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب إعدادات الضريبة والفوترة.', $payments->adminTaxSettings());
+}
+
+if ($route === 'admin/tax-settings' && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم حفظ إعدادات الضريبة والفوترة.', $payments->updateTaxSettings($actor, Security::jsonInput()));
+}
+
+if ($route === 'admin/payment-settings' && $method === 'GET') {
+    $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب إعدادات بوابات الدفع.', $payments->adminSettings());
+}
+
+if ($route === 'admin/payment-settings' && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم حفظ إعدادات بوابة الدفع.', $payments->updateSettings($actor, Security::jsonInput()));
+}
+
+if (preg_match('#^bookings/(\\d+)/payments/hosted$#', $route, $matches) === 1 && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requireUser();
+    Response::success('تم تجهيز صفحة الدفع الآمنة.', ['attempt' => $payments->createHostedCheckout($actor, (int) $matches[1])], 201);
+}
+
+if (preg_match('#^payments/attempts/(\\d+)$#', $route, $matches) === 1 && $method === 'GET') {
+    $actor = $auth->requireUser();
+    Response::success('تم جلب حالة محاولة الدفع.', ['attempt' => $payments->attemptStatus($actor, (int) $matches[1])]);
+}
+
+if ($route === 'payments/return' && $method === 'GET') {
+    $actor = $auth->requireUser();
+    Response::success('تم جلب حالة العودة من الدفع.', ['attempt' => $payments->attemptStatusByKey($actor, (string) ($_GET['key'] ?? ''))]);
+}
+
+if ($route === 'admin/payments' && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب سجل المدفوعات.', $payments->adminPayments($actor, (int) ($_GET['limit'] ?? 100)));
+}
+
+if ($route === 'admin/invoices' && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب الفواتير.', $payments->adminInvoices($actor, (int) ($_GET['limit'] ?? 100)));
+}
+
+if (preg_match('#^admin/payments/(\\d+)/refund$#', $route, $matches) === 1 && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    $input = Security::jsonInput();
+    Response::success('تم إرسال طلب الاسترداد.', ['refund' => $payments->refund($actor, (int) $matches[1], isset($input['amount']) ? (string) $input['amount'] : null, (string) ($input['reason'] ?? ''))], 201);
 }
 
 if ($route === 'admin/trip-display-settings' && $method === 'PUT') {

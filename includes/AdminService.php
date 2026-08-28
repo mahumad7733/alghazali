@@ -1666,6 +1666,11 @@ final class AdminService
             ['confirm_booking', 'تأكيد الحجز وإصدار التذاكر', 'bookings'],
             ['reject_booking', 'رفض أو إلغاء الحجز بسبب', 'bookings'],
             ['manage_payments', 'إدارة الدفع والمبالغ الداخلية', 'finance'],
+            ['view_payments', 'عرض سجل المدفوعات ومحاولاتها', 'finance'],
+            ['manage_payment_settings', 'إدارة إعدادات بوابات الدفع', 'finance'],
+            ['refund_payments', 'تنفيذ أو طلب استرداد المدفوعات', 'finance'],
+            ['view_invoices', 'عرض الفواتير واللقطات الضريبية', 'finance'],
+            ['manage_tax_settings', 'إدارة إعدادات الضريبة والفوترة', 'finance'],
             ['receive_payment', 'تأكيد استلام الدفع وتسجيل الحركة المالية', 'finance'],
             ['view_financial_reports', 'عرض التقارير المالية', 'finance'],
             ['view_reports', 'عرض التقارير التشغيلية', 'reports'],
@@ -1681,7 +1686,7 @@ final class AdminService
         foreach ($permissions as [$code, $name, $module]) { $permissionInsert->execute(['code' => $code, 'name_ar' => $name, 'module_code' => $module]); }
         $defaults = [
             'booking_officer' => ['view_company_bookings', 'create_booking', 'confirm_booking', 'reject_booking'],
-            'accountant' => ['view_company_bookings', 'manage_payments', 'receive_payment', 'view_financial_reports'],
+            'accountant' => ['view_company_bookings', 'manage_payments', 'view_payments', 'manage_payment_settings', 'refund_payments', 'view_invoices', 'manage_tax_settings', 'receive_payment', 'view_financial_reports'],
             'support' => ['view_company_bookings', 'view_reports'],
             'company_admin' => ['view_company_bookings', 'create_booking', 'confirm_booking', 'reject_booking', 'manage_trips', 'manage_routes', 'manage_agents', 'view_reports'],
         ];

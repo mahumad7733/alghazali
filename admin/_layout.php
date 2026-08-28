@@ -31,6 +31,8 @@ function adminPages(): array
         'agent_transactions' => ['title' => 'كشف حساب الوكيل', 'page' => 'agent_transactions', 'permissions' => ['manage_agents'], 'any' => false],
         'financial' => ['title' => 'المالية والحسابات', 'page' => 'transactions', 'permissions' => ['manage_payments'], 'any' => false],
         'company_finance' => ['title' => 'كشف حساب الشركة', 'page' => 'company_finance', 'permissions' => ['manage_payments', 'view_financial_reports'], 'any' => true],
+        'payments' => ['title' => 'المدفوعات', 'page' => 'payments', 'permissions' => ['manage_payments'], 'any' => false],
+        'payment_settings' => ['title' => 'إعدادات الدفع', 'page' => 'payment_settings', 'permissions' => ['manage_settings'], 'any' => false],
         'reports' => ['title' => 'التقارير', 'page' => 'reports', 'permissions' => ['view_reports'], 'any' => false],
         'users' => ['title' => 'المستخدمون', 'page' => 'manage', 'permissions' => ['manage_users'], 'any' => false],
         'permissions' => ['title' => 'الصلاحيات', 'page' => 'permissions', 'permissions' => ['manage_users'], 'any' => false],

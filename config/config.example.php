@@ -7,6 +7,10 @@ return [
     'environment' => 'production',
     'timezone' => 'Asia/Aden',
     'session_name' => 'rihla_session',
+    // Generate a unique 32-byte base64 key per installation; never commit the real key.
+    'security' => [
+        'encryption_key' => 'ضع_مفتاح_تشفير_32_بايت_بصيغة_base64_هنا',
+    ],
     'booking_hold_minutes' => 30,
     'database' => [
         'host' => '127.0.0.1',

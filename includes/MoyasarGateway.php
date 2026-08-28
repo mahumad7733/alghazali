@@ -36,10 +36,13 @@ final class MoyasarGateway implements PaymentGatewayInterface
             'expired_at' => (string) ($payload['expired_at'] ?? ''),
         ];
         $body = array_filter($body, static fn (mixed $value): bool => $value !== '');
-        // The invoice API documentation does not promise given_id idempotency. The
-        // PaymentService therefore deduplicates before this call and never retries an
-        // unknown invoice creation response automatically.
-        return $this->request('POST', '/invoices', $body, ['X-Rihla-Idempotency-Key: ' . $idempotencyKey]);
+        $metadata = array_filter((array) ($payload['metadata'] ?? []), static fn (mixed $value): bool => is_string($value) && $value !== '');
+        if ($metadata !== []) $body['metadata'] = $metadata;
+        // Moyasar documents given_id for payment creation, not as a guaranteed
+        // idempotency field for hosted invoices. Local PaymentService deduplication
+        // is therefore authoritative and this method never retries an unknown result.
+        return $this->request('POST', '/invoices', $body);
+
     }
 
     public function fetchPayment(string $providerPaymentId): array

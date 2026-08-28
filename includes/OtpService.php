@@ -21,16 +21,18 @@ final class OtpService
     public function publicSettings(): array
     {
         $settings = $this->loadSettings();
+        $provider = $this->loadProviderSettings();
+        $enabled = (int) $settings['enabled'] === 1;
         return [
-            'enabled' => (int) $settings['enabled'],
+            'enabled' => $enabled ? 1 : 0,
             'code_length' => (int) $settings['code_length'],
             'ttl_minutes' => (int) $settings['ttl_minutes'],
             'resend_after_seconds' => (int) $settings['resend_after_seconds'],
             'max_attempts' => (int) $settings['max_attempts'],
             'channels' => [
-                'whatsapp' => (int) $settings['whatsapp_enabled'],
-                'sms' => (int) $settings['sms_enabled'],
-                'email' => (int) $settings['email_enabled'],
+                'whatsapp' => $enabled && (int) $settings['whatsapp_enabled'] === 1 && $this->channelConfigured('whatsapp', $provider) ? 1 : 0,
+                'sms' => $enabled && (int) $settings['sms_enabled'] === 1 && $this->channelConfigured('sms', $provider) ? 1 : 0,
+                'email' => $enabled && (int) $settings['email_enabled'] === 1 && $this->channelConfigured('email', $provider) ? 1 : 0,
             ],
         ];
     }
@@ -44,6 +46,7 @@ final class OtpService
             $provider[$secret . '_configured'] = trim((string) ($provider[$secret] ?? '')) !== '' ? 1 : 0;
             unset($provider[$secret]);
         }
+        foreach (self::CHANNELS as $channel) $provider[$channel . '_ready'] = $this->channelConfigured($channel, $this->loadProviderSettings()) ? 1 : 0;
         return ['general' => $settings, 'providers' => $provider];
     }
 
@@ -103,11 +106,12 @@ final class OtpService
         $settings = $this->loadSettings();
         if ((int) $settings['enabled'] !== 1) return [];
         $available = [];
+        $provider = $this->loadProviderSettings();
         if ($phone !== null && $this->normalizePhone($phone) !== null) {
-            if ((int) $settings['whatsapp_enabled'] === 1) $available[] = ['channel' => 'whatsapp', 'label' => 'واتساب'];
-            if ((int) $settings['sms_enabled'] === 1) $available[] = ['channel' => 'sms', 'label' => 'رسالة نصية'];
+            if ((int) $settings['whatsapp_enabled'] === 1 && $this->channelConfigured('whatsapp', $provider)) $available[] = ['channel' => 'whatsapp', 'label' => 'واتساب'];
+            if ((int) $settings['sms_enabled'] === 1 && $this->channelConfigured('sms', $provider)) $available[] = ['channel' => 'sms', 'label' => 'رسالة نصية'];
         }
-        if ($email !== null && filter_var(trim($email), FILTER_VALIDATE_EMAIL) !== false && (int) $settings['email_enabled'] === 1) {
+        if ($email !== null && filter_var(trim($email), FILTER_VALIDATE_EMAIL) !== false && (int) $settings['email_enabled'] === 1 && $this->channelConfigured('email', $provider)) {
             $available[] = ['channel' => 'email', 'label' => 'البريد الإلكتروني'];
         }
         return $available;
@@ -341,6 +345,25 @@ final class OtpService
     }
 
     /** @param array<string,mixed> $provider */
+    private function channelConfigured(string $channel, array $provider): bool
+    {
+        if ($channel === 'email') {
+            $from = filter_var((string) ($provider['from_email'] ?? ''), FILTER_VALIDATE_EMAIL);
+            $host = trim((string) ($provider['smtp_host'] ?? ''));
+            $password = trim((string) ($provider['smtp_password'] ?? ''));
+            return $from !== false && ($host === '' || ($password !== '' || trim((string) ($provider['smtp_username'] ?? '')) === ''));
+        }
+        $kind = $channel === 'sms' ? 'sms' : 'whatsapp';
+        $url = trim((string) ($provider[$kind . '_api_url'] ?? ''));
+        $token = trim((string) ($provider[$channel === 'sms' ? 'sms_api_key' : 'whatsapp_api_token'] ?? ''));
+        if ($url === '' || $token === '' || trim((string) ($provider[$kind . '_provider'] ?? '')) === '') return false;
+        if ($kind === 'whatsapp' && strtolower(trim((string) ($provider['whatsapp_provider'] ?? ''))) === 'meta') {
+            return trim((string) ($provider['whatsapp_phone_number_id'] ?? '')) !== '';
+        }
+        return true;
+    }
+
+    /** @param array<string,mixed> $provider */
     private function sendHttpProvider(array $provider, string $kind, string $destination, string $message, string $code): void
     {
         $url = trim((string) ($provider[$kind . '_api_url'] ?? ''));
@@ -391,8 +414,17 @@ final class OtpService
     private function nullableUrl(mixed $value): ?string { $value = trim((string) $value); if ($value === '') return null; if (!filter_var($value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $value)) Response::error('رابط مزود الإرسال غير صالح.', 'VALIDATION_ERROR', 422); return mb_substr($value, 0, 500); }
     private function maskDestination(string $value, string $channel): string { if ($channel === 'email') { [$name, $domain] = array_pad(explode('@', $value, 2), 2, ''); return mb_substr($name, 0, 2) . '•••@' . $domain; } return mb_substr($value, 0, 4) . '••••' . mb_substr($value, -2); }
     private function encryptionKey(): string { global $appConfig; return hash('sha256', (string) ($appConfig['otp_encryption_key'] ?? (($appConfig['session_name'] ?? 'rihla') . '|' . ($appConfig['app_url'] ?? '') . '|' . ($appConfig['database']['name'] ?? ''))), true); }
-    private function encryptSecret(string $value): string { $iv = random_bytes(16); $cipher = openssl_encrypt($value, 'AES-256-CBC', $this->encryptionKey(), OPENSSL_RAW_DATA, $iv); return base64_encode($iv . ($cipher === false ? '' : $cipher)); }
-    private function decryptSecret(string $value): string { if ($value === '') return ''; $raw = base64_decode($value, true); if ($raw === false || strlen($raw) < 17) return ''; $plain = openssl_decrypt(substr($raw, 16), 'AES-256-CBC', $this->encryptionKey(), OPENSSL_RAW_DATA, substr($raw, 0, 16)); return $plain === false ? '' : $plain; }
+    private function encryptSecret(string $value): string { return SecretVault::encrypt($value); }
+    private function decryptSecret(string $value): string
+    {
+        if ($value === '') return '';
+        if (str_starts_with($value, 'v1:')) return SecretVault::decrypt($value);
+        // Backward-compatible read path for legacy CBC values; new writes use GCM.
+        $raw = base64_decode($value, true);
+        if ($raw === false || strlen($raw) < 17) return '';
+        $plain = openssl_decrypt(substr($raw, 16), 'AES-256-CBC', $this->encryptionKey(), OPENSSL_RAW_DATA, substr($raw, 0, 16));
+        return $plain === false ? '' : $plain;
+    }
     /** @return array<string,mixed> */ private function loadSettings(): array { $row = $this->one($this->database->pdo(), 'SELECT * FROM otp_settings WHERE id = 1', []); return $row ?: ['id'=>1,'enabled'=>0,'code_length'=>6,'ttl_minutes'=>5,'resend_after_seconds'=>60,'max_attempts'=>5,'max_sends_per_hour'=>5,'max_sends_per_day'=>20,'whatsapp_enabled'=>0,'sms_enabled'=>0,'email_enabled'=>1]; }
     /** @return array<string,mixed> */ private function loadProviderSettings(bool $decrypt = false): array { $row = $this->one($this->database->pdo(), 'SELECT * FROM otp_provider_settings WHERE id = 1', []) ?: ['id'=>1]; if ($decrypt) foreach (['whatsapp_api_token','sms_api_key','smtp_password'] as $key) $row[$key] = $this->decryptSecret((string) ($row[$key] ?? '')); return $row; }
     /** @return array<string,mixed>|null */ private function one(PDO $pdo, string $sql, array $params): ?array { $statement = $pdo->prepare($sql); $statement->execute($params); $row = $statement->fetch(); return is_array($row) ? $row : null; }

@@ -24,12 +24,16 @@ final class PaymentService
     {
         try {
             $pdo = $this->database->pdo();
-            $items = $pdo->query("SELECT provider_code, environment, display_name_ar, is_enabled, public_key, config_json FROM payment_gateway_settings WHERE is_enabled = 1 ORDER BY provider_code, environment")->fetchAll();
+            $environment = strtolower((string) ($this->appConfig['environment'] ?? 'production')) === 'production' ? 'live' : 'sandbox';
+            $statement = $pdo->prepare("SELECT provider_code, environment, display_name_ar, is_enabled, public_key, secret_ciphertext, webhook_secret_ciphertext, config_json FROM payment_gateway_settings WHERE is_enabled = 1 AND environment = :environment ORDER BY provider_code");
+            $statement->execute(['environment' => $environment]);
+            $items = $statement->fetchAll();
         } catch (\Throwable) {
             return ['providers' => []];
         }
         $providers = [];
         foreach ($items as $row) {
+            if ((string) ($row['provider_code'] ?? '') === 'moyasar' && !$this->gateway($row)->isConfigured()) continue;
             $config = json_decode((string) ($row['config_json'] ?? ''), true);
             $config = is_array($config) ? $config : [];
             $providers[] = [
@@ -191,6 +195,11 @@ final class PaymentService
                 'success_url' => $appUrl . '/customer.php?payment_return=' . rawurlencode($idempotencyKey),
                 'back_url' => $appUrl . '/customer.php?payment_cancelled=1',
                 'expired_at' => (new \DateTimeImmutable((string) $booking['held_until']))->format(DATE_ATOM),
+                'metadata' => [
+                    'rihla_attempt_id' => (string) $attemptId,
+                    'rihla_booking_id' => (string) $bookingId,
+                    'rihla_idempotency_key' => $idempotencyKey,
+                ],
             ], $idempotencyKey);
             $invoiceId = trim((string) ($response['id'] ?? ''));
             $checkoutUrl = trim((string) ($response['url'] ?? ''));
@@ -225,9 +234,13 @@ final class PaymentService
     /** @return array<string,mixed> */
     public function handleWebhook(string $providerCode, string $rawPayload, array $headers = []): array
     {
-        $settings = $this->activeSettingsForProvider($providerCode, 'sandbox');
-        if ($settings === null) $settings = $this->activeSettingsForProvider($providerCode, 'live');
-        if ($settings === null) throw new RuntimeException('بوابة webhook غير مفعلة.');
+        $wirePayload = json_decode($rawPayload, true);
+        if (!is_array($wirePayload) || !array_key_exists('live', $wirePayload) || !is_bool($wirePayload['live'])) {
+            throw new RuntimeException('حمولة webhook لا تحتوي بيئة live صالحة.');
+        }
+        $environment = $wirePayload['live'] ? 'live' : 'sandbox';
+        $settings = $this->activeSettingsForProvider($providerCode, $environment);
+        if ($settings === null) throw new RuntimeException('بوابة webhook غير مفعلة لهذه البيئة.');
         $gateway = $this->gateway($settings);
         $parsed = $gateway->parseWebhook($rawPayload, $headers);
         $pdo = $this->database->pdo();
@@ -376,7 +389,7 @@ final class PaymentService
             $update->execute(['channel' => $provider, 'provider' => $provider, 'environment' => $environment, 'invoice_id' => $invoiceId, 'provider_status' => (string) ($response['status'] ?? 'initiated'), 'currency_code' => (string) $booking['currency_code'], 'metadata' => $this->safeJson($response), 'id' => (int) $bookingPayment['id']]);
             return (int) $bookingPayment['id'];
         }
-        $stmt = $pdo->prepare("INSERT INTO payments (booking_id, currency_id, amount, payment_method, payment_channel, gateway_provider, gateway_environment, provider_invoice_id, provider_status, status, internal_state, provider_currency_code, metadata_json) VALUES (:booking_id, :currency_id, :amount, 'card', :channel, :provider, :invoice_id, :provider_status, 'pending', 'initiated', :currency_code, :metadata)");
+        $stmt = $pdo->prepare("INSERT INTO payments (booking_id, currency_id, amount, payment_method, payment_channel, gateway_provider, gateway_environment, provider_invoice_id, provider_status, status, internal_state, provider_currency_code, metadata_json) VALUES (:booking_id, :currency_id, :amount, 'card', :channel, :provider, :environment, :invoice_id, :provider_status, 'pending', 'initiated', :currency_code, :metadata)");
         $stmt->execute(['booking_id' => (int) $booking['id'], 'currency_id' => (int) $booking['currency_id'], 'amount' => $booking['total_amount'], 'channel' => $provider, 'provider' => $provider, 'environment' => $environment, 'invoice_id' => $invoiceId, 'provider_status' => (string) ($response['status'] ?? 'initiated'), 'currency_code' => (string) $booking['currency_code'], 'metadata' => $this->safeJson($response)]);
         return (int) $pdo->lastInsertId();
     }

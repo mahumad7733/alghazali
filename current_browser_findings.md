@@ -297,3 +297,7 @@
 - Local `/admin/payment_settings.php` rendered inside the existing RTL admin shell. The sidebar exposed `المدفوعات` and `إعدادات الدفع`; Moyasar sandbox was visibly disabled by default, secret inputs were password fields, and the page warned that server encryption was not configured.
 - Local `/admin/payments.php` rendered the existing manual payment rows without changing their amounts or methods. Legacy YER rows remained visible, provider identifiers were empty, and refund controls were disabled for rows without an external provider ID.
 - No live provider credentials, payment, refund, or production data were created during this browser check.
+
+## Saudi deployment smoke check — 28 Aug 2026
+- The safe Saudi payment/VAT files were uploaded through FTP without reported upload failures.
+- A post-upload public smoke check resolved `rihla.kesug.com` to an IP, but both HTTP and HTTPS requests timed out from the sandbox before returning a response. This is recorded as an external hosting availability check failure, not as a PHP/application failure; local health, cities, trips/upcoming, payment-options, lint, migration idempotency, webhook unit, VAT transactional, and invoice rollback tests passed.

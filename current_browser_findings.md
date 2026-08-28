@@ -301,3 +301,20 @@
 ## Saudi deployment smoke check — 28 Aug 2026
 - The safe Saudi payment/VAT files were uploaded through FTP without reported upload failures.
 - A post-upload public smoke check resolved `rihla.kesug.com` to an IP, but both HTTP and HTTPS requests timed out from the sandbox before returning a response. This is recorded as an external hosting availability check failure, not as a PHP/application failure; local health, cities, trips/upcoming, payment-options, lint, migration idempotency, webhook unit, VAT transactional, and invoice rollback tests passed.
+
+## Developer Center public page — 28 Aug 2026
+- The correct local Chrome URL is `/developers.php` from the PHP server document root; `/rihla_app/developers.php` is not a valid path for this local DocumentRoot and returned 404.
+- `/developers.php` rendered successfully with Arabic RTL, the existing public header/footer, navigation link, actual Base URL derived from the current origin, API operation table, authentication, booking, seats, webhook boundary, code examples, errors, security, and activation CTA.
+- The page was visually inspected in the browser with the existing dark theme state; no JavaScript or PHP runtime error appeared in the rendered page.
+
+## Developer Center recheck — 28 Aug 2026
+- Reopened `/developers.php` after extracting the renderer to `assets/js/developer-center.js`; the page loaded with the same Arabic RTL header/footer and no visible PHP or JavaScript error.
+- The browser text confirmed the real public route table, Bearer/CSRF boundary, booking payload fields, seat endpoint, internal Moyasar payment webhook boundary, four language examples, error codes, security section, unavailable-company-API notice, and activation CTA.
+- Scrolling to the lower portion showed the code examples and error/security tables within the responsive documentation sections.
+
+## Read-only API flow check — 28 Aug 2026
+- Public `health` returned HTTP 200 and success=true.
+- Missing parameters on `trips/search` returned HTTP 422 with `VALIDATION_ERROR`.
+- `bookings` GET and `admin/operations` GET without a session returned HTTP 401 with `UNAUTHORIZED`.
+- `trips/1/seats` without `segment_id` returned HTTP 422 with `VALIDATION_ERROR`.
+- No booking, payment, customer, agent, route, trip, or other database row was created or modified in this check.

@@ -27,6 +27,9 @@ use App\Includes\BankService;
 use App\Includes\CompanyFinanceService;
 use App\Includes\OtpService;
 use App\Includes\PaymentService;
+use App\Includes\LanguageService;
+use App\Includes\TranslationAdminService;
+use App\Includes\PublicPageSettingsService;
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -52,10 +55,68 @@ $banks = new BankService($database);
 $companyFinance = new CompanyFinanceService($database);
 $otp = new OtpService($database);
 $payments = new PaymentService($database, $appConfig);
+$languageService = $GLOBALS['languageService'] instanceof LanguageService ? $GLOBALS['languageService'] : new LanguageService($database);
+$translationAdmin = new TranslationAdminService($database);
+$pageSettings = new PublicPageSettingsService($database);
 
 if ($method === 'OPTIONS') {
     http_response_code(204);
     exit;
+}
+
+if ($route === 'language/context' && $method === 'GET') {
+    Response::success('تم جلب سياق اللغة.', [
+        'language' => $languageService->context(),
+        'translations' => $languageService->translationsForClient(['common.close', 'common.save', 'common.cancel', 'common.loading', 'common.search', 'common.language', 'nav.home', 'nav.bookings', 'nav.trips', 'auth.login', 'auth.register', 'booking.confirm', 'booking.cancel']),
+    ]);
+}
+
+if ($route === 'language/set' && $method === 'POST') {
+    Security::assertCsrf();
+    $input = Security::jsonInput();
+    $actor = $auth->currentUser();
+    try {
+        $selected = $languageService->setLanguage((string) ($input['code'] ?? ''), $actor !== null ? (int) $actor['id'] : null);
+        Response::success('تم تغيير اللغة.', ['language' => $selected, 'context' => $languageService->context()]);
+    } catch (\InvalidArgumentException $exception) {
+        Response::error($exception->getMessage(), 'VALIDATION_ERROR', 422);
+    }
+}
+
+if ($route === 'admin/languages' && $method === 'GET') {
+    $auth->requirePermissions(['languages.view']);
+    try { Response::success('تم جلب اللغات.', ['items' => $translationAdmin->languages()]); }
+    catch (\Throwable $exception) { Response::error($exception->getMessage(), 'LANGUAGE_SCHEMA_NOT_READY', 503); }
+}
+
+if ($route === 'admin/languages' && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['languages.create']);
+    try { Response::success('تمت إضافة اللغة.', ['language' => $translationAdmin->createLanguage(Security::jsonInput())], 201); }
+    catch (\InvalidArgumentException $exception) { Response::error($exception->getMessage(), 'VALIDATION_ERROR', 422); }
+    catch (\PDOException $exception) { Response::error('تعذر حفظ اللغة؛ قد يكون الكود مستخدمًا.', 'LANGUAGE_CONFLICT', 409); }
+}
+
+if (preg_match('#^admin/languages/(\d+)$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['languages.update']);
+    try { Response::success('تم تعديل اللغة.', ['language' => $translationAdmin->updateLanguage((int) $matches[1], Security::jsonInput())]); }
+    catch (\InvalidArgumentException $exception) { Response::error($exception->getMessage(), 'VALIDATION_ERROR', 422); }
+    catch (\PDOException $exception) { Response::error('تعذر حفظ اللغة؛ قد يكون الكود مستخدمًا.', 'LANGUAGE_CONFLICT', 409); }
+}
+
+if ($route === 'admin/translations' && $method === 'GET') {
+    $auth->requirePermissions(['translations.view']);
+    try { Response::success('تم جلب الترجمة المركزية.', $translationAdmin->translationCatalog((string) ($_GET['search'] ?? ''), (int) ($_GET['limit'] ?? 250))); }
+    catch (\Throwable $exception) { Response::error($exception->getMessage(), 'LANGUAGE_SCHEMA_NOT_READY', 503); }
+}
+
+if (preg_match('#^admin/translations/(\d+)$#', $route, $matches) === 1 && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['translations.update']);
+    $input = Security::jsonInput();
+    try { Response::success('تم حفظ الترجمة.', ['translation' => $translationAdmin->updateTranslation((int) $matches[1], (int) ($input['language_id'] ?? 0), (string) ($input['value'] ?? ''), (int) $actor['id'])]); }
+    catch (\InvalidArgumentException $exception) { Response::error($exception->getMessage(), 'VALIDATION_ERROR', 422); }
 }
 
 if ($route === 'health' && $method === 'GET') {
@@ -227,7 +288,24 @@ if ($route === 'contact-channels' && $method === 'GET') {
 }
 
 if ($route === 'site-settings' && $method === 'GET') {
-    Response::success('تم جلب إعدادات الموقع.', ['settings' => $siteSettings->publicSettings()]);
+    Response::success('تم جلب إعدادات الموقع.', ['settings' => $siteSettings->publicSettings(), 'pages' => $pageSettings->publicPages()]);
+}
+
+if ($route === 'public-page-settings' && $method === 'GET') {
+    $key = trim((string) ($_GET['page'] ?? ''));
+    $pages = $pageSettings->publicPages();
+    Response::success('تم جلب إعداد الصفحة العامة.', ['page' => $pages[$key] ?? null]);
+}
+
+if ($route === 'admin/public-page-settings' && $method === 'GET') {
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم جلب إعدادات الصفحات العامة.', ['pages' => $pageSettings->adminPages($actor)]);
+}
+
+if (preg_match('#^admin/public-page-settings/([a-z-]+)$#', $route, $matches) && $method === 'PUT') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['manage_settings']);
+    Response::success('تم حفظ إعداد الصفحة العامة.', ['page' => $pageSettings->update($actor, $matches[1], Security::jsonInput())]);
 }
 
 if ($route === 'admin/site-settings' && $method === 'GET') {

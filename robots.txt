@@ -12,3 +12,4 @@ Disallow: /logout.php
 Disallow: /bookings.php
 
 Sitemap: https://rihla.kesug.com/sitemap.xml
+Sitemap: https://rihla.kesug.com/sitemap.txt

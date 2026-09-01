@@ -12,6 +12,22 @@ $languageCode = (string) ($languageContext['code'] ?? 'ar');
 $languageDirection = (string) ($languageContext['direction'] ?? 'rtl');
 $bootstrapCss = (string) ($languageContext['bootstrap_css'] ?? 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css');
 $iconPath = (string) ($siteSettings['icon_path'] ?? '');
+$seoDescriptions = [
+    '' => 'احجز رحلات الباصات بين المدن بسهولة وأمان مع منصة رِحلة. ابحث عن الرحلة، اختر مقعدك، وتابع حجزك من حسابك.',
+    'about' => 'تعرف على منصة رِحلة، المنصة الرقمية التي تساعد المسافرين على البحث عن رحلات الباصات وإرسال طلبات الحجز بسهولة.',
+    'contact' => 'تواصل مع فريق منصة رِحلة للحصول على المساعدة والاستفسارات المتعلقة بالرحلات والحجوزات.',
+    'privacy' => 'اطلع على سياسة الخصوصية في منصة رِحلة وكيفية التعامل مع بيانات الحساب والحجز.',
+    'developers' => 'مركز مطوري منصة رِحلة: تعرف على طريقة التكامل مع واجهة API وقواعد الأمان والصلاحيات.',
+    'bookings' => 'تابع حجوزاتك وتذاكرك وحالة الدفع من حسابك في منصة رِحلة.',
+];
+$seoPath = $publicPage === '' ? '/' : $publicPage . '.php';
+$seoTags = \App\Includes\Seo::tags([
+    'site_name' => (string) ($siteSettings['site_name'] ?? 'منصة رِحلة'),
+    'title' => $pageTitle,
+    'description' => $seoDescriptions[$publicPage] ?? $seoDescriptions[''],
+    'path' => $seoPath,
+    'page_type' => $publicPage === '' ? 'home' : 'public',
+]);
 $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $iconPath) === 1 ? Security::escape($iconPath) . '?v=' . rawurlencode((string) time()) : '';
 ?><!doctype html>
 <html lang="<?= Security::escape($languageCode) ?>" dir="<?= Security::escape($languageDirection) ?>">
@@ -20,6 +36,7 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= Security::escape(Security::csrfToken()) ?>">
   <title><?= Security::escape($pageTitle) ?></title>
+  <?= $seoTags ?>
   <?php if ($iconHref !== ''): ?><link rel="icon" type="image/png" href="<?= $iconHref ?>"><?php endif; ?>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,7 +47,7 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <link rel="stylesheet" href="assets/css/public-template.css?v=20260828-53">
 </head>
 <body class="customer-page" data-language-code="<?= Security::escape($languageCode) ?>" data-language-direction="<?= Security::escape($languageDirection) ?>">
-  <main id="app" data-role="customer" data-public-page="<?= Security::escape($publicPage) ?>"><section class="card login-gate" aria-live="polite"><h1>منصة رحلتي</h1><p class="muted">جاري تحميل واجهة الحجز...</p></section></main>
+  <main id="app" data-role="customer" data-public-page="<?= Security::escape($publicPage) ?>"><section class="card login-gate" aria-live="polite"><h1>منصة رِحلة</h1><p class="muted">جاري تحميل واجهة الحجز...</p><noscript><p>منصة رِحلة لحجز رحلات الباصات بين المدن. فعّل JavaScript لعرض الرحلات واختيار المقاعد وإكمال الحجز.</p></noscript></section></main>
   <script src="assets/js/qrcode.min.js?v=1" defer></script>
   <script src="assets/js/trip-sort.js?v=20260824-1" defer></script>
   <script src="assets/js/developer-center.js?v=20260828-1" defer></script>

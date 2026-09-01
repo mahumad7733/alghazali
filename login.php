@@ -23,6 +23,13 @@ $languageCode = (string) ($languageContext['code'] ?? 'ar');
 $languageDirection = (string) ($languageContext['direction'] ?? 'rtl');
 $bootstrapCss = (string) ($languageContext['bootstrap_css'] ?? 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css');
 $logoPath = (string) ($siteSettings['logo_path'] ?? '');
+$seoTags = \App\Includes\Seo::tags([
+    'site_name' => $siteName,
+    'title' => 'تسجيل الدخول | منصة رِحلة',
+    'description' => 'سجل الدخول إلى حسابك في منصة رِحلة لمتابعة الحجوزات والتذاكر.',
+    'path' => 'login.php',
+    'robots' => 'noindex,nofollow,noarchive',
+]);
 $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $logoPath) === 1 ? Security::escape($logoPath) . '?v=' . rawurlencode((string) time()) : '';
 ?><!doctype html>
 <html lang="<?= Security::escape($languageCode) ?>" dir="<?= Security::escape($languageDirection) ?>">
@@ -31,7 +38,8 @@ $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $log
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= Security::escape(Security::csrfToken()) ?>">
   <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <title>تسجيل الدخول | منصة حجوزات الباصات</title>
+  <title>تسجيل الدخول | منصة رِحلة</title>
+  <?= $seoTags ?>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">

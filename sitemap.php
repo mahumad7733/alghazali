@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 header('Content-Type: application/xml; charset=UTF-8');
+header('X-Robots-Tag: noindex');
 header('Cache-Control: public, max-age=3600');
 
 $urls = [
@@ -12,9 +13,17 @@ $urls = [
     ['loc' => 'https://rihla.kesug.com/developers.php', 'priority' => '0.5'],
 ];
 
-echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+$xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+];
 foreach ($urls as $item) {
-    echo '<url><loc>' . htmlspecialchars($item['loc'], ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc><changefreq>weekly</changefreq><priority>' . $item['priority'] . '</priority></url>';
+    $xml[] = '  <url>';
+    $xml[] = '    <loc>' . htmlspecialchars($item['loc'], ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc>';
+    $xml[] = '    <changefreq>weekly</changefreq>';
+    $xml[] = '    <priority>' . $item['priority'] . '</priority>';
+    $xml[] = '  </url>';
 }
-echo '</urlset>';
+$xml[] = '</urlset>';
+
+echo implode("\n", $xml) . "\n";

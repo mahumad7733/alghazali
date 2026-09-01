@@ -41,3 +41,14 @@ session_start();
 
 /** @var Database $database */
 $database = require APP_ROOT . '/config/database.php';
+
+/** @var \App\Includes\LanguageService $languageService */
+$languageService = new \App\Includes\LanguageService($database);
+if (!function_exists('__')) {
+    /** @param array<string, scalar> $replace */
+    function __(string $key, ?string $fallback = null, array $replace = []): string
+    {
+        global $languageService;
+        return $languageService->translate($key, $fallback, $replace);
+    }
+}

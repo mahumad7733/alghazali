@@ -184,3 +184,138 @@
 .public-managed-copy{margin:18px 0;padding:18px 20px;border:1px solid var(--border,#dce6ef);border-radius:16px;background:#fff;line-height:2;white-space:pre-line}.public-managed-copy h2{margin:0 0 8px;color:var(--primary,#174a7e);font-size:1.08rem}.public-managed-copy p{margin:0;color:var(--text-muted,#668096)}
 @media(max-width:700px){.developer-center .developer-card>i,.developer-center .developer-callout>i{width:42px;height:42px;font-size:1.1rem}.developer-center .developer-section-head{align-items:flex-start;flex-direction:column;gap:6px}.developer-center pre{font-size:.7rem}.developer-center .developer-note{font-size:.8rem}.public-managed-copy{padding:15px;font-size:.88rem}}
 @media(prefers-reduced-motion:no-preference){.developer-center .developer-card>i{transition:transform .18s ease}.developer-center .developer-card:hover>i{transform:translateY(-2px) scale(1.03)}}
+
+/* Mobile language selector: keep language switching inside the side drawer. */
+@media (max-width: 760px) {
+  .public-mobile-links .rihla-language-switcher {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    justify-content: space-between;
+    border: 1px solid var(--pub-n200, #dce6ef);
+    border-radius: 12px;
+    background: var(--pub-card, #fff);
+  }
+  .public-mobile-links .rihla-language-switcher select {
+    flex: 1;
+    max-width: none;
+    min-height: 32px;
+    color: inherit;
+  }
+  .public-header-actions > .rihla-language-switcher,
+  .public-header > .rihla-language-switcher {
+    display: none !important;
+  }
+}
+@media (min-width: 761px) {
+  .public-mobile-links > .rihla-language-switcher {
+    display: none !important;
+  }
+}
+
+/* Stable mobile shell and account actions. */
+@media (max-width: 700px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .rihla-public .site-header { position: sticky; top: 0; z-index: 120; }
+  .rihla-public .nav-container { min-height: 62px; padding: 10px 12px; gap: 6px; }
+  .rihla-public .public-header-actions { min-width: 0; gap: 5px; }
+  .rihla-public .brand { min-width: 0; flex: 1 1 auto; }
+  .rihla-public .brand-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rihla-public .public-mobile-drawer { width: min(88vw, 360px); max-width: calc(100vw - 18px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .rihla-public .public-mobile-drawer-head { min-height: 72px; padding: 14px 16px; }
+  .rihla-public .public-mobile-links { display: flex; flex-direction: column; gap: 2px; padding: 10px 0 4px; }
+  .rihla-public .public-mobile-link,
+  .rihla-public .public-mobile-account-button { min-height: 48px; margin: 4px 10px; padding: 12px 13px; }
+  .rihla-public .public-mobile-link span,
+  .rihla-public .public-mobile-account-button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rihla-public .public-mobile-account { margin-top: 8px; padding: 0 0 12px; border-top: 1px solid var(--pub-n100); }
+  .rihla-public .public-mobile-account-button { width: calc(100% - 20px); justify-content: flex-start; background: var(--pub-n50); }
+}
+
+/* Refined language control for desktop and mobile. */
+.rihla-public .rihla-language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 5px 10px;
+  border: 1px solid var(--pub-n200, #dbe5ee);
+  border-radius: 12px;
+  background: rgba(255,255,255,.96);
+  color: var(--pub-n700, #334155);
+  box-shadow: 0 3px 10px rgba(15,23,42,.08);
+  font-size: .8rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.rihla-public .rihla-language-switcher:hover { border-color: var(--pub-primary-light, #3b82f6); box-shadow: 0 5px 14px rgba(29,78,216,.16); }
+.rihla-public .rihla-language-switcher:focus-within { outline: 3px solid rgba(59,130,246,.22); outline-offset: 2px; }
+.rihla-public .rihla-language-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--pub-soft, #eff6ff); color: var(--pub-primary, #1d4ed8); font-size: .78rem; }
+.rihla-public .rihla-language-switcher select { min-width: 92px; min-height: 29px; padding: 2px 20px 2px 4px; border: 0; outline: 0; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
+.public-dark .rihla-public .rihla-language-switcher { border-color: #38536a; background: #142b3d; color: #e5f0f7; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+.public-dark .rihla-public .rihla-language-icon { background: #1b4663; color: #a9ddf8; }
+@media (max-width: 760px) {
+  .rihla-public .public-mobile-links .rihla-language-switcher { order: -1; min-height: 52px; margin: 3px 10px 9px; padding: 8px 12px; border-radius: 14px; box-shadow: 0 4px 12px rgba(15,23,42,.08); }
+  .rihla-public .public-mobile-links .rihla-language-switcher select { min-height: 34px; font-size: .88rem; }
+  .rihla-public .public-mobile-links .rihla-language-icon { width: 30px; height: 30px; }
+}
+
+/* Compact language control: symbol + flag/code only. */
+.rihla-public .rihla-language-switcher {
+  min-width: 72px;
+  width: 72px;
+  min-height: 34px;
+  height: 34px;
+  gap: 4px;
+  padding: 3px 5px;
+  border-radius: 10px;
+  font-size: .72rem;
+}
+.rihla-public .rihla-language-icon { width: 21px; height: 21px; border-radius: 6px; font-size: .68rem; }
+.rihla-public .rihla-language-switcher select { min-width: 40px; width: 40px; height: 25px; padding: 0 1px; font-size: .7rem; }
+@media (max-width: 760px) {
+  .rihla-public .public-mobile-links .rihla-language-switcher { width: 72px; min-width: 72px; min-height: 34px; height: 34px; margin: 4px 10px 8px; padding: 3px 5px; align-self: flex-start; }
+  .rihla-public .public-mobile-links .rihla-language-icon { width: 21px; height: 21px; }
+  .rihla-public .public-mobile-links .rihla-language-switcher select { min-width: 40px; width: 40px; min-height: 25px; height: 25px; font-size: .7rem; }
+}
+
+/* Reliable moon/sun icons on mobile and desktop. */
+.rihla-public .public-theme-toggle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--pub-n200, #dbe5ee);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--pub-primary, #1d4ed8);
+  line-height: 1;
+  cursor: pointer;
+}
+.rihla-public .public-theme-toggle i { display: block; width: 22px; height: 22px; font-size: 21px; line-height: 22px; font-style: normal; }
+.rihla-public .public-theme-toggle .bi-moon-stars-fill::before,
+.rihla-public .public-theme-toggle .bi-moon-stars::before { content: "☾" !important; }
+.rihla-public .public-theme-toggle .bi-sun-fill::before,
+.rihla-public .public-theme-toggle .bi-sun::before { content: "☀" !important; }
+.public-dark .rihla-public .public-theme-toggle { border-color: #3c5870; background: #162d43; color: #f6c65b; }
+@media (max-width: 700px) {
+  .rihla-public .public-theme-toggle { width: 38px; min-width: 38px; height: 38px; min-height: 38px; border-radius: 10px; }
+  .rihla-public .public-theme-toggle i { width: 21px; height: 21px; font-size: 20px; line-height: 21px; }
+}
+
+/* Mobile account drawer language placement: never show language in site header. */
+@media (max-width: 760px) {
+  .rihla-public .public-header-actions > .rihla-language-switcher,
+  .rihla-public .public-header > .rihla-language-switcher,
+  .rihla-public .site-header .nav-container > .rihla-language-switcher { display: none !important; }
+  .rihla-public .public-mobile-account { display: flex !important; flex-direction: column !important; gap: 8px !important; }
+  .rihla-public .public-mobile-account .rihla-language-switcher { order: 2 !important; display: flex !important; width: 100% !important; min-width: 0 !important; height: 38px !important; min-height: 38px !important; margin: 0 !important; padding: 4px 9px !important; justify-content: flex-start !important; border-radius: 10px !important; }
+  .rihla-public .public-mobile-account .rihla-language-switcher select { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; height: 27px !important; }
+  .rihla-public .public-mobile-account .public-mobile-account-button { order: 1 !important; width: 100% !important; }
+}

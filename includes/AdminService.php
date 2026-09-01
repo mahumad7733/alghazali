@@ -1681,6 +1681,12 @@ final class AdminService
             ['manage_buses', 'إدارة الباصات', 'buses'],
             ['manage_countries', 'إدارة الدول والمدن', 'references'],
             ['manage_settings', 'إدارة الإعدادات والبيانات المرجعية', 'settings'],
+            ['languages.view', 'عرض إدارة اللغات', 'languages'],
+            ['languages.create', 'إضافة لغة', 'languages'],
+            ['languages.update', 'تعديل اللغات', 'languages'],
+            ['languages.delete', 'تعطيل اللغات', 'languages'],
+            ['translations.view', 'عرض الترجمة المركزية', 'translations'],
+            ['translations.update', 'تعديل الترجمات', 'translations'],
         ];
         $permissionInsert = $pdo->prepare('INSERT INTO permissions (code, name_ar, module_code) VALUES (:code, :name_ar, :module_code) ON DUPLICATE KEY UPDATE name_ar = VALUES(name_ar), module_code = VALUES(module_code)');
         foreach ($permissions as [$code, $name, $module]) { $permissionInsert->execute(['code' => $code, 'name_ar' => $name, 'module_code' => $module]); }

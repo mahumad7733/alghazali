@@ -67,7 +67,7 @@ if ($method === 'OPTIONS') {
 if ($route === 'language/context' && $method === 'GET') {
     Response::success('تم جلب سياق اللغة.', [
         'language' => $languageService->context(),
-        'translations' => $languageService->translationsForClient(['common.close', 'common.save', 'common.cancel', 'common.loading', 'common.search', 'common.language', 'nav.home', 'nav.bookings', 'nav.trips', 'auth.login', 'auth.register', 'booking.confirm', 'booking.cancel']),
+        'translations' => $languageService->translationsForClient(),
     ]);
 }
 
@@ -111,6 +111,13 @@ if ($route === 'admin/translations' && $method === 'GET') {
     catch (\Throwable $exception) { Response::error($exception->getMessage(), 'LANGUAGE_SCHEMA_NOT_READY', 503); }
 }
 
+if ($route === 'admin/translations' && $method === 'POST') {
+    Security::assertCsrf();
+    $actor = $auth->requirePermissions(['translations.update']);
+    try { Response::success('تم إنشاء مفتاح الترجمة.', ['item' => $translationAdmin->createTranslationKey(Security::jsonInput(), (int) $actor['id'])], 201); }
+    catch (\InvalidArgumentException $exception) { Response::error($exception->getMessage(), 'VALIDATION_ERROR', 422); }
+    catch (\PDOException $exception) { Response::error('تعذر إنشاء مفتاح الترجمة؛ قد يكون المفتاح مستخدمًا.', 'TRANSLATION_CONFLICT', 409); }
+}
 if (preg_match('#^admin/translations/(\d+)$#', $route, $matches) === 1 && $method === 'PUT') {
     Security::assertCsrf();
     $actor = $auth->requirePermissions(['translations.update']);
@@ -288,7 +295,7 @@ if ($route === 'contact-channels' && $method === 'GET') {
 }
 
 if ($route === 'site-settings' && $method === 'GET') {
-    Response::success('تم جلب إعدادات الموقع.', ['settings' => $siteSettings->publicSettings(), 'pages' => $pageSettings->publicPages()]);
+    Response::success('تم جلب إعدادات الموقع.', ['settings' => $siteSettings->publicSettings((string) ($languageService->context()['code'] ?? 'ar')), 'pages' => $pageSettings->publicPages()]);
 }
 
 if ($route === 'public-page-settings' && $method === 'GET') {
@@ -310,7 +317,7 @@ if (preg_match('#^admin/public-page-settings/([a-z-]+)$#', $route, $matches) && 
 
 if ($route === 'admin/site-settings' && $method === 'GET') {
     $auth->requirePermissions(['manage_settings']);
-    Response::success('تم جلب إعدادات الموقع للإدارة.', ['settings' => $siteSettings->publicSettings()]);
+    Response::success('تم جلب إعدادات الموقع للإدارة.', ['settings' => $siteSettings->publicSettings((string) ($languageService->context()['code'] ?? 'ar'))]);
 }
 
 if ($route === 'admin/site-settings' && $method === 'PUT') {

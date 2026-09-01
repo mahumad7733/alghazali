@@ -7,6 +7,7 @@ header('Pragma: no-cache');
 use App\Includes\Auth;
 use App\Includes\Security;
 
+$languageService = $GLOBALS['languageService'];
 $auth = new Auth($database);
 $current = $auth->currentUser();
 if ($current !== null) {
@@ -15,12 +16,16 @@ if ($current !== null) {
     header('Location: ' . $target, true, 302);
     exit;
 }
-$siteSettings = (new \App\Includes\SiteSettingsService($database))->publicSettings();
+$siteSettings = (new \App\Includes\SiteSettingsService($database))->publicSettings((string) ($languageService->context()['code'] ?? 'ar'));
 $siteName = (string) ($siteSettings['site_name_ar'] ?? 'منصة رحلة');
+$languageContext = $languageService->context();
+$languageCode = (string) ($languageContext['code'] ?? 'ar');
+$languageDirection = (string) ($languageContext['direction'] ?? 'rtl');
+$bootstrapCss = (string) ($languageContext['bootstrap_css'] ?? 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css');
 $logoPath = (string) ($siteSettings['logo_path'] ?? '');
 $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $logoPath) === 1 ? Security::escape($logoPath) . '?v=' . rawurlencode((string) time()) : '';
 ?><!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="<?= Security::escape($languageCode) ?>" dir="<?= Security::escape($languageDirection) ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -30,6 +35,8 @@ $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $log
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="<?= Security::escape($bootstrapCss) ?>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="assets/css/app.css?v=20260827-57">
   <style>
     :root{--login-ink:#102b43;--login-primary:#174a7e;--login-blue:#1e88c9;--login-gold:#d89b35;--login-muted:#668096;--login-border:#dce6ef}
@@ -43,8 +50,8 @@ $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $log
     .login-mark img,.login-logo img{width:100%;height:100%;padding:8px;object-fit:contain;border-radius:inherit}.login-theme-toggle{position:absolute;top:18px;left:18px;z-index:2;display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--login-border);border-radius:999px;background:rgb(255 255 255/.72);color:var(--login-ink);font:800 .72rem Tajawal,sans-serif;cursor:pointer}.login-theme-toggle:hover{background:#fff}.login-page.login-dark{background:radial-gradient(circle at 8% 12%,rgb(30 136 201/.18),transparent 28%),linear-gradient(145deg,#071523,#0f2235 54%,#10283d);color:#e2e8f0}.login-dark .login-card{border-color:#24415d;background:#12243a;box-shadow:0 30px 75px rgb(0 0 0/.35)}.login-dark .login-content{background:#12243a}.login-dark .login-brand b,.login-dark .login-content h1{color:#f8fafc}.login-dark .login-brand small,.login-dark .login-description,.login-dark .login-hint{color:#9fb2c7}.login-dark .login-form label{color:#cbd5e1}.login-dark .login-form input{border-color:#29445f;background:#0d1c2e;color:#f8fafc}.login-dark .login-form input:focus{background:#10253d;border-color:#4da3d8}.login-dark .login-hint{border-color:#29445f}.login-dark .login-hint a{color:#7dd3fc}.login-dark .login-theme-toggle{border-color:#3a5873;background:#18324b;color:#e2e8f0}@media(max-width:760px){.login-theme-toggle{top:12px;left:12px}}
   </style>
 </head>
-<body class="login-page">
-  <main class="login-card"><button class="login-theme-toggle" id="login-theme-toggle" type="button" aria-label="تفعيل الوضع الليلي"><span class="login-theme-icon">◐</span><span class="login-theme-label">ليلي</span></button>
+<body class="login-page" data-api-base="api/v1" data-language-code="<?= Security::escape($languageCode) ?>" data-language-direction="<?= Security::escape($languageDirection) ?>">
+  <main class="login-card"><div id="login-language-slot" class="login-language-slot"></div><button class="login-theme-toggle" id="login-theme-toggle" type="button" aria-label="تفعيل الوضع الليلي"><span class="login-theme-icon">◐</span><span class="login-theme-label">ليلي</span></button>
     <section class="login-visual" aria-label="مزايا المنصة">
       <span class="login-dots"></span>
       <div class="login-mark"><?= $logoHref !== '' ? '<img src="' . $logoHref . '" alt="' . Security::escape($siteName) . '">' : '🚌' ?></div>
@@ -71,6 +78,7 @@ $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $log
       <div class="login-hint"><a href="customer.php">إنشاء حساب عميل أو البحث عن رحلة</a></div>
     </section>
   </main>
+  <script src="assets/js/i18n.js?v=20260901-13" defer></script>
   <script>
     const loginThemeToggle=document.getElementById('login-theme-toggle');const applyLoginTheme=(theme)=>{const dark=theme==='dark';document.body.classList.toggle('login-dark',dark);if(loginThemeToggle){loginThemeToggle.querySelector('.login-theme-label').textContent=dark?'نهاري':'ليلي';loginThemeToggle.querySelector('.login-theme-icon').textContent=dark?'☀':'◐';loginThemeToggle.setAttribute('aria-label',dark?'تفعيل الوضع النهاري':'تفعيل الوضع الليلي');}};applyLoginTheme(localStorage.getItem('rihla-theme')||'light');loginThemeToggle?.addEventListener('click',()=>{const next=document.body.classList.contains('login-dark')?'light':'dark';localStorage.setItem('rihla-theme',next);applyLoginTheme(next);});
     const form=document.getElementById('login-form'),message=document.getElementById('login-message'),csrf=document.querySelector('meta[name="csrf-token"]').content;

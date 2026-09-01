@@ -1,3 +1,4 @@
 class City { final int id; final String name; City(this.id, this.name); factory City.fromJson(Map<String,dynamic> j) => City(int.parse('${j['id']}'), '${j['name_ar'] ?? j['name'] ?? ''}'); }
 class Trip { final int id; final Map<String,dynamic> data; Trip(this.id, this.data); factory Trip.fromJson(Map<String,dynamic> j) => Trip(int.parse('${j['id']}'), j); String get company => '${data['company_name'] ?? 'شركة النقل'}'; String get origin => '${data['origin_city_name'] ?? data['origin_name'] ?? ''}'; String get destination => '${data['destination_city_name'] ?? data['destination_name'] ?? ''}'; String get price => '${data['price'] ?? data['amount'] ?? '--'} ${data['currency_symbol'] ?? data['currency_code'] ?? ''}'; }
 class AppUser { final Map<String,dynamic> data; AppUser(this.data); String get name => '${data['name_ar'] ?? data['full_name_ar'] ?? 'مستخدم رحلة'}'; bool get agent => '${data['agent_id'] ?? ''}' != ''; }
+

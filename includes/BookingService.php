@@ -450,7 +450,10 @@ final class BookingService
         }
         $statement = $pdo->prepare(
             "SELECT b.id, b.booking_number, b.status, b.payment_status, b.total_amount, b.held_until, b.created_at, cu.code AS currency_code, cu.symbol_ar AS currency_symbol,
-                    t.trip_number, t.departure_at, co.trade_name AS company_name, u.full_name AS customer_name, u.email AS customer_email, u.phone AS customer_phone,
+                    t.trip_number, t.departure_at, co.trade_name AS company_name,
+                    COALESCE(u.full_name, (SELECT p0.full_name_ar FROM booking_passengers bp0 INNER JOIN passengers p0 ON p0.id = bp0.passenger_id WHERE bp0.booking_id = b.id ORDER BY bp0.id LIMIT 1)) AS customer_name,
+                    u.email AS customer_email,
+                    COALESCE(u.phone, (SELECT p1.phone FROM booking_passengers bp1 INNER JOIN passengers p1 ON p1.id = bp1.passenger_id WHERE bp1.booking_id = b.id ORDER BY bp1.id LIMIT 1)) AS customer_phone,
                     (SELECT pay.payment_channel FROM payments pay WHERE pay.booking_id = b.id ORDER BY pay.id DESC LIMIT 1) AS payment_channel,
                     (SELECT pay.bank_id FROM payments pay WHERE pay.booking_id = b.id ORDER BY pay.id DESC LIMIT 1) AS payment_bank_id,
                     b.cancellation_reason, EXISTS (SELECT 1 FROM trip_reviews rv WHERE rv.booking_id = b.id) AS review_submitted

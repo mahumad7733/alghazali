@@ -256,11 +256,12 @@ final class AdminService
     /** @return array<string, mixed> */
     public function createCity(array $actor, array $input): array
     {
-        if (!in_array('super_admin', $actor['roles'], true)) { Response::error('إدارة المدن متاحة للمدير الرئيسي فقط.', 'FORBIDDEN', 403); }
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_countries', $actor['permissions'] ?? [], true)) { Response::error('لا تملك صلاحية إدارة المدن.', 'FORBIDDEN', 403); }
         $countryId = filter_var($input['country_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $name = Security::cleanText($input['name_ar'] ?? null, 140);
         $status = ($input['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
         if ($countryId === false || mb_strlen($name) < 2 || $this->one($this->database->pdo(), 'SELECT id FROM countries WHERE id = :id AND is_active = 1', ['id' => $countryId]) === null) { Response::error('بيانات المدينة أو الدولة غير صالحة.', 'VALIDATION_ERROR', 422); }
+        if ($this->one($this->database->pdo(), 'SELECT id FROM cities WHERE country_id = :country_id AND name_ar = :name_ar LIMIT 1', ['country_id' => $countryId, 'name_ar' => $name]) !== null) { Response::error('هذه المدينة موجودة مسبقًا في الدولة المختارة.', 'DUPLICATE_CITY', 409); }
         $statement = $this->database->pdo()->prepare('INSERT INTO cities (country_id, name_ar, is_active) VALUES (:country_id, :name_ar, :is_active)');
         $statement->execute(['country_id' => $countryId, 'name_ar' => $name, 'is_active' => $status === 'active' ? 1 : 0]);
         $id = (int) $this->database->pdo()->lastInsertId();
@@ -271,7 +272,7 @@ final class AdminService
     /** @return array<string, mixed> */
     public function updateCityStatus(array $actor, int $cityId, array $input): array
     {
-        if (!in_array('super_admin', $actor['roles'], true)) { Response::error('إدارة المدن متاحة للمدير الرئيسي فقط.', 'FORBIDDEN', 403); }
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_countries', $actor['permissions'] ?? [], true)) { Response::error('لا تملك صلاحية إدارة المدن.', 'FORBIDDEN', 403); }
         $status = ($input['status'] ?? '') === 'active' ? 'active' : (($input['status'] ?? '') === 'inactive' ? 'inactive' : '');
         if ($status === '') { Response::error('حالة المدينة غير صالحة.', 'VALIDATION_ERROR', 422); }
         $statement = $this->database->pdo()->prepare('UPDATE cities SET is_active = :is_active WHERE id = :id');
@@ -284,7 +285,7 @@ final class AdminService
     /** @return array<string, mixed> */
     public function updateCity(array $actor, int $cityId, array $input): array
     {
-        if (!in_array('super_admin', $actor['roles'], true)) { Response::error('إدارة المدن متاحة للمدير الرئيسي فقط.', 'FORBIDDEN', 403); }
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_countries', $actor['permissions'] ?? [], true)) { Response::error('لا تملك صلاحية إدارة المدن.', 'FORBIDDEN', 403); }
         $name = Security::cleanText($input['name_ar'] ?? null, 140);
         if (mb_strlen($name) < 2) { Response::error('اسم المدينة غير صالح.', 'VALIDATION_ERROR', 422); }
         $statement = $this->database->pdo()->prepare('UPDATE cities SET name_ar = :name_ar WHERE id = :id');
@@ -297,7 +298,7 @@ final class AdminService
     /** @return array<string, mixed> */
     public function deleteCity(array $actor, int $cityId): array
     {
-        if (!in_array('super_admin', $actor['roles'], true)) { Response::error('إدارة المدن متاحة للمدير الرئيسي فقط.', 'FORBIDDEN', 403); }
+        if (!in_array('super_admin', $actor['roles'], true) && !in_array('manage_countries', $actor['permissions'] ?? [], true)) { Response::error('لا تملك صلاحية إدارة المدن.', 'FORBIDDEN', 403); }
         $pdo = $this->database->pdo();
         $city = $this->one($pdo, 'SELECT id, name_ar FROM cities WHERE id = :id', ['id' => $cityId]);
         if ($city === null) { Response::error('المدينة غير موجودة.', 'NOT_FOUND', 404); }

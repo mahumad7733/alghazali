@@ -43,7 +43,7 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= Security::escape($bootstrapCss) ?>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="assets/css/app.css?v=20260828-69">
+  <link rel="stylesheet" href="assets/css/app.css?v=20260909-01">
   <link rel="stylesheet" href="assets/css/public-template.css?v=20260828-53">
 </head>
 <body class="customer-page" data-language-code="<?= Security::escape($languageCode) ?>" data-language-direction="<?= Security::escape($languageDirection) ?>">
@@ -53,6 +53,6 @@ $iconHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $ico
   <script src="assets/js/developer-center.js?v=20260828-1" defer></script>
   <script src="assets/js/public-template.js?v=20260828-48" defer></script>
   <script src="assets/js/i18n.js?v=20260901-account" defer></script>
-  <script src="assets/js/app.js?v=20260828-103" defer></script>
+  <script src="assets/js/app.js?v=20260909-01" defer></script>
 </body>
 </html>

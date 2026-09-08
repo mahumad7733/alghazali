@@ -18,12 +18,12 @@ $bootstrapCss = (string) ($languageContext['bootstrap_css'] ?? 'https://cdn.jsde
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= Security::escape($bootstrapCss) ?>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="assets/css/app.css?v=20260828-69">
+  <link rel="stylesheet" href="assets/css/app.css?v=20260909-01">
 </head>
 <body class="dashboard-page" data-api-base="api/v1" data-language-code="<?= Security::escape($languageCode) ?>" data-language-direction="<?= Security::escape($languageDirection) ?>">
   <main id="app" data-role="agent"></main>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script>
-  <script src="assets/js/i18n.js?v=20260828-2" defer></script>
-  <script src="assets/js/app.js?v=20260828-103" defer></script>
+  <script src="assets/js/i18n.js?v=20260909-01" defer></script>
+  <script src="assets/js/app.js?v=20260909-01" defer></script>
 </body>
 </html>

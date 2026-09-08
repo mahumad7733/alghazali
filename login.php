@@ -45,7 +45,7 @@ $logoHref = preg_match('#^uploads/[a-z0-9_/-]+\\.(?:jpg|jpeg|png|webp)$#i', $log
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= Security::escape($bootstrapCss) ?>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="assets/css/app.css?v=20260827-57">
+  <link rel="stylesheet" href="assets/css/app.css?v=20260909-01">
   <style>
     :root{--login-ink:#102b43;--login-primary:#174a7e;--login-blue:#1e88c9;--login-gold:#d89b35;--login-muted:#668096;--login-border:#dce6ef}
     *{box-sizing:border-box}body.login-page{min-height:100vh;margin:0;display:grid;place-items:center;overflow-x:hidden;background:radial-gradient(circle at 8% 12%,rgb(30 136 201/.16),transparent 28%),radial-gradient(circle at 92% 88%,rgb(216 155 53/.14),transparent 28%),linear-gradient(145deg,#eef5f9,#fff 52%,#f4f7fa);font-family:Tajawal,system-ui,sans-serif;color:var(--login-ink)}

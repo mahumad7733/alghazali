@@ -271,7 +271,7 @@ final class OtpService
         $digits = strtr(trim($value), ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']);
         $digits = preg_replace('/[^0-9+]/', '', $digits) ?? '';
         if (str_starts_with($digits, '00')) $digits = '+' . substr($digits, 2);
-        if (!str_starts_with($digits, '+') && preg_match('/^7[0-9]{8}$/', $digits) === 1) $digits = $defaultCountry . $digits;
+        if (!str_starts_with($digits, '+') && preg_match('/^0?(7[0-9]{8})$/', $digits, $localMatch) === 1) $digits = $defaultCountry . $localMatch[1];
         if (preg_match('/^\+[1-9][0-9]{7,14}$/', $digits) !== 1) return null;
         return $digits;
     }

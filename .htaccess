@@ -54,3 +54,27 @@ RewriteRule ^api/v1/(.*)$ api/v1/index.php?route=$1 [QSA,L]
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/plain text/html text/css application/javascript application/json application/xml image/svg+xml
 </IfModule>
+
+
+# ترويسات أمان عامة لا تعتمد على منطق التطبيق.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>
+
+# منع الوصول المباشر إلى ملفات الإعدادات والمكونات الداخلية.
+<FilesMatch "^(?:config|database|bootstrap|\.env|composer\.(?:json|lock)|package(?:-lock)?\.json)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteRule ^(?:config|includes|classes|database)(?:/|$) - [F,L,NC]
+</IfModule>

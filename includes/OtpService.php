@@ -315,11 +315,11 @@ final class OtpService
     {
         $settings = $this->loadSettings();
         $pdo = $this->database->pdo();
-        $statement = $pdo->prepare('SELECT COUNT(*) FROM otp_challenges WHERE destination_hash = :destination_hash AND channel = :channel AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)');
+        $statement = $pdo->prepare('SELECT COALESCE(SUM(send_count), 0) FROM otp_challenges WHERE destination_hash = :destination_hash AND channel = :channel AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)');
         $statement->execute(['destination_hash' => $destinationHash, 'channel' => $channel]);
         if ((int) $statement->fetchColumn() >= (int) $settings['max_sends_per_hour']) Response::error('تم تجاوز الحد الأقصى لطلبات التحقق خلال الساعة.', 'OTP_RATE_LIMITED', 429);
         if ($ip !== '') {
-            $statement = $pdo->prepare('SELECT COUNT(*) FROM otp_challenges WHERE ip_address = :ip AND channel = :channel AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)');
+            $statement = $pdo->prepare('SELECT COALESCE(SUM(send_count), 0) FROM otp_challenges WHERE ip_address = :ip AND channel = :channel AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)');
             $statement->execute(['ip' => $ip, 'channel' => $channel]);
             if ((int) $statement->fetchColumn() >= (int) $settings['max_sends_per_day']) Response::error('تم تجاوز الحد الأقصى لطلبات التحقق اليوم.', 'OTP_RATE_LIMITED', 429);
         }
